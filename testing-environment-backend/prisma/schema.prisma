@@ -1,0 +1,197 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum SubscriptionPlanName {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum EnvironmentConfigType {
+  DOCKER_COMPOSE
+}
+
+enum TestRunStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  CANCELLED
+}
+
+enum TestResultStatus {
+  PASSED
+  FAILED
+}
+
+enum RunnerLogSource {
+  SYSTEM
+  DOCKER
+  TEST
+  ERROR
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole @default(OWNER)
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model Company {
+  id                 String            @id @default(uuid())
+  name               String
+  subscriptionPlanId String
+  subscriptionPlan   SubscriptionPlan  @relation(fields: [subscriptionPlanId], references: [id])
+  users              User[]
+  projects           Project[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([subscriptionPlanId])
+}
+
+model SubscriptionPlan {
+  id                  String               @id @default(uuid())
+  name                SubscriptionPlanName @unique
+  maxProjects         Int
+  maxRunsPerMonth     Int
+  maxConcurrentRuns   Int
+  maxRunnerMinutes    Int
+  reportRetentionDays Int
+  companies           Company[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+model Project {
+  id                          String              @id @default(uuid())
+  companyId                   String
+  company                     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name                        String
+  description                 String?
+  baseUrl                     String
+  mainServiceName             String
+  healthcheckPath             String
+  healthcheckExpectedStatus   Int                 @default(200)
+  healthcheckTimeoutSeconds   Int                 @default(60)
+  environmentConfig           EnvironmentConfig?
+  secrets                     Secret[]
+  testSuites                  TestSuite[]
+  testRuns                    TestRun[]
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+
+  @@index([companyId])
+}
+
+model EnvironmentConfig {
+  id              String                @id @default(uuid())
+  projectId       String                @unique
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type            EnvironmentConfigType @default(DOCKER_COMPOSE)
+  composeYaml     String
+  backendTestYaml String
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+}
+
+model Secret {
+  id             String   @id @default(uuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key            String
+  encryptedValue String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@index([projectId])
+}
+
+model TestSuite {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  yamlContent String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model TestRun {
+  id           String        @id @default(uuid())
+  projectId    String
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status       TestRunStatus @default(PENDING)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  totalTests   Int           @default(0)
+  passedTests  Int           @default(0)
+  failedTests  Int           @default(0)
+  durationMs   Int?
+  errorMessage String?
+  results      TestResult[]
+  logs         RunnerLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TestResult {
+  id             String           @id @default(uuid())
+  testRunId      String
+  testRun        TestRun          @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  suiteName      String
+  testName       String
+  status         TestResultStatus
+  method         String
+  path           String
+  expectedStatus Int
+  actualStatus   Int?
+  durationMs     Int
+  requestBody    Json?
+  responseBody   Json?
+  errorMessage   String?
+  createdAt      DateTime         @default(now())
+
+  @@index([testRunId])
+}
+
+model RunnerLog {
+  id        String          @id @default(uuid())
+  testRunId String
+  testRun   TestRun         @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  source    RunnerLogSource
+  message   String
+  createdAt DateTime        @default(now())
+
+  @@index([testRunId])
+}
