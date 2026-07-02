@@ -1,10 +1,14 @@
 export type RunStatus = 'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'CANCELLED';
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
+export type UserRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER';
 
 export interface User {
   id: string;
   email: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
+  role?: UserRole;
   company?: Company;
 }
 
@@ -19,14 +23,29 @@ export interface SubscriptionPlan {
   maxProjects: number;
   maxRunsPerMonth: number;
   maxConcurrentRuns: number;
+  maxRunnerMinutes?: number;
   reportRetentionDays: number;
   usage?: Usage;
 }
 
-export interface Usage {
+export interface CompanyUsage {
   projectsUsed: number;
   runsThisMonth: number;
   concurrentRuns: number;
+}
+
+export type Usage = CompanyUsage;
+
+export interface CompanyProfile {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  plan: SubscriptionPlan & {
+    maxRunnerMinutes: number;
+    usage: CompanyUsage;
+  };
+  membersCount: number;
 }
 
 export interface Project {
