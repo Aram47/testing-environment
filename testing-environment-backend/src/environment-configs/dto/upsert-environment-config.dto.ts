@@ -1,19 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { EnvironmentConfigType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsObject, IsOptional, IsString } from 'class-validator';
+import { EnvironmentVisualConfig } from '../types/environment-visual-config.types';
 
 export class UpsertEnvironmentConfigDto {
   @ApiProperty({ enum: EnvironmentConfigType, default: EnvironmentConfigType.DOCKER_COMPOSE })
   @IsEnum(EnvironmentConfigType)
   type: EnvironmentConfigType = EnvironmentConfigType.DOCKER_COMPOSE;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  composeYaml: string;
+  composeYaml?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  backendTestYaml: string;
+  backendTestYaml?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  visualConfig?: EnvironmentVisualConfig;
 }

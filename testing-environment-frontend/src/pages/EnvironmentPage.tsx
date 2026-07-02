@@ -36,7 +36,7 @@ export function EnvironmentPage() {
     return (
       <>
         <PageHeader title="Environment configuration" description="Add Docker Compose and backend-test.yml configuration." />
-        <EnvironmentEditor isSaving={mutation.isPending} onSave={(value) => mutation.mutate(value)} onMessage={showToast} />
+        <EnvironmentEditor projectId={projectId} isSaving={mutation.isPending} onSave={(value) => mutation.mutate(value)} onMessage={showToast} />
       </>
     );
   }
@@ -45,7 +45,7 @@ export function EnvironmentPage() {
     <>
       <PageHeader title="Environment configuration" description="Docker Compose, backend-test.yml, service settings, and healthcheck rules." />
       {query.isError ? <ErrorState error={query.error} /> : null}
-      <EnvironmentEditor value={query.data} isSaving={mutation.isPending} onSave={(value) => mutation.mutate(value)} onMessage={showToast} />
+      <EnvironmentEditor projectId={projectId} value={query.data} isSaving={mutation.isPending} onSave={(value) => mutation.mutate(value)} onMessage={showToast} />
     </>
   );
 }

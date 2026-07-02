@@ -77,6 +77,7 @@ export interface EnvironmentConfig {
   projectId: string;
   dockerComposeYaml: string;
   backendTestYaml: string;
+  visualConfig?: EnvironmentVisualConfig;
   mainServiceName: string;
   healthcheckPath: string;
   healthcheckExpectedStatus: number;
@@ -85,13 +86,87 @@ export interface EnvironmentConfig {
   updatedAt?: string;
 }
 
+export interface EnvironmentVisualConfig {
+  version: '1.0';
+  services: EnvironmentServiceConfig[];
+  app: EnvironmentAppConfig;
+  run: EnvironmentRunConfig;
+}
+
+export interface EnvironmentServiceConfig {
+  name: string;
+  image?: string;
+  buildContext?: string;
+  buildDockerfile?: string;
+  ports?: EnvironmentPortMapping[];
+  environment?: EnvironmentVariable[];
+  dependsOn?: string[];
+  command?: string;
+}
+
+export interface EnvironmentPortMapping {
+  host: string;
+  container: string;
+}
+
+export interface EnvironmentVariable {
+  key: string;
+  value: string;
+}
+
+export interface EnvironmentAppConfig {
+  mainServiceName: string;
+  baseUrl: string;
+  healthcheckPath: string;
+  healthcheckExpectedStatus: number;
+  healthcheckTimeoutSeconds: number;
+}
+
+export interface EnvironmentRunConfig {
+  timeoutMinutes: number;
+  cleanup: boolean;
+}
+
 export interface TestSuite {
   id: string;
   projectId: string;
   name: string;
   yaml: string;
+  visualFlow?: FlowSuiteDefinition;
   testsCount?: number;
   updatedAt: string;
+}
+
+export interface FlowSuiteDefinition {
+  version: '1.0';
+  suiteName: string;
+  nodes: FlowApiNode[];
+  edges: FlowEdge[];
+}
+
+export interface FlowPosition {
+  x: number;
+  y: number;
+}
+
+export interface FlowApiNode {
+  id: string;
+  position: FlowPosition;
+  name: string;
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  query?: Record<string, unknown>;
+  jsonBody?: unknown;
+  expectStatus?: number;
+  jsonContains?: unknown;
+  save?: Record<string, string>;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
 }
 
 export interface TestRun {

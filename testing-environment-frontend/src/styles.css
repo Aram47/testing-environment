@@ -4,15 +4,33 @@
 
 :root {
   --color-border: 214 220 229;
+  --color-page: 246 248 251;
   --color-surface: 255 255 255;
+  --color-elevated: 255 255 255;
   --color-ink: 18 24 38;
   --color-muted: 96 108 128;
   --color-brand: 35 99 235;
+  --color-input: 255 255 255;
+  --color-code-bg: 15 23 42;
+  --color-code-text: 241 245 249;
+}
+
+:root[data-theme='dark'] {
+  --color-border: 51 65 85;
+  --color-page: 2 6 23;
+  --color-surface: 15 23 42;
+  --color-elevated: 30 41 59;
+  --color-ink: 241 245 249;
+  --color-muted: 148 163 184;
+  --color-brand: 96 165 250;
+  --color-input: 15 23 42;
+  --color-code-bg: 2 6 23;
+  --color-code-text: 226 232 240;
 }
 
 html {
   color: rgb(var(--color-ink));
-  background: #f6f8fb;
+  background: rgb(var(--color-page));
 }
 
 body {
@@ -34,5 +52,47 @@ select {
 }
 
 .input {
-  @apply focus-ring w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-ink shadow-sm placeholder:text-slate-400 disabled:bg-slate-100;
+  @apply focus-ring w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-ink shadow-sm placeholder:text-slate-400 disabled:opacity-60;
+}
+
+.panel {
+  @apply rounded-lg border border-border bg-surface shadow-sm;
+}
+
+.text-code {
+  color: rgb(var(--color-code-text));
+}
+
+.dark .bg-white {
+  background-color: rgb(var(--color-surface)) !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: rgb(var(--color-page)) !important;
+}
+
+.dark .bg-slate-200 {
+  background-color: rgb(var(--color-border)) !important;
+}
+
+.dark .text-slate-100,
+.dark .text-slate-900 {
+  color: rgb(var(--color-ink)) !important;
+}
+
+.dark .text-slate-400,
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .text-slate-700 {
+  color: rgb(var(--color-muted)) !important;
+}
+
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: rgb(var(--color-elevated)) !important;
+}
+
+.dark .bg-blue-50 {
+  background-color: rgb(30 58 138 / 0.35) !important;
 }

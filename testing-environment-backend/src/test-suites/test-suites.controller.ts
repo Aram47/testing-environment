@@ -7,6 +7,7 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { CompileFlowDto } from './dto/compile-flow.dto';
 import { CreateTestSuiteDto } from './dto/create-test-suite.dto';
 import { UpdateTestSuiteDto } from './dto/update-test-suite.dto';
 import { TestSuitesService } from './test-suites.service';
@@ -27,6 +28,16 @@ export class TestSuitesController {
   @Get()
   list(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Query() query: PaginationQueryDto) {
     return this.service.list(projectId, user.companyId, query);
+  }
+
+  @Post('compile-flow')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  compileFlow(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CompileFlowDto,
+  ) {
+    return this.service.compileFlow(projectId, user.companyId, dto.visualFlow);
   }
 
   @Get(':suiteId')

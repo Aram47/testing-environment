@@ -1,15 +1,22 @@
 import { apiClient } from './client';
-import type { TestSuite } from '../types';
+import type { FlowSuiteDefinition, TestSuite } from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 
 export interface TestSuiteInput {
   name: string;
-  yamlContent: string;
+  yamlContent?: string;
+  visualFlow?: FlowSuiteDefinition;
 }
 
 interface TestSuiteResponse extends Omit<TestSuite, 'yaml'> {
   yaml?: string;
   yamlContent?: string;
+}
+
+export interface FlowCompileResult {
+  yamlContent: string;
+  testsCount: number;
+  warnings: string[];
 }
 
 class TestSuitesApi {
@@ -31,6 +38,11 @@ class TestSuitesApi {
   async update(projectId: string, suiteId: string, input: Partial<TestSuiteInput>): Promise<TestSuite> {
     const { data } = await apiClient.patch<TestSuiteResponse>(`/projects/${projectId}/test-suites/${suiteId}`, input);
     return this.toTestSuite(data);
+  }
+
+  async compileFlow(projectId: string, visualFlow: FlowSuiteDefinition): Promise<FlowCompileResult> {
+    const { data } = await apiClient.post<FlowCompileResult>(`/projects/${projectId}/test-suites/compile-flow`, { visualFlow });
+    return data;
   }
 
   async remove(projectId: string, suiteId: string): Promise<void> {

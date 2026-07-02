@@ -53,6 +53,7 @@ export function TestSuiteEditorPage({ mode }: { mode: 'new' | 'edit' }) {
     <>
       <PageHeader title={mode === 'new' ? 'New test suite' : 'Edit test suite'} description="Write request flows and expectations in YAML." />
       <TestSuiteEditor
+        projectId={projectId}
         value={suiteQuery.data}
         isSaving={saveMutation.isPending}
         onSave={(value) => saveMutation.mutate(value)}

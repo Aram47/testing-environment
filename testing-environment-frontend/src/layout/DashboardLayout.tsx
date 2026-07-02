@@ -4,8 +4,8 @@ import { Topbar } from './Topbar';
 
 export function DashboardLayout() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <a className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-white focus:p-3" href="#main">
+    <div className="min-h-screen bg-page">
+      <a className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-surface focus:p-3" href="#main">
         Skip to content
       </a>
       <Sidebar />

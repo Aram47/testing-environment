@@ -114,6 +114,7 @@ model EnvironmentConfig {
   type            EnvironmentConfigType @default(DOCKER_COMPOSE)
   composeYaml     String
   backendTestYaml String
+  visualConfig    Json?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
 }
@@ -137,6 +138,7 @@ model TestSuite {
   project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name        String
   yamlContent String
+  visualFlow  Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
