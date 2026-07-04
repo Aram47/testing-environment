@@ -26,11 +26,35 @@ enum EnvironmentConfigType {
 }
 
 enum TestRunStatus {
-  PENDING
-  RUNNING
+  CREATED
+  QUEUED
+  CLAIMED
+  PREPARING_WORKSPACE
+  VALIDATING_ENVIRONMENT
+  PULLING_IMAGES
+  STARTING_ENVIRONMENT
+  WAITING_FOR_HEALTHCHECK
+  EXECUTING_TESTS
+  COLLECTING_ARTIFACTS
+  CLEANING_UP
   PASSED
-  FAILED
+  TEST_FAILED
+  INFRA_FAILED
+  TIMED_OUT
+  CANCEL_REQUESTED
   CANCELLED
+}
+
+enum TestRunFailureCategory {
+  TEST_ASSERTION
+  ENVIRONMENT_VALIDATION
+  IMAGE_PULL
+  CONTAINER_START
+  HEALTHCHECK
+  NETWORK
+  TIMEOUT
+  CANCELLED
+  INTERNAL
 }
 
 enum TestResultStatus {
@@ -149,8 +173,13 @@ model TestRun {
   id                      String        @id @default(uuid())
   projectId               String
   project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status                  TestRunStatus @default(PENDING)
+  status                  TestRunStatus @default(CREATED)
+  statusReason            String?
+  failureCategory         TestRunFailureCategory?
+  currentPhase            String?
+  phaseTimestamps         Json?
   queueJobId              String?
+  queuedAt                DateTime?
   enqueuedAt              DateTime?
   claimedAt               DateTime?
   cancellationRequestedAt DateTime?

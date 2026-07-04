@@ -350,7 +350,8 @@ Click the action to start a new run. The backend will:
 
 Open a run detail page to see:
 
-- Run status: `PENDING`, `RUNNING`, `PASSED`, `FAILED`, or `CANCELLED`.
+- Run status and phase, including queued/claimed/preparation/environment/test execution states,
+  terminal `PASSED`, `TEST_FAILED`, `INFRA_FAILED`, `TIMED_OUT`, and cancellation states.
 - Total, passed, and failed tests.
 - Individual test results.
 - Request and response bodies.

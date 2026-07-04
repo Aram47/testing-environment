@@ -253,11 +253,35 @@ Root module подключает:
 
 `TestRunStatus`:
 
-- `PENDING`;
-- `RUNNING`;
+- `CREATED`;
+- `QUEUED`;
+- `CLAIMED`;
+- `PREPARING_WORKSPACE`;
+- `VALIDATING_ENVIRONMENT`;
+- `PULLING_IMAGES`;
+- `STARTING_ENVIRONMENT`;
+- `WAITING_FOR_HEALTHCHECK`;
+- `EXECUTING_TESTS`;
+- `COLLECTING_ARTIFACTS`;
+- `CLEANING_UP`;
 - `PASSED`;
-- `FAILED`;
+- `TEST_FAILED`;
+- `INFRA_FAILED`;
+- `TIMED_OUT`;
+- `CANCEL_REQUESTED`;
 - `CANCELLED`.
+
+`TestRunFailureCategory`:
+
+- `TEST_ASSERTION`;
+- `ENVIRONMENT_VALIDATION`;
+- `IMAGE_PULL`;
+- `CONTAINER_START`;
+- `HEALTHCHECK`;
+- `NETWORK`;
+- `TIMEOUT`;
+- `CANCELLED`;
+- `INTERNAL`.
 
 `TestResultStatus`:
 
@@ -805,17 +829,18 @@ Endpoints:
 
 - проверяет project access;
 - проверяет subscription limits;
-- создает `TestRun` со статусом `PENDING`;
-- вызывает `runner.start(run.id)`;
+- создает `TestRun` со статусом `CREATED`;
+- ставит durable BullMQ job и переводит run в `QUEUED`;
 - сразу возвращает run.
 
-Runner стартует async fire-and-forget внутри backend process.
+Runner выполняется worker process через durable queue.
 
 `TestRunsService.cancel`:
 
 - проверяет run;
-- вызывает `runner.cancel(runId)`;
-- обновляет статус на `CANCELLED`.
+- переводит cancellable run в `CANCEL_REQUESTED`;
+- удаляет queued job и завершает `CANCELLED`, если job еще не активен;
+- для active job сохраняет cancellation в PostgreSQL, worker завершает run как `CANCELLED`.
 
 ### RunnerModule
 
@@ -845,7 +870,7 @@ Runner - ядро проекта.
 RUNNER_WORKSPACE_ROOT/testRunId
 ```
 
-6. Обновляет run status на `RUNNING`.
+6. Claim-ит queued run и переводит его через durable phase statuses.
 7. Пишет system log.
 8. Emits `run.started`.
 9. Валидирует compose YAML через Docker service.
@@ -873,7 +898,9 @@ baseUrl + healthcheckPath
 19. Вычисляет final status:
 
 - `CANCELLED`, если run был cancelled;
-- `FAILED`, если есть failed tests;
+- `TEST_FAILED`, если есть failed tests/assertion failures;
+- `INFRA_FAILED`, если произошла platform/environment ошибка;
+- `TIMED_OUT`, если достигнут execution timeout;
 - `PASSED`, если все passed.
 
 20. Обновляет `TestRun` final stats.
@@ -1185,7 +1212,7 @@ Async path:
 - correlationId/requestId;
 - metrics: run duration, pass rate, queue wait time, docker startup time, healthcheck time;
 - tracing для request -> runner job -> results;
-- alerts по failed runner jobs и stuck RUNNING runs.
+- alerts по failed runner jobs и stuck active TestRun phases.
 
 ### Testing coverage
 

@@ -1,4 +1,32 @@
-export type RunStatus = 'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'CANCELLED';
+export type RunStatus =
+  | 'CREATED'
+  | 'QUEUED'
+  | 'CLAIMED'
+  | 'PREPARING_WORKSPACE'
+  | 'VALIDATING_ENVIRONMENT'
+  | 'PULLING_IMAGES'
+  | 'STARTING_ENVIRONMENT'
+  | 'WAITING_FOR_HEALTHCHECK'
+  | 'EXECUTING_TESTS'
+  | 'COLLECTING_ARTIFACTS'
+  | 'CLEANING_UP'
+  | 'PASSED'
+  | 'TEST_FAILED'
+  | 'INFRA_FAILED'
+  | 'TIMED_OUT'
+  | 'CANCEL_REQUESTED'
+  | 'CANCELLED';
+export type TestRunFailureCategory =
+  | 'TEST_ASSERTION'
+  | 'ENVIRONMENT_VALIDATION'
+  | 'IMAGE_PULL'
+  | 'CONTAINER_START'
+  | 'HEALTHCHECK'
+  | 'NETWORK'
+  | 'TIMEOUT'
+  | 'CANCELLED'
+  | 'INTERNAL';
+export type TestResultStatus = 'PASSED' | 'FAILED';
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 export type UserRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER';
 
@@ -213,7 +241,15 @@ export interface TestRun {
   id: string;
   projectId: string;
   status: RunStatus;
-  startedAt: string;
+  statusReason?: string;
+  failureCategory?: TestRunFailureCategory;
+  currentPhase?: string;
+  phaseTimestamps?: Record<string, string>;
+  queuedAt?: string;
+  enqueuedAt?: string;
+  claimedAt?: string;
+  cancellationRequestedAt?: string;
+  startedAt?: string;
   finishedAt?: string;
   totalTests: number;
   passed: number;
@@ -226,7 +262,7 @@ export interface TestResult {
   id: string;
   stepId?: string;
   stepType?: FlowNodeType;
-  status: RunStatus;
+  status: TestResultStatus;
   suiteName: string;
   testName: string;
   method: string;

@@ -1,7 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { PrismaService } from '../prisma/prisma.service';
+import { TestRunStateService } from '../test-runs/test-run-state.service';
 import {
   getTestRunJobId,
   TEST_RUN_JOB_NAME,
@@ -13,7 +13,7 @@ import {
 export class TestRunQueueService {
   constructor(
     @InjectQueue(TEST_RUN_QUEUE) private readonly queue: Queue<TestRunJobData>,
-    private readonly prisma: PrismaService,
+    private readonly state: TestRunStateService,
   ) {}
 
   getJobId(testRunId: string): string {
@@ -23,10 +23,7 @@ export class TestRunQueueService {
   async enqueue(testRunId: string): Promise<string> {
     const jobId = this.getJobId(testRunId);
     await this.queue.add(TEST_RUN_JOB_NAME, { testRunId }, { jobId });
-    await this.prisma.testRun.update({
-      where: { id: testRunId },
-      data: { queueJobId: jobId, enqueuedAt: new Date(), errorMessage: null },
-    });
+    await this.state.markQueued(testRunId, jobId);
     return jobId;
   }
 

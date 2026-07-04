@@ -13,16 +13,16 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    const pendingRuns = await this.prisma.testRun.findMany({
+    const recoverableRuns = await this.prisma.testRun.findMany({
       where: {
-        status: TestRunStatus.PENDING,
+        status: { in: [TestRunStatus.CREATED, TestRunStatus.QUEUED] },
         finishedAt: null,
         cancellationRequestedAt: null,
       },
       select: { id: true },
     });
 
-    for (const run of pendingRuns) {
+    for (const run of recoverableRuns) {
       try {
         await this.queue.enqueue(run.id);
       } catch (error) {

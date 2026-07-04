@@ -92,15 +92,16 @@ Target `TestRun` states should be explicit and guarded.
 
 Recommended state model:
 
-- `PENDING`: run created and awaiting enqueue or queue pickup.
+- `CREATED`: run row exists before durable enqueue completes.
 - `QUEUED`: durable job exists.
-- `STARTING`: worker claimed the run and prepares workspace.
-- `ENVIRONMENT_STARTING`: Docker Compose is starting.
-- `ENVIRONMENT_READY`: healthcheck passed.
-- `RUNNING`: test steps are executing.
-- `CANCELLING`: cancellation requested and worker is stopping work.
+- `CLAIMED`: worker claimed the run.
+- `PREPARING_WORKSPACE`, `VALIDATING_ENVIRONMENT`, `PULLING_IMAGES`,
+  `STARTING_ENVIRONMENT`, `WAITING_FOR_HEALTHCHECK`, `EXECUTING_TESTS`,
+  `COLLECTING_ARTIFACTS`, `CLEANING_UP`: durable runner phases.
+- `CANCEL_REQUESTED`: cancellation requested and worker is stopping work.
 - `PASSED`: completed with no failed tests.
-- `FAILED`: completed with test or execution failure.
+- `TEST_FAILED`: user test assertions failed.
+- `INFRA_FAILED`: platform/environment execution failed.
 - `CANCELLED`: cancellation completed.
 - `TIMED_OUT`: exceeded configured run timeout.
 
@@ -110,7 +111,7 @@ Rules:
 - Final states are terminal.
 - Cancellation request must be persisted.
 - Worker heartbeat or lease metadata should allow recovery from crashed workers.
-- API cancellation should move the run toward `CANCELLING`, not rely on an in-memory set.
+- API cancellation should move the run toward `CANCEL_REQUESTED`, not rely on an in-memory set.
 - Repeated create/enqueue/cancel operations must be idempotent where clients or workers may retry.
 
 For backward compatibility, frontend status labels can initially map detailed internal states to the existing coarse statuses.

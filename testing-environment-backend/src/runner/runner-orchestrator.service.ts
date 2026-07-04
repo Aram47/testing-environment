@@ -1,9 +1,15 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { RunnerLogSource, TestResultStatus, TestRunStatus } from '@prisma/client';
+import {
+  RunnerLogSource,
+  TestResultStatus,
+  TestRunFailureCategory,
+  TestRunStatus,
+} from '@prisma/client';
 import { mkdir, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
@@ -32,6 +38,12 @@ class TestRunCancellationError extends Error {
   }
 }
 
+class TestRunTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
 @Injectable()
 export class RunnerOrchestratorService {
   private readonly logger = new Logger(RunnerOrchestratorService.name);
@@ -46,6 +58,7 @@ export class RunnerOrchestratorService {
     private readonly assertions: AssertionEngineService,
     private readonly variables: VariableStoreService,
     private readonly realtime: RealtimeService,
+    private readonly state: TestRunStateService,
   ) {}
 
   async execute(testRunId: string): Promise<void> {
@@ -59,8 +72,12 @@ export class RunnerOrchestratorService {
       if (!run) {
         throw new NotFoundException('Test run not found');
       }
+      if (run.status === TestRunStatus.CANCEL_REQUESTED) {
+        await this.state.markCancelled(testRunId, Date.now() - started);
+        return;
+      }
       await this.ensureNotCancelled(testRunId);
-      if (run.status !== TestRunStatus.PENDING) {
+      if (run.status !== TestRunStatus.QUEUED) {
         this.logger.warn(`Skipping test run ${testRunId} because it is ${run.status}`);
         return;
       }
@@ -71,15 +88,16 @@ export class RunnerOrchestratorService {
         throw new Error('At least one test suite is required');
       }
 
-      const claimed = await this.markRunning(testRunId);
-      if (!claimed) {
-        return;
-      }
+      await this.state.claim(testRunId);
+      await this.ensureNotCancelled(testRunId);
+
+      await this.state.enterPhase(testRunId, TestRunStatus.PREPARING_WORKSPACE);
       workspace = await this.createWorkspace(testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing isolated local workspace');
       this.emit('run.started', testRunId);
 
       const { environmentConfig, testSuites } = run.project;
+      await this.state.enterPhase(testRunId, TestRunStatus.VALIDATING_ENVIRONMENT);
       this.docker.validateCompose(environmentConfig.composeYaml);
       await writeFile(join(workspace, 'docker-compose.test.yml'), environmentConfig.composeYaml);
       await writeFile(join(workspace, 'backend-test.yml'), environmentConfig.backendTestYaml);
@@ -89,11 +107,15 @@ export class RunnerOrchestratorService {
       }
 
       await this.ensureNotCancelled(testRunId);
+      await this.state.enterPhase(testRunId, TestRunStatus.PULLING_IMAGES);
+      await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing docker images');
+      await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
       this.emit('environment.starting', testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
       await this.docker.up(workspace);
 
       await this.ensureNotCancelled(testRunId);
+      await this.state.enterPhase(testRunId, TestRunStatus.WAITING_FOR_HEALTHCHECK);
       await this.healthcheck.waitFor(
         run.project.baseUrl,
         run.project.healthcheckPath,
@@ -102,25 +124,62 @@ export class RunnerOrchestratorService {
       );
       this.emit('environment.ready', testRunId);
 
+      await this.state.enterPhase(testRunId, TestRunStatus.EXECUTING_TESTS);
       const stats = await this.executeSuites(testRunId, run.project.baseUrl, testSuites);
+      await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
       const dockerLogs = await this.safeDockerLogs(workspace);
       if (dockerLogs) {
         await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs.slice(-20000));
         this.emit('logs.updated', testRunId);
       }
 
-      const status = (await this.isCancellationRequested(testRunId))
-        ? TestRunStatus.CANCELLED
-        : stats.failedTests > 0
-          ? TestRunStatus.FAILED
-          : TestRunStatus.PASSED;
-      await this.finish(testRunId, status, started, stats);
+      await this.state.enterPhase(testRunId, TestRunStatus.CLEANING_UP);
+      if (workspace) {
+        this.emit('environment.stopping', testRunId);
+        await this.docker
+          .down(workspace)
+          .catch((error) => this.log(testRunId, RunnerLogSource.ERROR, String(error)));
+        await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+        workspace = '';
+      }
+
+      if (await this.isCancellationRequested(testRunId)) {
+        await this.state.markCancelled(testRunId, Date.now() - started);
+      } else if (stats.failedTests > 0) {
+        await this.state.markTestFailed(
+          testRunId,
+          stats,
+          Date.now() - started,
+          `${stats.failedTests} test assertion(s) failed`,
+        );
+      } else {
+        await this.state.markPassed(testRunId, stats, Date.now() - started);
+      }
     } catch (error) {
-      const status =
-        error instanceof TestRunCancellationError ? TestRunStatus.CANCELLED : TestRunStatus.FAILED;
       const message = error instanceof Error ? error.message : 'Runner failed';
       await this.log(testRunId, RunnerLogSource.ERROR, message).catch(() => undefined);
-      await this.finish(testRunId, status, started, undefined, message).catch(() => undefined);
+      if (
+        error instanceof TestRunCancellationError ||
+        (await this.isCancellationRequested(testRunId))
+      ) {
+        await this.state.requestCancel(testRunId).catch(() => undefined);
+        await this.state.markCancelled(testRunId, Date.now() - started).catch(() => undefined);
+      } else if (error instanceof TestRunTimeoutError) {
+        await this.state
+          .markTimedOut(testRunId, message, Date.now() - started)
+          .catch(() => undefined);
+      } else {
+        const failureCategory = await this.failureCategoryFor(testRunId, message);
+        if (failureCategory === TestRunFailureCategory.TIMEOUT) {
+          await this.state
+            .markTimedOut(testRunId, message, Date.now() - started)
+            .catch(() => undefined);
+        } else {
+          await this.state
+            .markInfraFailed(testRunId, failureCategory, message, Date.now() - started)
+            .catch(() => undefined);
+        }
+      }
     } finally {
       if (workspace) {
         this.emit('environment.stopping', testRunId);
@@ -360,38 +419,6 @@ export class RunnerOrchestratorService {
     return workspace;
   }
 
-  private async markRunning(testRunId: string): Promise<boolean> {
-    const result = await this.prisma.testRun.updateMany({
-      where: { id: testRunId, status: TestRunStatus.PENDING, cancellationRequestedAt: null },
-      data: { status: TestRunStatus.RUNNING, startedAt: new Date(), claimedAt: new Date() },
-    });
-    if (result.count === 0) {
-      await this.ensureNotCancelled(testRunId);
-      this.logger.warn(`Skipping test run ${testRunId} because it could not be claimed`);
-      return false;
-    }
-    return true;
-  }
-
-  private async finish(
-    testRunId: string,
-    status: TestRunStatus,
-    started: number,
-    stats?: { totalTests: number; passedTests: number; failedTests: number },
-    errorMessage?: string,
-  ): Promise<void> {
-    await this.prisma.testRun.update({
-      where: { id: testRunId },
-      data: {
-        status,
-        finishedAt: new Date(),
-        durationMs: Date.now() - started,
-        errorMessage,
-        ...(stats ?? {}),
-      },
-    });
-  }
-
   private async log(testRunId: string, source: RunnerLogSource, message: string): Promise<void> {
     await this.prisma.runnerLog.create({ data: { testRunId, source, message } });
   }
@@ -415,7 +442,39 @@ export class RunnerOrchestratorService {
       where: { id: testRunId },
       select: { cancellationRequestedAt: true, status: true },
     });
-    return run?.status === TestRunStatus.CANCELLED || Boolean(run?.cancellationRequestedAt);
+    return (
+      run?.status === TestRunStatus.CANCEL_REQUESTED ||
+      run?.status === TestRunStatus.CANCELLED ||
+      Boolean(run?.cancellationRequestedAt)
+    );
+  }
+
+  private async failureCategoryFor(
+    testRunId: string,
+    message: string,
+  ): Promise<TestRunFailureCategory> {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: { status: true },
+    });
+    if (run?.status === TestRunStatus.VALIDATING_ENVIRONMENT) {
+      return TestRunFailureCategory.ENVIRONMENT_VALIDATION;
+    }
+    if (run?.status === TestRunStatus.PULLING_IMAGES || /pull|image/i.test(message)) {
+      return TestRunFailureCategory.IMAGE_PULL;
+    }
+    if (run?.status === TestRunStatus.STARTING_ENVIRONMENT) {
+      return TestRunFailureCategory.CONTAINER_START;
+    }
+    if (run?.status === TestRunStatus.WAITING_FOR_HEALTHCHECK) {
+      return /timeout|timed out/i.test(message)
+        ? TestRunFailureCategory.TIMEOUT
+        : TestRunFailureCategory.HEALTHCHECK;
+    }
+    if (/network|ECONN|ENOTFOUND|EAI_AGAIN/i.test(message)) {
+      return TestRunFailureCategory.NETWORK;
+    }
+    return TestRunFailureCategory.INTERNAL;
   }
 
   private emit(type: string, testRunId: string, payload?: Record<string, unknown>): void {

@@ -23,13 +23,13 @@ Likelihood: High
 
 Current state:
 
-- `TestRunsService.create()` creates a run and calls `runner.start(run.id)`.
-- Execution runs in the API process without BullMQ/Redis.
+- `TestRunsService.create()` creates a run and enqueues a BullMQ job.
+- Execution runs in a worker with durable TestRun state transitions.
 
 Impact:
 
-- API process crash can leave runs stuck in `PENDING` or `RUNNING`.
-- No retry, stalled job recovery, or operational queue visibility.
+- Worker crash can still leave claimed/in-flight runs needing lease-based recovery.
+- Queue retry and stalled job handling exist, but poison-job handling remains basic.
 
 Mitigation:
 
@@ -62,7 +62,7 @@ Impact:
 Mitigation:
 
 - Persist cancellation request in PostgreSQL.
-- Add `CANCELLING` lifecycle state.
+- Use `CANCEL_REQUESTED` lifecycle state.
 - Worker checks durable cancellation before and during long operations.
 - Mark final `CANCELLED` only after cleanup completes or a recovery job records cleanup failure.
 

@@ -19,6 +19,13 @@ export function TestRunProgress({ run }: { run: TestRun }) {
         <Metric label="Failed" value={run.failed} />
         <Metric label="Progress" value={`${complete}%`} />
       </div>
+      {run.currentPhase || run.failureCategory || run.statusReason ? (
+        <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-muted">
+          {run.currentPhase ? <p>Current phase: {run.currentPhase}</p> : null}
+          {run.failureCategory ? <p>Failure category: {run.failureCategory}</p> : null}
+          {run.statusReason ? <p className="text-ink">{run.statusReason}</p> : null}
+        </div>
+      ) : null}
     </section>
   );
 }

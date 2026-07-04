@@ -5,12 +5,10 @@ describe('TestRunQueueService', () => {
     const queue = {
       add: jest.fn(() => Promise.resolve()),
     };
-    const prisma = {
-      testRun: {
-        update: jest.fn(() => Promise.resolve()),
-      },
+    const state = {
+      markQueued: jest.fn(() => Promise.resolve()),
     };
-    const service = new TestRunQueueService(queue as never, prisma as never);
+    const service = new TestRunQueueService(queue as never, state as never);
 
     await service.enqueue('run-1');
     await service.enqueue('run-1');
@@ -28,5 +26,6 @@ describe('TestRunQueueService', () => {
       { testRunId: 'run-1' },
       { jobId: 'test-run:run-1' },
     );
+    expect(state.markQueued).toHaveBeenCalledTimes(2);
   });
 });

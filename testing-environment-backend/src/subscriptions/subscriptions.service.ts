@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { SubscriptionPlan, SubscriptionPlanName, TestRunStatus } from '@prisma/client';
+import { SubscriptionPlan, SubscriptionPlanName } from '@prisma/client';
 import { CompaniesService, CompanyProfile } from '../companies/companies.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { TEST_RUN_ACTIVE_STATUSES } from '../test-runs/test-run-status.constants';
 
 @Injectable()
 export class SubscriptionsService {
@@ -68,7 +69,7 @@ export class SubscriptionsService {
       this.prisma.testRun.count({
         where: {
           project: { companyId },
-          status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
+          status: { in: [...TEST_RUN_ACTIVE_STATUSES] },
         },
       }),
       this.prisma.project.findFirstOrThrow({ where: { id: projectId, companyId } }),
@@ -102,7 +103,7 @@ export class SubscriptionsService {
       this.prisma.testRun.count({
         where: {
           project: { companyId },
-          status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
+          status: { in: [...TEST_RUN_ACTIVE_STATUSES] },
         },
       }),
     ]);

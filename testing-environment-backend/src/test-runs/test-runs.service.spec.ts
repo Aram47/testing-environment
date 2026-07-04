@@ -1,8 +1,9 @@
-import { TestRunStatus } from '@prisma/client';
+import { TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunQueueService } from '../queue/test-run-queue.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { TestRunStateService } from './test-run-state.service';
 import { TestRunsService } from './test-runs.service';
 
 describe('TestRunsService', () => {
@@ -21,7 +22,21 @@ describe('TestRunsService', () => {
     enqueue: jest.Mock;
     cancelQueuedRun: jest.Mock;
   };
+  let state: {
+    isTerminal: jest.Mock;
+    cancellableStatuses: TestRunStatus[];
+    markInfraFailed: jest.Mock;
+    requestCancel: jest.Mock;
+    markCancelled: jest.Mock;
+  };
   let service: TestRunsService;
+  const terminalStatuses: TestRunStatus[] = [
+    TestRunStatus.PASSED,
+    TestRunStatus.TEST_FAILED,
+    TestRunStatus.INFRA_FAILED,
+    TestRunStatus.TIMED_OUT,
+    TestRunStatus.CANCELLED,
+  ];
 
   beforeEach(() => {
     prisma = {
@@ -41,7 +56,7 @@ describe('TestRunsService', () => {
           Promise.resolve({
             id: 'run-1',
             projectId,
-            status: TestRunStatus.PENDING,
+            status: TestRunStatus.QUEUED,
             cancellationRequestedAt: null,
             finishedAt: null,
           }),
@@ -53,6 +68,35 @@ describe('TestRunsService', () => {
       enqueue: jest.fn(() => Promise.resolve('test-run:run-1')),
       cancelQueuedRun: jest.fn(() => Promise.resolve('removed')),
     };
+    state = {
+      isTerminal: jest.fn((status: TestRunStatus) => terminalStatuses.includes(status)),
+      cancellableStatuses: [
+        TestRunStatus.QUEUED,
+        TestRunStatus.CLAIMED,
+        TestRunStatus.PREPARING_WORKSPACE,
+        TestRunStatus.VALIDATING_ENVIRONMENT,
+        TestRunStatus.PULLING_IMAGES,
+        TestRunStatus.STARTING_ENVIRONMENT,
+        TestRunStatus.WAITING_FOR_HEALTHCHECK,
+        TestRunStatus.EXECUTING_TESTS,
+        TestRunStatus.COLLECTING_ARTIFACTS,
+        TestRunStatus.CLEANING_UP,
+      ],
+      markInfraFailed: jest.fn(
+        (_runId: string, _category: TestRunFailureCategory, reason: string) =>
+          Promise.resolve({
+            id: 'run-1',
+            status: TestRunStatus.INFRA_FAILED,
+            statusReason: reason,
+          }),
+      ),
+      requestCancel: jest.fn(() =>
+        Promise.resolve({ id: 'run-1', status: TestRunStatus.CANCEL_REQUESTED }),
+      ),
+      markCancelled: jest.fn(() =>
+        Promise.resolve({ id: 'run-1', status: TestRunStatus.CANCELLED }),
+      ),
+    };
 
     service = new TestRunsService(
       prisma as unknown as PrismaService,
@@ -61,22 +105,23 @@ describe('TestRunsService', () => {
       } as unknown as ProjectAccessService,
       { assertCanStartRun: jest.fn(() => Promise.resolve()) } as unknown as SubscriptionsService,
       queue as unknown as TestRunQueueService,
+      state as unknown as TestRunStateService,
     );
   });
 
   it('creates a run and enqueues a deterministic job', async () => {
     const run = await service.create(projectId, companyId);
 
-    expect(run.status).toBe(TestRunStatus.PENDING);
+    expect(run.status).toBe(TestRunStatus.QUEUED);
     expect(prisma.testRun.create).toHaveBeenCalledWith({
       data: {
         id: expect.any(String),
         projectId,
-        status: TestRunStatus.PENDING,
+        status: TestRunStatus.CREATED,
         queueJobId: expect.stringMatching(/^test-run:/),
       },
     });
-    expect(queue.enqueue).toHaveBeenCalledWith(run.id);
+    expect(queue.enqueue).toHaveBeenCalledWith(expect.any(String));
   });
 
   it('marks run as failed when enqueue fails', async () => {
@@ -84,39 +129,27 @@ describe('TestRunsService', () => {
 
     const run = await service.create(projectId, companyId);
 
-    expect(run.status).toBe(TestRunStatus.FAILED);
-    expect(prisma.testRun.update).toHaveBeenCalledWith({
-      where: { id: expect.any(String) },
-      data: expect.objectContaining({
-        status: TestRunStatus.FAILED,
-        errorMessage: expect.stringContaining('redis unavailable'),
-      }),
-    });
+    expect(run.status).toBe(TestRunStatus.INFRA_FAILED);
+    expect(state.markInfraFailed).toHaveBeenCalledWith(
+      expect.any(String),
+      TestRunFailureCategory.INTERNAL,
+      expect.stringContaining('redis unavailable'),
+    );
   });
 
   it('cancels queued jobs through durable queue state', async () => {
     await service.cancel(projectId, 'run-1', companyId);
 
     expect(queue.cancelQueuedRun).toHaveBeenCalledWith('run-1');
-    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
-      where: { id: 'run-1', status: TestRunStatus.PENDING },
-      data: { cancellationRequestedAt: expect.any(Date) },
-    });
-    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
-      where: { id: 'run-1', status: TestRunStatus.PENDING },
-      data: {
-        status: TestRunStatus.CANCELLED,
-        cancellationRequestedAt: expect.any(Date),
-        finishedAt: expect.any(Date),
-      },
-    });
+    expect(state.requestCancel).toHaveBeenCalledWith('run-1');
+    expect(state.markCancelled).toHaveBeenCalledWith('run-1');
   });
 
   it('does not depend on in-memory runner cancellation for running jobs', async () => {
     prisma.testRun.findFirst.mockResolvedValueOnce({
       id: 'run-1',
       projectId,
-      status: TestRunStatus.RUNNING,
+      status: TestRunStatus.EXECUTING_TESTS,
       cancellationRequestedAt: null,
       finishedAt: null,
     });
@@ -124,12 +157,7 @@ describe('TestRunsService', () => {
     await service.cancel(projectId, 'run-1', companyId);
 
     expect(queue.cancelQueuedRun).not.toHaveBeenCalled();
-    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
-      where: { id: 'run-1', status: TestRunStatus.RUNNING },
-      data: {
-        cancellationRequestedAt: expect.any(Date),
-      },
-    });
+    expect(state.requestCancel).toHaveBeenCalledWith('run-1');
   });
 
   it('does not rewrite terminal runs on cancel', async () => {
@@ -145,6 +173,6 @@ describe('TestRunsService', () => {
 
     expect(run.status).toBe(TestRunStatus.PASSED);
     expect(queue.cancelQueuedRun).not.toHaveBeenCalled();
-    expect(prisma.testRun.updateMany).not.toHaveBeenCalled();
+    expect(state.requestCancel).not.toHaveBeenCalled();
   });
 });

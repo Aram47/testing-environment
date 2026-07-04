@@ -215,7 +215,7 @@ Rollback strategy:
 Scope:
 
 - Add Redis and BullMQ.
-- Enqueue test run execution jobs instead of fire-and-forget `runner.start()`.
+- Maintain BullMQ-based test run execution jobs instead of fire-and-forget runner execution.
 - Make job ID idempotent by `testRunId`.
 - Add worker processor inside the monolith first, behind a clear module boundary.
 - Add database-backed run claim so duplicate jobs or retries cannot execute the same run twice.

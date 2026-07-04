@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { Company, SubscriptionPlan, TestRunStatus } from '@prisma/client';
+import { Company, SubscriptionPlan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TEST_RUN_ACTIVE_STATUSES } from '../test-runs/test-run-status.constants';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 export interface CompanyProfile {
@@ -72,7 +73,7 @@ export class CompaniesService {
       this.prisma.testRun.count({
         where: {
           project: { companyId },
-          status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
+          status: { in: [...TEST_RUN_ACTIVE_STATUSES] },
         },
       }),
     ]);

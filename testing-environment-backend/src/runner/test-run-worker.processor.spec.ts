@@ -1,5 +1,5 @@
-import { TestRunStatus } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { TestRunFailureCategory } from '@prisma/client';
+import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RunnerOrchestratorService } from './runner-orchestrator.service';
 import { TestRunWorkerProcessor } from './test-run-worker.processor';
 
@@ -8,7 +8,7 @@ describe('TestRunWorkerProcessor', () => {
     const orchestrator = { execute: jest.fn(() => Promise.resolve()) };
     const processor = new TestRunWorkerProcessor(
       orchestrator as unknown as RunnerOrchestratorService,
-      {} as PrismaService,
+      {} as TestRunStateService,
     );
 
     await processor.process({ data: { testRunId: 'run-1' } } as never);
@@ -17,14 +17,12 @@ describe('TestRunWorkerProcessor', () => {
   });
 
   it('marks a run failed when the final worker attempt fails', async () => {
-    const prisma = {
-      testRun: {
-        updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
-      },
+    const state = {
+      markInfraFailed: jest.fn(() => Promise.resolve({ id: 'run-1' })),
     };
     const processor = new TestRunWorkerProcessor(
       { execute: jest.fn() } as unknown as RunnerOrchestratorService,
-      prisma as unknown as PrismaService,
+      state as unknown as TestRunStateService,
     );
 
     await processor.onFailed(
@@ -37,15 +35,10 @@ describe('TestRunWorkerProcessor', () => {
       new Error('container crashed'),
     );
 
-    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
-      where: {
-        id: 'run-1',
-        status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
-      },
-      data: expect.objectContaining({
-        status: TestRunStatus.FAILED,
-        errorMessage: 'container crashed',
-      }),
-    });
+    expect(state.markInfraFailed).toHaveBeenCalledWith(
+      'run-1',
+      TestRunFailureCategory.INTERNAL,
+      'container crashed',
+    );
   });
 });

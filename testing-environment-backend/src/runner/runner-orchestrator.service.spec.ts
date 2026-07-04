@@ -1,5 +1,6 @@
 import { TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
@@ -17,7 +18,7 @@ describe('RunnerOrchestratorService', () => {
           .fn()
           .mockResolvedValueOnce({
             id: 'run-1',
-            status: TestRunStatus.RUNNING,
+            status: TestRunStatus.CLAIMED,
             project: {
               environmentConfig: {
                 composeYaml: 'services: {}\n',
@@ -27,7 +28,7 @@ describe('RunnerOrchestratorService', () => {
             },
           })
           .mockResolvedValueOnce({
-            status: TestRunStatus.RUNNING,
+            status: TestRunStatus.CLAIMED,
             cancellationRequestedAt: null,
           }),
         update: jest.fn(),
@@ -58,6 +59,16 @@ describe('RunnerOrchestratorService', () => {
       } as unknown as AssertionEngineService,
       { create: jest.fn() } as unknown as VariableStoreService,
       { emitRunEvent: jest.fn() } as unknown as RealtimeService,
+      {
+        claim: jest.fn(),
+        enterPhase: jest.fn(),
+        markPassed: jest.fn(),
+        markTestFailed: jest.fn(),
+        markInfraFailed: jest.fn(),
+        markTimedOut: jest.fn(),
+        requestCancel: jest.fn(),
+        markCancelled: jest.fn(),
+      } as unknown as TestRunStateService,
     );
 
     await service.execute('run-1');

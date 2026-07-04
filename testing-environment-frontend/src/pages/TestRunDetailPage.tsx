@@ -17,7 +17,20 @@ import { TestRunTimeline } from '../features/test-runs/TestRunTimeline';
 import { ErrorPresenter } from '../lib/errors';
 import { Format } from '../lib/format';
 import { TestResultsTable } from '../tables/TestResultsTable';
-import type { TestResult, TestRunEvent } from '../types';
+import type { RunStatus, TestResult, TestRunEvent } from '../types';
+
+const cancellableStatuses: ReadonlySet<RunStatus> = new Set([
+  'QUEUED',
+  'CLAIMED',
+  'PREPARING_WORKSPACE',
+  'VALIDATING_ENVIRONMENT',
+  'PULLING_IMAGES',
+  'STARTING_ENVIRONMENT',
+  'WAITING_FOR_HEALTHCHECK',
+  'EXECUTING_TESTS',
+  'COLLECTING_ARTIFACTS',
+  'CLEANING_UP',
+]);
 
 export function TestRunDetailPage() {
   const { projectId = '', runId = '' } = useParams();
@@ -95,13 +108,13 @@ export function TestRunDetailPage() {
     <>
       <PageHeader
         title={`Run ${run.id}`}
-        description={`Started ${Format.date(run.startedAt)}. Duration ${Format.duration(run.durationMs)}.`}
+        description={`${run.startedAt ? `Started ${Format.date(run.startedAt)}` : `Queued ${Format.date(run.queuedAt ?? run.enqueuedAt)}`}. Duration ${Format.duration(run.durationMs)}.`}
         action={
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={() => runAgainMutation.mutate()} disabled={runAgainMutation.isPending}>
               <RotateCcw size={18} /> Run again
             </Button>
-            {run.status === 'RUNNING' ? (
+            {cancellableStatuses.has(run.status) ? (
               <Button variant="danger" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
                 <Square size={18} /> Cancel run
               </Button>

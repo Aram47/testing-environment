@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TestRun, TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TEST_RUN_ACTIVE_STATUSES } from '../test-runs/test-run-status.constants';
 
 export interface DashboardTestRun {
   id: string;
@@ -67,7 +68,7 @@ export class DashboardService {
         this.prisma.testRun.count({
           where: {
             project: { companyId },
-            status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
+            status: { in: [...TEST_RUN_ACTIVE_STATUSES] },
           },
         }),
       ]);

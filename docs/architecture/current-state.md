@@ -49,7 +49,13 @@ Current enums:
 - `UserRole`: `OWNER`, `ADMIN`, `DEVELOPER`, `VIEWER`.
 - `SubscriptionPlanName`: `FREE`, `PRO`, `BUSINESS`, `ENTERPRISE`.
 - `EnvironmentConfigType`: `DOCKER_COMPOSE`.
-- `TestRunStatus`: `PENDING`, `RUNNING`, `PASSED`, `FAILED`, `CANCELLED`.
+- `TestRunStatus`: durable run lifecycle from `CREATED` and `QUEUED` through runner phases
+  (`PREPARING_WORKSPACE`, `VALIDATING_ENVIRONMENT`, `PULLING_IMAGES`,
+  `STARTING_ENVIRONMENT`, `WAITING_FOR_HEALTHCHECK`, `EXECUTING_TESTS`,
+  `COLLECTING_ARTIFACTS`, `CLEANING_UP`) to terminal states `PASSED`, `TEST_FAILED`,
+  `INFRA_FAILED`, `TIMED_OUT`, or `CANCELLED`.
+- `TestRunFailureCategory`: `TEST_ASSERTION`, `ENVIRONMENT_VALIDATION`, `IMAGE_PULL`,
+  `CONTAINER_START`, `HEALTHCHECK`, `NETWORK`, `TIMEOUT`, `CANCELLED`, `INTERNAL`.
 - `TestResultStatus`: `PASSED`, `FAILED`.
 - `RunnerLogSource`: `SYSTEM`, `DOCKER`, `TEST`, `ERROR`.
 
@@ -145,13 +151,13 @@ Current API error handling:
 - `main.ts` registers a global `ValidationPipe` with whitelist, transform, and unknown-field rejection.
 - `HttpExceptionFilter` provides a shared HTTP error response shape.
 - Services generally throw Nest exceptions such as `NotFoundException`, `ForbiddenException`, `UnauthorizedException`, `ConflictException`, and `BadRequestException`.
-- Runner execution catches broad errors, stores an error log, and marks the run `FAILED` or `CANCELLED`.
+- Runner execution stores structured lifecycle state, error logs, status reason, and failure category.
 
 Important gaps:
 
-- Runner errors are collapsed into `errorMessage` strings without structured error codes.
+- Runner errors now include `failureCategory`, but deeper platform error codes and metrics are still limited.
 - Docker Compose failures can include large command output in exception messages.
-- Fire-and-forget runner failures cannot be observed by the original HTTP request after run creation.
+- Worker failures are durable, but the original HTTP request still only observes asynchronous completion later.
 - E2E coverage for error response shape and cross-tenant denial is limited.
 
 ## TestRun Lifecycle
@@ -160,28 +166,26 @@ Current lifecycle:
 
 1. `POST /projects/:projectId/test-runs` calls `TestRunsService.create`.
 2. The service validates project ownership and subscription limits.
-3. It creates a `TestRun` row with `PENDING`.
-4. It immediately calls `this.runner.start(run.id)`.
-5. `RunnerOrchestratorService.start()` calls `void this.execute(testRunId).catch(...)`.
+3. It creates a `TestRun` row with `CREATED`.
+4. It enqueues a BullMQ job and marks the run `QUEUED`.
+5. The worker claims the job and marks the run `CLAIMED`.
 6. The runner loads the run with project, environment config, and test suites.
 7. It creates a local workspace.
-8. It marks the run `RUNNING`.
+8. It advances through durable phase statuses.
 9. It writes Docker Compose, backend-test YAML, and suite YAML files.
 10. It validates and starts Docker Compose.
 11. It waits for healthcheck.
 12. It executes suites and steps.
 13. It stores `TestResult` rows.
 14. It stores truncated Docker logs in `RunnerLog`.
-15. It marks the run `PASSED`, `FAILED`, or `CANCELLED`.
+15. It marks the run `PASSED`, `TEST_FAILED`, `INFRA_FAILED`, `TIMED_OUT`, or `CANCELLED`.
 16. It stops Docker Compose and removes the workspace.
 
 Important gaps:
 
-- There is no durable job queue.
-- A process crash can leave `PENDING` or `RUNNING` rows without a worker recovery path.
-- `runner.start()` is fire-and-forget in the API process.
+- Worker crash recovery exists for queued jobs, but claimed/in-flight recovery still needs stronger lease handling.
 - No idempotency key exists for run creation.
-- Concurrent run creation can race against subscription/concurrency limits because there is no durable queue claim or database lock around active run capacity.
+- Concurrent run creation can still race against subscription/concurrency limits because there is no database lock around active run capacity.
 - Run execution reads mutable project config and mutable test suites at start time.
 
 ## RunnerOrchestratorService
@@ -212,16 +216,16 @@ This class currently mixes orchestration, state transitions, result persistence,
 
 Runner start:
 
-- `TestRunsService.create()` calls `this.runner.start(run.id)`.
-- `RunnerOrchestratorService.start()` returns `void`.
-- There is no queue, job ID, retry policy, backoff, dead-letter handling, or restart recovery.
+- `TestRunsService.create()` creates a durable run and enqueues a BullMQ job.
+- `TestRunQueueService` stores deterministic job IDs and enqueue timestamps.
+- `TestRunQueueRecoveryService` re-enqueues recoverable `CREATED`/`QUEUED` runs.
 
 Cancellation:
 
-- `TestRunsService.cancel()` validates run ownership, calls `this.runner.cancel(runId)`, then updates the run to `CANCELLED`.
-- `RunnerOrchestratorService.cancel()` stores the ID in an in-memory `Set<string>`.
+- `TestRunsService.cancel()` validates ownership and moves cancellable runs to `CANCEL_REQUESTED`.
+- Queued jobs are removed and finalized as `CANCELLED` when possible.
 - Long waits check cancellation every 250 ms.
-- In-flight Docker Compose and HTTP calls are not represented by a durable cancellation token.
+- In-flight Docker Compose and HTTP calls observe durable PostgreSQL cancellation between phases and waits.
 
 Gap: cancellation is not durable and is not safe across process restarts or separate runner workers.
 
