@@ -42,22 +42,23 @@ Owner area:
 
 - `test-runs`, `runner`.
 
-## R2: Cancellation Is In Memory
+## R2: Cancellation Durability And Cleanup
 
-Severity: High
+Severity: Medium
 
-Likelihood: High
+Likelihood: Medium
 
 Current state:
 
-- Cancellation uses `Set<string>` inside `RunnerOrchestratorService`.
-- Cancel endpoint directly updates run to `CANCELLED`.
+- Cancellation requests are persisted on `TestRun`.
+- Cancel endpoint moves cancellable runs to `CANCEL_REQUESTED`.
+- Worker polls durable cancellation state, aborts long operations, runs cleanup, and finalizes `CANCELLED`.
+- Worker leases and heartbeat fields allow conservative recovery of orphaned active runs.
 
 Impact:
 
-- Cancellation is lost on process restart.
-- Separate worker process cannot observe API-process memory.
-- Run status can show cancelled while underlying work is still stopping.
+- Docker cleanup can still fail because the host Docker daemon is external to PostgreSQL.
+- Conservative recovery records expired active leases as infrastructure failures instead of retrying potentially non-idempotent execution.
 
 Mitigation:
 
@@ -65,6 +66,7 @@ Mitigation:
 - Use `CANCEL_REQUESTED` lifecycle state.
 - Worker checks durable cancellation before and during long operations.
 - Mark final `CANCELLED` only after cleanup completes or a recovery job records cleanup failure.
+- Store cleanup failure details separately from the cancellation result.
 
 Owner area:
 

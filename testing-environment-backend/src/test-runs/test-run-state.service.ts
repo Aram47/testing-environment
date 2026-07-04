@@ -124,6 +124,61 @@ export class TestRunStateService {
     return from === to || TEST_RUN_ALLOWED_TRANSITIONS[from].includes(to);
   }
 
+  async claim(testRunId: string, lease?: LeaseOptions): Promise<TestRun> {
+    if (!lease) {
+      const now = new Date();
+      return this.transition(testRunId, TestRunStatus.CLAIMED, {
+        claimedAt: now,
+        startedAt: now,
+        statusReason: null,
+        failureCategory: null,
+      });
+    }
+
+    const now = new Date();
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: {
+        id: true,
+        status: true,
+        phaseTimestamps: true,
+        startedAt: true,
+        finishedAt: true,
+      },
+    });
+    if (!run) {
+      throw new NotFoundException('Test run not found');
+    }
+    this.assertTransitionAllowed(run, TestRunStatus.CLAIMED);
+
+    const updated = await this.prisma.testRun.updateMany({
+      where: {
+        id: testRunId,
+        status: run.status,
+        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }],
+      },
+      data: {
+        status: TestRunStatus.CLAIMED,
+        currentPhase: null,
+        phaseTimestamps: this.nextPhaseTimestamps(run, TestRunStatus.CLAIMED, now),
+        runnerId: lease.runnerId,
+        leaseAcquiredAt: now,
+        leaseExpiresAt: new Date(now.getTime() + lease.leaseDurationMs),
+        heartbeatAt: now,
+        attempt: { increment: 1 },
+        claimedAt: now,
+        startedAt: now,
+        statusReason: null,
+        failureCategory: null,
+      },
+    });
+    if (updated.count === 0) {
+      throw new ConflictException('Test run has an active execution lease');
+    }
+
+    return this.prisma.testRun.findUniqueOrThrow({ where: { id: testRunId } });
+  }
+
   async markQueued(testRunId: string, queueJobId: string): Promise<TestRun> {
     const now = new Date();
     return this.transition(testRunId, TestRunStatus.QUEUED, {
@@ -132,26 +187,7 @@ export class TestRunStateService {
       enqueuedAt: now,
       statusReason: null,
       failureCategory: null,
-    });
-  }
-
-  async claim(testRunId: string, lease?: LeaseOptions): Promise<TestRun> {
-    const now = new Date();
-    const leaseData: Prisma.TestRunUpdateInput = lease
-      ? {
-          runnerId: lease.runnerId,
-          leaseAcquiredAt: now,
-          leaseExpiresAt: new Date(now.getTime() + lease.leaseDurationMs),
-          heartbeatAt: now,
-          attempt: { increment: 1 },
-        }
-      : {};
-    return this.transition(testRunId, TestRunStatus.CLAIMED, {
-      claimedAt: now,
-      startedAt: now,
-      statusReason: null,
-      failureCategory: null,
-      ...leaseData,
+      ...this.clearedLeaseData(),
     });
   }
 
@@ -162,11 +198,7 @@ export class TestRunStateService {
     return this.transition(testRunId, phase, {});
   }
 
-  async requestCancel(
-    testRunId: string,
-    requestedBy?: string,
-    reason?: string,
-  ): Promise<TestRun> {
+  async requestCancel(testRunId: string, requestedBy?: string, reason?: string): Promise<TestRun> {
     const now = new Date();
     return this.transition(testRunId, TestRunStatus.CANCEL_REQUESTED, {
       cancelRequestedAt: now,
@@ -253,11 +285,7 @@ export class TestRunStateService {
     });
   }
 
-  async renewLease(
-    testRunId: string,
-    runnerId: string,
-    leaseDurationMs: number,
-  ): Promise<boolean> {
+  async renewLease(testRunId: string, runnerId: string, leaseDurationMs: number): Promise<boolean> {
     const now = new Date();
     const updated = await this.prisma.testRun.updateMany({
       where: {

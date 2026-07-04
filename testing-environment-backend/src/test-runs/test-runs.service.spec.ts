@@ -138,10 +138,10 @@ describe('TestRunsService', () => {
   });
 
   it('cancels queued jobs through durable queue state', async () => {
-    await service.cancel(projectId, 'run-1', companyId);
+    await service.cancel(projectId, 'run-1', companyId, 'user-1', 'no longer needed');
 
     expect(queue.cancelQueuedRun).toHaveBeenCalledWith('run-1');
-    expect(state.requestCancel).toHaveBeenCalledWith('run-1');
+    expect(state.requestCancel).toHaveBeenCalledWith('run-1', 'user-1', 'no longer needed');
     expect(state.markCancelled).toHaveBeenCalledWith('run-1');
   });
 
@@ -157,7 +157,7 @@ describe('TestRunsService', () => {
     await service.cancel(projectId, 'run-1', companyId);
 
     expect(queue.cancelQueuedRun).not.toHaveBeenCalled();
-    expect(state.requestCancel).toHaveBeenCalledWith('run-1');
+    expect(state.requestCancel).toHaveBeenCalledWith('run-1', undefined, undefined);
   });
 
   it('does not rewrite terminal runs on cancel', async () => {

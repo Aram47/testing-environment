@@ -67,8 +67,7 @@ export class RunnerOrchestratorService {
     private readonly realtime: RealtimeService,
     private readonly state: TestRunStateService,
   ) {
-    this.runnerId =
-      this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
+    this.runnerId = this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
   }
 
   async execute(testRunId: string): Promise<void> {
@@ -84,6 +83,7 @@ export class RunnerOrchestratorService {
         throw new NotFoundException('Test run not found');
       }
       if (await this.isCancellationRequested(testRunId)) {
+        await this.state.requestCancel(testRunId).catch(() => undefined);
         await this.state.markCancelled(testRunId, Date.now() - started);
         return;
       }
@@ -98,10 +98,21 @@ export class RunnerOrchestratorService {
         throw new Error('At least one test suite is required');
       }
 
-      await this.state.claim(testRunId, {
-        runnerId: this.runnerId,
-        leaseDurationMs: this.leaseDurationMs(),
-      });
+      try {
+        await this.state.claim(testRunId, {
+          runnerId: this.runnerId,
+          leaseDurationMs: this.leaseDurationMs(),
+        });
+      } catch (error) {
+        if (error instanceof Error && /active execution lease/i.test(error.message)) {
+          if (await this.isCancellationRequested(testRunId)) {
+            throw new TestRunCancellationError();
+          }
+          this.logger.warn(`Skipping test run ${testRunId} because another worker owns its lease`);
+          return;
+        }
+        throw error;
+      }
       context = this.createExecutionContext(testRunId);
       await this.ensureNotCancelled(testRunId, context);
 
@@ -149,13 +160,14 @@ export class RunnerOrchestratorService {
       }
 
       await this.state.enterPhase(testRunId, TestRunStatus.CLEANING_UP);
+      let cleanupError: string | undefined;
       if (workspace) {
-        await this.cleanupWorkspace(testRunId, workspace);
+        cleanupError = await this.cleanupWorkspace(testRunId, workspace);
         workspace = '';
       }
 
       if (await this.isCancellationRequested(testRunId)) {
-        await this.state.markCancelled(testRunId, Date.now() - started);
+        await this.state.markCancelled(testRunId, Date.now() - started, cleanupError);
       } else if (stats.failedTests > 0) {
         await this.state.markTestFailed(
           testRunId,
@@ -173,9 +185,7 @@ export class RunnerOrchestratorService {
         error instanceof TestRunCancellationError ||
         (await this.isCancellationRequested(testRunId))
       ) {
-        if (!(await this.state.isCancellationRequested(testRunId))) {
-          await this.state.requestCancel(testRunId).catch(() => undefined);
-        }
+        await this.state.requestCancel(testRunId).catch(() => undefined);
         const cleanupError = workspace
           ? await this.cleanupWorkspace(testRunId, workspace).catch((cleanupFailure) =>
               String(cleanupFailure),
@@ -501,8 +511,16 @@ export class RunnerOrchestratorService {
       if (stopped || controller.signal.aborted) {
         return;
       }
-      if (await this.state.isCancellationRequested(testRunId)) {
-        controller.abort(new TestRunCancellationError());
+      try {
+        if (await this.state.isCancellationRequested(testRunId)) {
+          controller.abort(new TestRunCancellationError());
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Failed to poll cancellation for test run ${testRunId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     };
 
@@ -510,13 +528,22 @@ export class RunnerOrchestratorService {
       if (stopped || controller.signal.aborted) {
         return;
       }
-      const renewed = await this.state.renewLease(
-        testRunId,
-        this.runnerId,
-        this.leaseDurationMs(),
-      );
-      if (!renewed) {
+      try {
+        const renewed = await this.state.renewLease(
+          testRunId,
+          this.runnerId,
+          this.leaseDurationMs(),
+        );
+        if (!renewed) {
+          controller.abort(new Error('Test run execution lease was lost'));
+        }
+      } catch (error) {
         controller.abort(new Error('Test run execution lease was lost'));
+        this.logger.warn(
+          `Failed to renew lease for test run ${testRunId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     };
 

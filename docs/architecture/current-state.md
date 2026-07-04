@@ -224,10 +224,12 @@ Cancellation:
 
 - `TestRunsService.cancel()` validates ownership and moves cancellable runs to `CANCEL_REQUESTED`.
 - Queued jobs are removed and finalized as `CANCELLED` when possible.
-- Long waits check cancellation every 250 ms.
-- In-flight Docker Compose and HTTP calls observe durable PostgreSQL cancellation between phases and waits.
+- Worker polls persisted cancellation state and uses a per-run `AbortController`.
+- HTTP requests, healthchecks, poll steps, waits, and Docker Compose startup observe cancellation.
+- Worker renews an execution lease through heartbeat fields while the run is active.
+- Expired active leases are recovered conservatively without automatically retrying potentially non-idempotent execution.
 
-Gap: cancellation is not durable and is not safe across process restarts or separate runner workers.
+Gap: Docker cleanup can still fail at the host Docker daemon layer; cleanup errors are stored separately on the run.
 
 ## Docker Compose Manager
 

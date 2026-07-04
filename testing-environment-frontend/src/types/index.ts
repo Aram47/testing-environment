@@ -249,6 +249,15 @@ export interface TestRun {
   enqueuedAt?: string;
   claimedAt?: string;
   cancellationRequestedAt?: string;
+  cancelRequestedAt?: string;
+  cancelRequestedBy?: string;
+  cancellationReason?: string;
+  runnerId?: string;
+  leaseAcquiredAt?: string;
+  leaseExpiresAt?: string;
+  heartbeatAt?: string;
+  attempt?: number;
+  cleanupError?: string;
   startedAt?: string;
   finishedAt?: string;
   totalTests: number;

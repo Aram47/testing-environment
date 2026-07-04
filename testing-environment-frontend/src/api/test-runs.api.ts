@@ -25,8 +25,11 @@ class TestRunsApi {
     return this.toTestRun(data);
   }
 
-  async cancel(projectId: string, runId: string): Promise<TestRun> {
-    const { data } = await apiClient.post<TestRunResponse>(`/projects/${projectId}/test-runs/${runId}/cancel`);
+  async cancel(projectId: string, runId: string, reason?: string): Promise<TestRun> {
+    const { data } = await apiClient.post<TestRunResponse>(
+      `/projects/${projectId}/test-runs/${runId}/cancel`,
+      reason ? { reason } : undefined,
+    );
     return this.toTestRun(data);
   }
 

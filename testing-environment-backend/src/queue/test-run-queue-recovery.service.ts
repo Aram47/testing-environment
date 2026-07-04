@@ -1,8 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TestRunStatus } from '@prisma/client';
+import { TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { TestRunFailureCategory } from '@prisma/client';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { TestRunQueueService } from './test-run-queue.service';
 

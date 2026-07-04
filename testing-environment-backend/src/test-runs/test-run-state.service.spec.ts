@@ -44,6 +44,93 @@ describe('TestRunStateService', () => {
     });
   });
 
+  it('persists cancellation requester and reason in durable fields', async () => {
+    const prisma = createPrismaMock(TestRunStatus.EXECUTING_TESTS);
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await service.requestCancel('run-1', 'user-1', 'deploy rollback');
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: { id: 'run-1', status: TestRunStatus.EXECUTING_TESTS },
+      data: expect.objectContaining({
+        status: TestRunStatus.CANCEL_REQUESTED,
+        cancelRequestedAt: expect.any(Date),
+        cancellationRequestedAt: expect.any(Date),
+        cancelRequestedBy: 'user-1',
+        cancellationReason: 'deploy rollback',
+      }),
+    });
+  });
+
+  it('acquires an execution lease while claiming a queued run', async () => {
+    const prisma = createPrismaMock(TestRunStatus.QUEUED);
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await service.claim('run-1', { runnerId: 'runner-1', leaseDurationMs: 60000 });
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'run-1',
+        status: TestRunStatus.QUEUED,
+        OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lt: expect.any(Date) } }],
+      },
+      data: expect.objectContaining({
+        status: TestRunStatus.CLAIMED,
+        runnerId: 'runner-1',
+        leaseAcquiredAt: expect.any(Date),
+        leaseExpiresAt: expect.any(Date),
+        heartbeatAt: expect.any(Date),
+        attempt: { increment: 1 },
+      }),
+    });
+  });
+
+  it('rejects claim when an active lease exists', async () => {
+    const prisma = createPrismaMock(TestRunStatus.QUEUED);
+    prisma.testRun.updateMany.mockResolvedValueOnce({ count: 0 });
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.claim('run-1', { runnerId: 'runner-2', leaseDurationMs: 60000 }),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('renews heartbeat and lease only for the owning runner', async () => {
+    const prisma = createPrismaMock(TestRunStatus.EXECUTING_TESTS);
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await expect(service.renewLease('run-1', 'runner-1', 60000)).resolves.toBe(true);
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'run-1',
+        runnerId: 'runner-1',
+        finishedAt: null,
+      }),
+      data: {
+        heartbeatAt: expect.any(Date),
+        leaseExpiresAt: expect.any(Date),
+      },
+    });
+  });
+
+  it('stores cleanup errors while finalizing cancellation', async () => {
+    const prisma = createPrismaMock(TestRunStatus.CANCEL_REQUESTED);
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await service.markCancelled('run-1', 250, 'docker compose down failed');
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: { id: 'run-1', status: TestRunStatus.CANCEL_REQUESTED },
+      data: expect.objectContaining({
+        status: TestRunStatus.CANCELLED,
+        cleanupError: 'docker compose down failed',
+        runnerId: null,
+        leaseExpiresAt: null,
+      }),
+    });
+  });
+
   it('stores assertion failures as TEST_FAILED with TEST_ASSERTION category', async () => {
     const prisma = createPrismaMock(TestRunStatus.CLEANING_UP);
     const service = new TestRunStateService(prisma as unknown as PrismaService);

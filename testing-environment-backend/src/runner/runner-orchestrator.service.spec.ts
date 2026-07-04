@@ -68,6 +68,8 @@ describe('RunnerOrchestratorService', () => {
         markTimedOut: jest.fn(),
         requestCancel: jest.fn(),
         markCancelled: jest.fn(),
+        isCancellationRequested: jest.fn(() => Promise.resolve(false)),
+        renewLease: jest.fn(() => Promise.resolve(true)),
       } as unknown as TestRunStateService,
     );
 

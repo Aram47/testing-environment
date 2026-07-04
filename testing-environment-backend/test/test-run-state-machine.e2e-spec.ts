@@ -88,10 +88,68 @@ describe('Durable TestRun state machine (e2e)', () => {
     expect(fixture.run.status).toBe(TestRunStatus.CANCELLED);
     expect(fixture.run.failureCategory).toBe(TestRunFailureCategory.CANCELLED);
   });
+
+  it('cancels during wait steps', async () => {
+    const fixture = await createFixture({
+      tests: [{ id: 'wait-1', name: 'Wait', wait: { duration_ms: 300 } }],
+    });
+    setTimeout(() => {
+      fixture.run.cancellationRequestedAt = new Date();
+    }, 10);
+
+    await fixture.orchestrator.execute('run-1');
+
+    expect(fixture.run.status).toBe(TestRunStatus.CANCELLED);
+    expect(fixture.prisma.testResult.create).not.toHaveBeenCalled();
+  });
+
+  it('cancels during poll steps', async () => {
+    const fixture = await createFixture({
+      requestCancellationDuringHttp: true,
+      tests: [
+        {
+          id: 'poll-1',
+          name: 'Poll',
+          poll: {
+            timeout_seconds: 1,
+            interval_seconds: 1,
+            request: { method: 'GET', path: '/ready', expect: { status: 200 } },
+          },
+        },
+      ],
+    });
+
+    await fixture.orchestrator.execute('run-1');
+
+    expect(fixture.run.status).toBe(TestRunStatus.CANCELLED);
+    expect(fixture.prisma.testResult.create).not.toHaveBeenCalled();
+  });
+
+  it('cancels during HTTP requests', async () => {
+    const fixture = await createFixture({ requestCancellationDuringHttp: true });
+
+    await fixture.orchestrator.execute('run-1');
+
+    expect(fixture.run.status).toBe(TestRunStatus.CANCELLED);
+    expect(fixture.prisma.testResult.create).not.toHaveBeenCalled();
+  });
+
+  it('records cleanup failure while preserving cancelled result', async () => {
+    const fixture = await createFixture({
+      requestCancellationWhenParsing: true,
+      dockerDownError: new Error('docker compose down failed'),
+    });
+
+    await fixture.orchestrator.execute('run-1');
+
+    expect(fixture.run.status).toBe(TestRunStatus.CANCELLED);
+    expect(fixture.run.cleanupError).toBe('docker compose down failed');
+  });
 });
 
 interface FixtureOptions {
   dockerUpError?: Error;
+  dockerDownError?: Error;
   healthcheckError?: Error;
   httpResult?: {
     actualStatus?: number;
@@ -99,7 +157,9 @@ interface FixtureOptions {
     durationMs: number;
     errorMessage?: string;
   };
+  tests?: Record<string, unknown>[];
   requestCancellationWhenParsing?: boolean;
+  requestCancellationDuringHttp?: boolean;
   concurrentCancelOnClaim?: boolean;
 }
 
@@ -118,6 +178,7 @@ async function createFixture(options: FixtureOptions = {}) {
     enqueuedAt: new Date(),
     claimedAt: null as Date | null,
     cancellationRequestedAt: null as Date | null,
+    cleanupError: null as string | null,
     startedAt: null as Date | null,
     finishedAt: null as Date | null,
     totalTests: 0,
@@ -179,6 +240,9 @@ async function createFixture(options: FixtureOptions = {}) {
     logs: jest.fn(() => Promise.resolve('docker logs')),
     down: jest.fn(() => Promise.resolve('stopped')),
   };
+  if (options.dockerDownError) {
+    docker.down.mockRejectedValue(options.dockerDownError);
+  }
   const healthcheck = {
     waitFor: jest.fn(() =>
       options.healthcheckError ? Promise.reject(options.healthcheckError) : Promise.resolve(),
@@ -191,7 +255,7 @@ async function createFixture(options: FixtureOptions = {}) {
       }
       return {
         suite: 'Suite',
-        tests: [
+        tests: options.tests ?? [
           {
             id: 'step-1',
             name: 'GET /health',
@@ -217,15 +281,18 @@ async function createFixture(options: FixtureOptions = {}) {
       {
         provide: HttpTestExecutorService,
         useValue: {
-          execute: jest.fn(() =>
-            Promise.resolve(
+          execute: jest.fn(() => {
+            if (options.requestCancellationDuringHttp) {
+              run.cancellationRequestedAt = new Date();
+            }
+            return Promise.resolve(
               options.httpResult ?? {
                 actualStatus: 200,
                 responseBody: { ok: true },
                 durationMs: 10,
               },
-            ),
-          ),
+            );
+          }),
         },
       },
       {

@@ -70,6 +70,11 @@ The API process creates `TestRun` rows and enqueues BullMQ jobs. The worker proc
 - `TEST_RUN_QUEUE_CONCURRENCY`: worker concurrency, default `1`.
 - `TEST_RUN_STALLED_INTERVAL_MS`: BullMQ stalled job check interval, default `30000`.
 - `TEST_RUN_MAX_STALLED_COUNT`: maximum stalled recoveries before failure, default `1`.
+- `TEST_RUN_RUNNER_ID`: optional stable worker identifier; defaults to hostname and process id.
+- `TEST_RUN_LEASE_DURATION_MS`: execution lease duration, default `60000`.
+- `TEST_RUN_HEARTBEAT_INTERVAL_MS`: worker heartbeat interval, default `15000`.
+- `TEST_RUN_CANCELLATION_POLL_INTERVAL_MS`: persisted cancellation polling interval, default `1000`.
+- `TEST_RUN_JANITOR_INTERVAL_MS`: orphaned run recovery interval, default `30000`.
 
 Readiness endpoints:
 
