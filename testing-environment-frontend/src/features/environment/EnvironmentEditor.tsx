@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { CheckCircle2, FileCode2, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle2, FileCode2, GitCompare, History, Plus, Rocket, Trash2 } from 'lucide-react';
+import type { EnvironmentRevisionCompareResult } from '../../api/environment-configs.api';
 import { environmentConfigsApi } from '../../api/environment-configs.api';
 import { Button } from '../../components/ui/Button';
 import { YamlEditor } from '../../editors/YamlEditor';
@@ -7,6 +8,7 @@ import { backendTestExample, dockerComposeExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
 import type {
   EnvironmentConfig,
+  EnvironmentConfigRevision,
   EnvironmentPortMapping,
   EnvironmentServiceConfig,
   EnvironmentVariable,
@@ -17,13 +19,31 @@ interface EnvironmentEditorProps {
   projectId: string;
   value?: EnvironmentConfig;
   isSaving: boolean;
+  isPublishing?: boolean;
+  isComparing?: boolean;
+  revisions?: EnvironmentConfigRevision[];
+  compareResult?: EnvironmentRevisionCompareResult;
   onSave: (value: Omit<EnvironmentConfig, 'projectId'>) => void;
+  onPublish?: (revisionId: string) => void;
+  onCompare?: (from: string, to: string) => void;
   onMessage: (message: string, tone?: 'success' | 'error' | 'info') => void;
 }
 
 type EditorMode = 'config' | 'yaml';
 
-export function EnvironmentEditor({ projectId, value, isSaving, onSave, onMessage }: EnvironmentEditorProps) {
+export function EnvironmentEditor({
+  projectId,
+  value,
+  isSaving,
+  isPublishing = false,
+  isComparing = false,
+  revisions = [],
+  compareResult,
+  onSave,
+  onPublish,
+  onCompare,
+  onMessage,
+}: EnvironmentEditorProps) {
   const [mode, setMode] = useState<EditorMode>(value && !value.visualConfig ? 'yaml' : 'config');
   const [dockerComposeYaml, setDockerComposeYaml] = useState(value?.dockerComposeYaml ?? dockerComposeExample);
   const [backendTestYaml, setBackendTestYaml] = useState(value?.backendTestYaml ?? backendTestExample);
@@ -128,6 +148,18 @@ export function EnvironmentEditor({ projectId, value, isSaving, onSave, onMessag
           ) : null}
         </div>
       </section>
+      {value ? (
+        <RevisionPanel
+          currentRevision={value.currentRevision}
+          publishedRevision={value.publishedRevision}
+          revisions={revisions}
+          compareResult={compareResult}
+          isPublishing={isPublishing}
+          isComparing={isComparing}
+          onPublish={onPublish}
+          onCompare={onCompare}
+        />
+      ) : null}
 
       {mode === 'config' ? (
         <>
@@ -168,6 +200,120 @@ export function EnvironmentEditor({ projectId, value, isSaving, onSave, onMessag
       )}
     </form>
   );
+}
+
+function RevisionPanel({
+  currentRevision,
+  publishedRevision,
+  revisions,
+  compareResult,
+  isPublishing,
+  isComparing,
+  onPublish,
+  onCompare,
+}: {
+  currentRevision?: EnvironmentConfigRevision;
+  publishedRevision?: EnvironmentConfigRevision;
+  revisions: EnvironmentConfigRevision[];
+  compareResult?: EnvironmentRevisionCompareResult;
+  isPublishing: boolean;
+  isComparing: boolean;
+  onPublish?: (revisionId: string) => void;
+  onCompare?: (from: string, to: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const canPublish = currentRevision?.status === 'DRAFT';
+  const comparable = from && to && from !== to;
+
+  return (
+    <section className="panel space-y-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Revision {currentRevision ? `#${currentRevision.revisionNumber}` : 'not saved'}</h2>
+          <p className="text-sm text-muted">
+            Current status: {currentRevision?.status ?? 'DRAFT'}.
+            {publishedRevision ? ` Latest published: #${publishedRevision.revisionNumber}.` : ' No published revision yet.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" variant="secondary" onClick={() => setOpen((value) => !value)}>
+            <History size={16} /> Revision history
+          </Button>
+          {canPublish && currentRevision ? (
+            <Button type="button" disabled={isPublishing} onClick={() => onPublish?.(currentRevision.id)}>
+              <Rocket size={16} /> {isPublishing ? 'Publishing...' : 'Publish'}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {open ? (
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+            <RevisionSelect label="From" value={from} revisions={revisions} onChange={setFrom} />
+            <RevisionSelect label="To" value={to} revisions={revisions} onChange={setTo} />
+            <Button type="button" variant="secondary" disabled={!comparable || isComparing} onClick={() => onCompare?.(from, to)}>
+              <GitCompare size={16} /> {isComparing ? 'Comparing...' : 'Compare'}
+            </Button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {revisions.map((revision) => (
+              <article key={revision.id} className="rounded-md border border-border p-3 text-sm">
+                <div className="font-semibold text-ink">Revision #{revision.revisionNumber}</div>
+                <div className="text-muted">{revision.status} - {revision.sourceMode} - {formatDate(revision.createdAt)}</div>
+              </article>
+            ))}
+          </div>
+          {compareResult ? (
+            <DiffSummary
+              title={`Diff #${compareResult.from.revisionNumber} -> #${compareResult.to.revisionNumber}`}
+              count={compareResult.diffs.compiledComposeYaml.length + compareResult.diffs.compiledRuntimeYaml.length}
+            />
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RevisionSelect({
+  label,
+  value,
+  revisions,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  revisions: EnvironmentConfigRevision[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
+      <select className="input" value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Select revision</option>
+        {revisions.map((revision) => (
+          <option key={revision.id} value={revision.id}>
+            #{revision.revisionNumber} {revision.status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function DiffSummary({ title, count }: { title: string; count: number }) {
+  return (
+    <div className="rounded-md border border-border bg-page p-3 text-sm">
+      <div className="font-semibold text-ink">{title}</div>
+      <div className="text-muted">{count === 0 ? 'No line changes.' : `${count} changed line(s).`}</div>
+    </div>
+  );
+}
+
+function formatDate(value?: string) {
+  return value ? new Date(value).toLocaleString() : 'Not published';
 }
 
 interface ConfigFormProps {

@@ -77,7 +77,14 @@ export class RunnerOrchestratorService {
     try {
       const run = await this.prisma.testRun.findUnique({
         where: { id: testRunId },
-        include: { project: { include: { environmentConfig: true, testSuites: true } } },
+        include: {
+          project: true,
+          environmentConfigRevision: true,
+          suiteRevisions: {
+            orderBy: { position: 'asc' },
+            include: { testSuiteRevision: true },
+          },
+        },
       });
       if (!run) {
         throw new NotFoundException('Test run not found');
@@ -91,11 +98,11 @@ export class RunnerOrchestratorService {
         this.logger.warn(`Skipping test run ${testRunId} because it is ${run.status}`);
         return;
       }
-      if (!run.project.environmentConfig) {
-        throw new Error('Environment config is required before running tests');
+      if (!run.environmentConfigRevision) {
+        throw new Error('Environment config revision is required before running tests');
       }
-      if (run.project.testSuites.length === 0) {
-        throw new Error('At least one test suite is required');
+      if (run.suiteRevisions.length === 0) {
+        throw new Error('At least one test suite revision is required');
       }
 
       try {
@@ -121,11 +128,19 @@ export class RunnerOrchestratorService {
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing isolated local workspace');
       this.emit('run.started', testRunId);
 
-      const { environmentConfig, testSuites } = run.project;
+      const environmentConfig = run.environmentConfigRevision;
+      const testSuites = run.suiteRevisions.map((suiteRevision) => ({
+        id: suiteRevision.testSuiteRevisionId,
+        name: suiteRevision.suiteName,
+        yamlContent: suiteRevision.testSuiteRevision.compiledYaml,
+      }));
       await this.state.enterPhase(testRunId, TestRunStatus.VALIDATING_ENVIRONMENT);
-      this.docker.validateCompose(environmentConfig.composeYaml);
-      await writeFile(join(workspace, 'docker-compose.test.yml'), environmentConfig.composeYaml);
-      await writeFile(join(workspace, 'backend-test.yml'), environmentConfig.backendTestYaml);
+      this.docker.validateCompose(environmentConfig.compiledComposeYaml);
+      await writeFile(
+        join(workspace, 'docker-compose.test.yml'),
+        environmentConfig.compiledComposeYaml,
+      );
+      await writeFile(join(workspace, 'backend-test.yml'), environmentConfig.compiledRuntimeYaml);
       await mkdir(join(workspace, 'tests'), { recursive: true });
       for (const suite of testSuites) {
         await writeFile(join(workspace, 'tests', `${suite.id}.yml`), suite.yamlContent);

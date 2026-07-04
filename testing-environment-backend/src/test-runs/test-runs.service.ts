@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, RevisionStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../common/interfaces/paginated-result.interface';
@@ -24,8 +24,66 @@ export class TestRunsService {
     await this.subscriptions.assertCanStartRun(projectId, companyId);
     const runId = randomUUID();
     const queueJobId = this.queue.getJobId(runId);
-    const run = await this.prisma.testRun.create({
-      data: { id: runId, projectId, status: TestRunStatus.CREATED, queueJobId },
+    const run = await this.prisma.$transaction(async (tx) => {
+      const environmentConfig = await tx.environmentConfig.findUnique({
+        where: { projectId },
+        include: {
+          revisions: {
+            where: { status: RevisionStatus.PUBLISHED },
+            orderBy: { revisionNumber: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      const environmentRevision = environmentConfig?.revisions[0];
+      if (!environmentRevision) {
+        throw new BadRequestException(
+          'Published environment config revision is required before running tests',
+        );
+      }
+
+      const suites = await tx.testSuite.findMany({
+        where: { projectId, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          revisions: {
+            where: { status: RevisionStatus.PUBLISHED },
+            orderBy: { revisionNumber: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      if (suites.length === 0) {
+        throw new BadRequestException(
+          'At least one active test suite is required before running tests',
+        );
+      }
+      const suitesWithoutPublishedRevision = suites.filter((suite) => suite.revisions.length === 0);
+      if (suitesWithoutPublishedRevision.length > 0) {
+        throw new BadRequestException(
+          'All active test suites must have a published revision before running tests',
+        );
+      }
+
+      return tx.testRun.create({
+        data: {
+          id: runId,
+          projectId,
+          status: TestRunStatus.CREATED,
+          queueJobId,
+          environmentConfigRevisionId: environmentRevision.id,
+          runnerVersion: process.env.TEST_RUN_RUNNER_VERSION ?? 'local',
+          reportSchemaVersion: 1,
+          suiteRevisions: {
+            create: suites.map((suite, position) => ({
+              testSuiteId: suite.id,
+              testSuiteRevisionId: suite.revisions[0].id,
+              position,
+              suiteName: suite.name,
+            })),
+          },
+        },
+      });
     });
     try {
       await this.queue.enqueue(run.id);
@@ -72,7 +130,14 @@ export class TestRunsService {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
     const run = await this.prisma.testRun.findFirst({
       where: { id: runId, projectId },
-      include: { results: true },
+      include: {
+        results: true,
+        environmentConfigRevision: true,
+        suiteRevisions: {
+          orderBy: { position: 'asc' },
+          include: { testSuiteRevision: true },
+        },
+      },
     });
     if (!run) {
       throw new NotFoundException('Test run not found');

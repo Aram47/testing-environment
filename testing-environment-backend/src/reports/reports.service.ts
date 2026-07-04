@@ -13,7 +13,15 @@ export class ReportsService {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
     const run = await this.prisma.testRun.findFirst({
       where: { id: runId, projectId },
-      include: { project: true, results: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        project: true,
+        environmentConfigRevision: true,
+        suiteRevisions: {
+          orderBy: { position: 'asc' },
+          include: { testSuiteRevision: true },
+        },
+        results: { orderBy: { createdAt: 'asc' } },
+      },
     });
     if (!run) {
       throw new NotFoundException('Test run not found');

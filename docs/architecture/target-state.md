@@ -118,7 +118,7 @@ For backward compatibility, frontend status labels can initially map detailed in
 
 ## Immutable Revisions
 
-Target model:
+Implemented baseline model:
 
 - `EnvironmentConfig` remains editable current draft/current config.
 - `EnvironmentConfigRevision` stores immutable compiled runtime config.
@@ -136,6 +136,14 @@ Revision content should include:
 - Content hash.
 
 This enables reproducible test runs even after users edit project configuration or suites.
+
+Current implementation notes:
+
+- Saving creates a `DRAFT` revision.
+- Publishing marks a draft revision as `PUBLISHED` without changing its content.
+- New runs use latest published revisions only.
+- Existing mutable rows are migrated into initial published revisions.
+- Logical suite deletion is soft-delete, so reports for existing runs keep their snapshot revisions.
 
 ## Canonical Execution Plan
 

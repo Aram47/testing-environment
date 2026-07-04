@@ -69,30 +69,39 @@ enum RunnerLogSource {
   ERROR
 }
 
+enum RevisionStatus {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  role         UserRole @default(OWNER)
-  companyId    String
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                            String                      @id @default(uuid())
+  email                         String                      @unique
+  passwordHash                  String
+  firstName                     String
+  lastName                      String
+  role                          UserRole                    @default(OWNER)
+  companyId                     String
+  company                       Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  environmentRevisionsCreated   EnvironmentConfigRevision[] @relation("EnvironmentRevisionCreatedBy")
+  environmentRevisionsPublished EnvironmentConfigRevision[] @relation("EnvironmentRevisionPublishedBy")
+  suiteRevisionsCreated         TestSuiteRevision[]         @relation("TestSuiteRevisionCreatedBy")
+  suiteRevisionsPublished       TestSuiteRevision[]         @relation("TestSuiteRevisionPublishedBy")
+  createdAt                     DateTime                    @default(now())
+  updatedAt                     DateTime                    @updatedAt
 
   @@index([companyId])
 }
 
 model Company {
-  id                 String            @id @default(uuid())
+  id                 String           @id @default(uuid())
   name               String
   subscriptionPlanId String
-  subscriptionPlan   SubscriptionPlan  @relation(fields: [subscriptionPlanId], references: [id])
+  subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
   users              User[]
   projects           Project[]
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
 
   @@index([subscriptionPlanId])
 }
@@ -111,36 +120,60 @@ model SubscriptionPlan {
 }
 
 model Project {
-  id                          String              @id @default(uuid())
-  companyId                   String
-  company                     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name                        String
-  description                 String?
-  baseUrl                     String
-  mainServiceName             String
-  healthcheckPath             String
-  healthcheckExpectedStatus   Int                 @default(200)
-  healthcheckTimeoutSeconds   Int                 @default(60)
-  environmentConfig           EnvironmentConfig?
-  secrets                     Secret[]
-  testSuites                  TestSuite[]
-  testRuns                    TestRun[]
-  createdAt                   DateTime            @default(now())
-  updatedAt                   DateTime            @updatedAt
+  id                        String             @id @default(uuid())
+  companyId                 String
+  company                   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name                      String
+  description               String?
+  baseUrl                   String
+  mainServiceName           String
+  healthcheckPath           String
+  healthcheckExpectedStatus Int                @default(200)
+  healthcheckTimeoutSeconds Int                @default(60)
+  environmentConfig         EnvironmentConfig?
+  secrets                   Secret[]
+  testSuites                TestSuite[]
+  testRuns                  TestRun[]
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
 
   @@index([companyId])
 }
 
 model EnvironmentConfig {
-  id              String                @id @default(uuid())
-  projectId       String                @unique
-  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  type            EnvironmentConfigType @default(DOCKER_COMPOSE)
-  composeYaml     String
-  backendTestYaml String
-  visualConfig    Json?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id        String                      @id @default(uuid())
+  projectId String                      @unique
+  project   Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      EnvironmentConfigType       @default(DOCKER_COMPOSE)
+  revisions EnvironmentConfigRevision[]
+  createdAt DateTime                    @default(now())
+  updatedAt DateTime                    @updatedAt
+}
+
+model EnvironmentConfigRevision {
+  id                  String            @id @default(uuid())
+  environmentConfigId String
+  environmentConfig   EnvironmentConfig @relation(fields: [environmentConfigId], references: [id], onDelete: Cascade)
+  revisionNumber      Int
+  status              RevisionStatus    @default(DRAFT)
+  sourceMode          String
+  visualConfig        Json?
+  compiledComposeYaml String
+  compiledRuntimeYaml String
+  schemaVersion       Int               @default(1)
+  createdById         String?
+  createdBy           User?             @relation("EnvironmentRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  publishedById       String?
+  publishedBy         User?             @relation("EnvironmentRevisionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  publishedAt         DateTime?
+  testRuns            TestRun[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([environmentConfigId, revisionNumber])
+  @@index([environmentConfigId, status, revisionNumber])
+  @@index([createdById])
+  @@index([publishedById])
 }
 
 model Secret {
@@ -157,59 +190,111 @@ model Secret {
 }
 
 model TestSuite {
-  id          String   @id @default(uuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
-  yamlContent String
-  visualFlow  Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                String                 @id @default(uuid())
+  projectId         String
+  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name              String
+  revisions         TestSuiteRevision[]
+  runSuiteRevisions TestRunSuiteRevision[]
+  deletedAt         DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@index([projectId])
+  @@index([projectId, deletedAt])
+}
+
+model TestSuiteRevision {
+  id                String                 @id @default(uuid())
+  testSuiteId       String
+  testSuite         TestSuite              @relation(fields: [testSuiteId], references: [id], onDelete: Cascade)
+  revisionNumber    Int
+  status            RevisionStatus         @default(DRAFT)
+  sourceMode        String
+  visualFlow        Json?
+  compiledYaml      String
+  executionPlan     Json?
+  schemaVersion     Int                    @default(1)
+  createdById       String?
+  createdBy         User?                  @relation("TestSuiteRevisionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  publishedById     String?
+  publishedBy       User?                  @relation("TestSuiteRevisionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
+  publishedAt       DateTime?
+  runSuiteRevisions TestRunSuiteRevision[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@unique([testSuiteId, revisionNumber])
+  @@index([testSuiteId, status, revisionNumber])
+  @@index([createdById])
+  @@index([publishedById])
 }
 
 model TestRun {
-  id                      String        @id @default(uuid())
-  projectId               String
-  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status                  TestRunStatus @default(CREATED)
-  statusReason            String?
-  failureCategory         TestRunFailureCategory?
-  currentPhase            String?
-  phaseTimestamps         Json?
-  queueJobId              String?
-  queuedAt                DateTime?
-  enqueuedAt              DateTime?
-  claimedAt               DateTime?
-  cancellationRequestedAt DateTime?
-  cancelRequestedAt       DateTime?
-  cancelRequestedBy       String?
-  cancellationReason      String?
-  runnerId                String?
-  leaseAcquiredAt         DateTime?
-  leaseExpiresAt          DateTime?
-  heartbeatAt             DateTime?
-  attempt                 Int           @default(0)
-  cleanupError            String?
-  startedAt               DateTime?
-  finishedAt              DateTime?
-  totalTests              Int           @default(0)
-  passedTests             Int           @default(0)
-  failedTests             Int           @default(0)
-  durationMs              Int?
-  errorMessage            String?
-  results                 TestResult[]
-  logs                    RunnerLog[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  id                          String                     @id @default(uuid())
+  projectId                   String
+  project                     Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environmentConfigRevisionId String?
+  environmentConfigRevision   EnvironmentConfigRevision? @relation(fields: [environmentConfigRevisionId], references: [id], onDelete: SetNull)
+  suiteRevisions              TestRunSuiteRevision[]
+  runnerVersion               String                     @default("local")
+  reportSchemaVersion         Int                        @default(1)
+  status                      TestRunStatus              @default(CREATED)
+  statusReason                String?
+  failureCategory             TestRunFailureCategory?
+  currentPhase                String?
+  phaseTimestamps             Json?
+  queueJobId                  String?
+  queuedAt                    DateTime?
+  enqueuedAt                  DateTime?
+  claimedAt                   DateTime?
+  cancellationRequestedAt     DateTime?
+  cancelRequestedAt           DateTime?
+  cancelRequestedBy           String?
+  cancellationReason          String?
+  runnerId                    String?
+  leaseAcquiredAt             DateTime?
+  leaseExpiresAt              DateTime?
+  heartbeatAt                 DateTime?
+  attempt                     Int                        @default(0)
+  cleanupError                String?
+  startedAt                   DateTime?
+  finishedAt                  DateTime?
+  totalTests                  Int                        @default(0)
+  passedTests                 Int                        @default(0)
+  failedTests                 Int                        @default(0)
+  durationMs                  Int?
+  errorMessage                String?
+  results                     TestResult[]
+  logs                        RunnerLog[]
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
 
   @@index([projectId])
+  @@index([environmentConfigRevisionId])
   @@index([status])
   @@index([queueJobId])
   @@index([runnerId])
   @@index([leaseExpiresAt])
   @@index([createdAt])
+}
+
+model TestRunSuiteRevision {
+  id                  String            @id @default(uuid())
+  testRunId           String
+  testRun             TestRun           @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testSuiteId         String?
+  testSuite           TestSuite?        @relation(fields: [testSuiteId], references: [id], onDelete: SetNull)
+  testSuiteRevisionId String
+  testSuiteRevision   TestSuiteRevision @relation(fields: [testSuiteRevisionId], references: [id], onDelete: Restrict)
+  position            Int
+  suiteName           String
+  createdAt           DateTime          @default(now())
+
+  @@unique([testRunId, testSuiteRevisionId])
+  @@unique([testRunId, position])
+  @@index([testSuiteId])
+  @@index([testSuiteRevisionId])
 }
 
 model TestResult {

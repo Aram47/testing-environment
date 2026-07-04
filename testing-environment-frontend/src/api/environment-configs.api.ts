@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { EnvironmentConfig, EnvironmentVisualConfig } from '../types';
+import type {
+  EnvironmentConfig,
+  EnvironmentConfigRevision,
+  EnvironmentVisualConfig,
+  RevisionLineDiff,
+} from '../types';
 
 interface EnvironmentConfigPayload {
   type: 'DOCKER_COMPOSE';
@@ -17,6 +22,15 @@ export interface EnvironmentCompileResult {
   composeYaml: string;
   backendTestYaml: string;
   warnings: string[];
+}
+
+export interface EnvironmentRevisionCompareResult {
+  from: EnvironmentConfigRevision;
+  to: EnvironmentConfigRevision;
+  diffs: {
+    compiledComposeYaml: RevisionLineDiff[];
+    compiledRuntimeYaml: RevisionLineDiff[];
+  };
 }
 
 class EnvironmentConfigsApi {
@@ -37,6 +51,23 @@ class EnvironmentConfigsApi {
 
   async compile(projectId: string, visualConfig: EnvironmentVisualConfig): Promise<EnvironmentCompileResult> {
     const { data } = await apiClient.post<EnvironmentCompileResult>(`/projects/${projectId}/environment-config/compile`, { visualConfig });
+    return data;
+  }
+
+  async revisions(projectId: string): Promise<EnvironmentConfigRevision[]> {
+    const { data } = await apiClient.get<EnvironmentConfigRevision[]>(`/projects/${projectId}/environment-config/revisions`);
+    return data;
+  }
+
+  async publish(projectId: string, revisionId: string): Promise<EnvironmentConfig> {
+    const { data } = await apiClient.post<EnvironmentConfigResponse>(`/projects/${projectId}/environment-config/revisions/${revisionId}/publish`);
+    return this.toEnvironmentConfig(data);
+  }
+
+  async compare(projectId: string, from: string, to: string): Promise<EnvironmentRevisionCompareResult> {
+    const { data } = await apiClient.get<EnvironmentRevisionCompareResult>(`/projects/${projectId}/environment-config/revisions/compare`, {
+      params: { from, to },
+    });
     return data;
   }
 

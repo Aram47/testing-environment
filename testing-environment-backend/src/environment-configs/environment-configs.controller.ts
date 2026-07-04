@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -24,7 +24,7 @@ export class EnvironmentConfigsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpsertEnvironmentConfigDto,
   ) {
-    return this.service.create(projectId, user.companyId, dto);
+    return this.service.create(projectId, user.companyId, user.id, dto);
   }
 
   @Get()
@@ -42,6 +42,31 @@ export class EnvironmentConfigsController {
     return this.service.compile(projectId, user.companyId, dto.visualConfig);
   }
 
+  @Get('revisions')
+  revisions(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.listRevisions(projectId, user.companyId);
+  }
+
+  @Get('revisions/compare')
+  compareRevisions(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.service.compareRevisions(projectId, user.companyId, from, to);
+  }
+
+  @Post('revisions/:revisionId/publish')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  publishRevision(
+    @Param('projectId') projectId: string,
+    @Param('revisionId') revisionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.publishRevision(projectId, user.companyId, user.id, revisionId);
+  }
+
   @Patch()
   @Roles(UserRole.OWNER, UserRole.ADMIN)
   update(
@@ -49,6 +74,6 @@ export class EnvironmentConfigsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpsertEnvironmentConfigDto,
   ) {
-    return this.service.update(projectId, user.companyId, dto);
+    return this.service.update(projectId, user.companyId, user.id, dto);
   }
 }

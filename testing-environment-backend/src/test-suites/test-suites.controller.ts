@@ -36,7 +36,7 @@ export class TestSuitesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateTestSuiteDto,
   ) {
-    return this.service.create(projectId, user.companyId, dto);
+    return this.service.create(projectId, user.companyId, user.id, dto);
   }
 
   @Get()
@@ -58,6 +58,37 @@ export class TestSuitesController {
     return this.service.compileFlow(projectId, user.companyId, dto.visualFlow);
   }
 
+  @Get(':suiteId/revisions')
+  revisions(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.listRevisions(projectId, suiteId, user.companyId);
+  }
+
+  @Get(':suiteId/revisions/compare')
+  compareRevisions(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.service.compareRevisions(projectId, suiteId, user.companyId, from, to);
+  }
+
+  @Post(':suiteId/revisions/:revisionId/publish')
+  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  publishRevision(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @Param('revisionId') revisionId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.publishRevision(projectId, suiteId, user.companyId, user.id, revisionId);
+  }
+
   @Get(':suiteId')
   find(
     @Param('projectId') projectId: string,
@@ -75,7 +106,7 @@ export class TestSuitesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateTestSuiteDto,
   ) {
-    return this.service.update(projectId, suiteId, user.companyId, dto);
+    return this.service.update(projectId, suiteId, user.companyId, user.id, dto);
   }
 
   @Delete(':suiteId')

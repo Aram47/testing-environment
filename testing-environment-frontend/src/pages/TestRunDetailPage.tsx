@@ -126,6 +126,31 @@ export function TestRunDetailPage() {
         }
       />
       <div className="space-y-6">
+        <section className="rounded-lg border border-border bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-ink">Execution snapshot</h2>
+          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+            <SnapshotItem
+              label="Environment"
+              value={
+                run.environmentConfigRevision
+                  ? `Revision #${run.environmentConfigRevision.revisionNumber}`
+                  : run.environmentConfigRevisionId ?? 'Not recorded'
+              }
+            />
+            <SnapshotItem label="Runner" value={run.runnerVersion ?? 'local'} />
+            <SnapshotItem label="Report schema" value={String(run.reportSchemaVersion ?? 1)} />
+          </dl>
+          {run.suiteRevisions?.length ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {run.suiteRevisions.map((snapshot) => (
+                <article key={snapshot.id} className="rounded-md border border-border p-3 text-sm">
+                  <div className="font-semibold text-ink">{snapshot.suiteName}</div>
+                  <div className="text-muted">Revision #{snapshot.testSuiteRevision.revisionNumber}</div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
         <TestRunProgress run={run} />
         <TestRunTimeline results={results} />
         <LogsPanel logs={logsQuery.data ?? []} events={events} />
@@ -137,5 +162,14 @@ export function TestRunDetailPage() {
       </div>
       <TestResultDetailsDrawer result={selectedResult} onClose={() => setSelectedResult(null)} />
     </>
+  );
+}
+
+function SnapshotItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase text-muted">{label}</dt>
+      <dd className="mt-1 font-medium text-ink">{value}</dd>
+    </div>
   );
 }

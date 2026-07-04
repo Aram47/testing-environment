@@ -29,6 +29,7 @@ export type TestRunFailureCategory =
 export type TestResultStatus = 'PASSED' | 'FAILED';
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 export type UserRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER';
+export type RevisionStatus = 'DRAFT' | 'PUBLISHED';
 
 export interface User {
   id: string;
@@ -103,15 +104,35 @@ export interface CreateProjectInput {
 export interface EnvironmentConfig {
   id?: string;
   projectId: string;
+  type?: 'DOCKER_COMPOSE';
   dockerComposeYaml: string;
   backendTestYaml: string;
   visualConfig?: EnvironmentVisualConfig;
+  currentRevision?: EnvironmentConfigRevision;
+  publishedRevision?: EnvironmentConfigRevision;
   mainServiceName: string;
   healthcheckPath: string;
   healthcheckExpectedStatus: number;
   healthcheckTimeoutSeconds: number;
   isValid?: boolean;
   updatedAt?: string;
+}
+
+export interface EnvironmentConfigRevision {
+  id: string;
+  environmentConfigId: string;
+  revisionNumber: number;
+  status: RevisionStatus;
+  sourceMode: string;
+  visualConfig?: EnvironmentVisualConfig;
+  compiledComposeYaml: string;
+  compiledRuntimeYaml: string;
+  schemaVersion: number;
+  createdById?: string;
+  publishedById?: string;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EnvironmentVisualConfig {
@@ -161,7 +182,26 @@ export interface TestSuite {
   name: string;
   yaml: string;
   visualFlow?: FlowSuiteDefinition;
+  currentRevision?: TestSuiteRevision;
+  publishedRevision?: TestSuiteRevision;
   testsCount?: number;
+  updatedAt: string;
+}
+
+export interface TestSuiteRevision {
+  id: string;
+  testSuiteId: string;
+  revisionNumber: number;
+  status: RevisionStatus;
+  sourceMode: string;
+  visualFlow?: FlowSuiteDefinition;
+  compiledYaml: string;
+  executionPlan?: unknown;
+  schemaVersion: number;
+  createdById?: string;
+  publishedById?: string;
+  publishedAt?: string;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -240,6 +280,11 @@ export interface FlowEdge {
 export interface TestRun {
   id: string;
   projectId: string;
+  environmentConfigRevisionId?: string;
+  environmentConfigRevision?: EnvironmentConfigRevision;
+  suiteRevisions?: TestRunSuiteRevision[];
+  runnerVersion?: string;
+  reportSchemaVersion?: number;
   status: RunStatus;
   statusReason?: string;
   failureCategory?: TestRunFailureCategory;
@@ -265,6 +310,24 @@ export interface TestRun {
   failed: number;
   durationMs?: number;
   results?: TestResult[];
+}
+
+export interface TestRunSuiteRevision {
+  id: string;
+  testRunId: string;
+  testSuiteId?: string;
+  testSuiteRevisionId: string;
+  position: number;
+  suiteName: string;
+  testSuiteRevision: TestSuiteRevision;
+  createdAt: string;
+}
+
+export interface RevisionLineDiff {
+  line: number;
+  from: string | null;
+  to: string | null;
+  changed: boolean;
 }
 
 export interface TestResult {

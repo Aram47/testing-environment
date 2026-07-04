@@ -8,6 +8,15 @@ export class TestRunResponseDto {
   @ApiProperty()
   projectId!: string;
 
+  @ApiPropertyOptional()
+  environmentConfigRevisionId?: string | null;
+
+  @ApiProperty()
+  runnerVersion!: string;
+
+  @ApiProperty()
+  reportSchemaVersion!: number;
+
   @ApiProperty({ enum: TestRunStatus })
   status!: TestRunStatus;
 

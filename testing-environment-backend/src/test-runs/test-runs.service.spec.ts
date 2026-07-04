@@ -1,4 +1,4 @@
-import { TestRunFailureCategory, TestRunStatus } from '@prisma/client';
+import { RevisionStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunQueueService } from '../queue/test-run-queue.service';
@@ -16,6 +16,13 @@ describe('TestRunsService', () => {
       updateMany: jest.Mock;
       findFirst: jest.Mock;
     };
+    environmentConfig: {
+      findUnique: jest.Mock;
+    };
+    testSuite: {
+      findMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let queue: {
     getJobId: jest.Mock;
@@ -62,6 +69,26 @@ describe('TestRunsService', () => {
           }),
         ),
       },
+      environmentConfig: {
+        findUnique: jest.fn(() =>
+          Promise.resolve({
+            id: 'environment-1',
+            revisions: [{ id: 'environment-revision-1', status: RevisionStatus.PUBLISHED }],
+          }),
+        ),
+      },
+      testSuite: {
+        findMany: jest.fn(() =>
+          Promise.resolve([
+            {
+              id: 'suite-1',
+              name: 'Suite',
+              revisions: [{ id: 'suite-revision-1', status: RevisionStatus.PUBLISHED }],
+            },
+          ]),
+        ),
+      },
+      $transaction: jest.fn((callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };
     queue = {
       getJobId: jest.fn((runId: string) => `test-run:${runId}`),
@@ -119,6 +146,19 @@ describe('TestRunsService', () => {
         projectId,
         status: TestRunStatus.CREATED,
         queueJobId: expect.stringMatching(/^test-run:/),
+        environmentConfigRevisionId: 'environment-revision-1',
+        runnerVersion: 'local',
+        reportSchemaVersion: 1,
+        suiteRevisions: {
+          create: [
+            {
+              testSuiteId: 'suite-1',
+              testSuiteRevisionId: 'suite-revision-1',
+              position: 0,
+              suiteName: 'Suite',
+            },
+          ],
+        },
       },
     });
     expect(queue.enqueue).toHaveBeenCalledWith(expect.any(String));

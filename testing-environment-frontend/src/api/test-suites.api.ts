@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { FlowSuiteDefinition, TestSuite } from '../types';
+import type { FlowSuiteDefinition, RevisionLineDiff, TestSuite, TestSuiteRevision } from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 
 export interface TestSuiteInput {
@@ -17,6 +17,14 @@ export interface FlowCompileResult {
   yamlContent: string;
   testsCount: number;
   warnings: string[];
+}
+
+export interface TestSuiteRevisionCompareResult {
+  from: TestSuiteRevision;
+  to: TestSuiteRevision;
+  diffs: {
+    compiledYaml: RevisionLineDiff[];
+  };
 }
 
 class TestSuitesApi {
@@ -42,6 +50,23 @@ class TestSuitesApi {
 
   async compileFlow(projectId: string, visualFlow: FlowSuiteDefinition): Promise<FlowCompileResult> {
     const { data } = await apiClient.post<FlowCompileResult>(`/projects/${projectId}/test-suites/compile-flow`, { visualFlow });
+    return data;
+  }
+
+  async revisions(projectId: string, suiteId: string): Promise<TestSuiteRevision[]> {
+    const { data } = await apiClient.get<TestSuiteRevision[]>(`/projects/${projectId}/test-suites/${suiteId}/revisions`);
+    return data;
+  }
+
+  async publish(projectId: string, suiteId: string, revisionId: string): Promise<TestSuite> {
+    const { data } = await apiClient.post<TestSuiteResponse>(`/projects/${projectId}/test-suites/${suiteId}/revisions/${revisionId}/publish`);
+    return this.toTestSuite(data);
+  }
+
+  async compare(projectId: string, suiteId: string, from: string, to: string): Promise<TestSuiteRevisionCompareResult> {
+    const { data } = await apiClient.get<TestSuiteRevisionCompareResult>(`/projects/${projectId}/test-suites/${suiteId}/revisions/compare`, {
+      params: { from, to },
+    });
     return data;
   }
 

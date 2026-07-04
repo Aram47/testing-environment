@@ -1,4 +1,5 @@
-import { Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Prisma, RevisionStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnvironmentConfigCompilerService } from './environment-config-compiler.service';
@@ -7,22 +8,65 @@ import { EnvironmentConfigsService } from './environment-configs.service';
 describe('EnvironmentConfigsService', () => {
   const projectId = 'project-1';
   const companyId = 'company-1';
+  const userId = 'user-1';
   let prisma: {
     environmentConfig: {
       create: jest.Mock;
       upsert: jest.Mock;
+      findUnique: jest.Mock;
     };
+    environmentConfigRevision: {
+      aggregate: jest.Mock;
+      create: jest.Mock;
+      findFirst: jest.Mock;
+      updateMany: jest.Mock;
+      findMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
+  let projectAccess: {
+    getProjectOrThrow: jest.Mock;
   };
   let service: EnvironmentConfigsService;
 
   beforeEach(() => {
+    const config = { id: 'config-1', projectId, type: 'DOCKER_COMPOSE' };
     prisma = {
       environmentConfig: {
-        create: jest.fn(({ data }: { data: unknown }) => Promise.resolve(data)),
-        upsert: jest.fn(({ create }: { create: unknown }) => Promise.resolve(create)),
+        create: jest.fn(() => Promise.resolve(config)),
+        upsert: jest.fn(() => Promise.resolve(config)),
+        findUnique: jest.fn(() =>
+          Promise.resolve({
+            ...config,
+            revisions: [
+              {
+                id: 'revision-1',
+                revisionNumber: 1,
+                status: RevisionStatus.DRAFT,
+                compiledComposeYaml: 'services: {}\n',
+                compiledRuntimeYaml: 'version: "1.0"\n',
+                visualConfig: Prisma.JsonNull,
+              },
+            ],
+          }),
+        ),
       },
+      environmentConfigRevision: {
+        aggregate: jest.fn(() => Promise.resolve({ _max: { revisionNumber: 1 } })),
+        create: jest.fn(({ data }: { data: unknown }) => Promise.resolve(data)),
+        findFirst: jest.fn(() =>
+          Promise.resolve({
+            id: 'revision-1',
+            environmentConfigId: 'config-1',
+            status: RevisionStatus.DRAFT,
+          }),
+        ),
+        updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+        findMany: jest.fn(() => Promise.resolve([])),
+      },
+      $transaction: jest.fn((callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };
-    const projectAccess = {
+    projectAccess = {
       getProjectOrThrow: jest.fn(() => Promise.resolve({ id: projectId })),
     };
     service = new EnvironmentConfigsService(
@@ -32,62 +76,103 @@ describe('EnvironmentConfigsService', () => {
     );
   });
 
-  it('preserves legacy YAML create behavior', async () => {
-    await service.create(projectId, companyId, {
+  it('creates a draft revision for legacy YAML save', async () => {
+    await service.update(projectId, companyId, userId, {
       type: 'DOCKER_COMPOSE',
       composeYaml: 'services: {}\n',
       backendTestYaml: 'version: "1.0"\n',
     });
 
-    expect(prisma.environmentConfig.create).toHaveBeenCalledWith({
+    expect(prisma.environmentConfigRevision.create).toHaveBeenCalledWith({
       data: {
-        projectId,
-        type: 'DOCKER_COMPOSE',
-        composeYaml: 'services: {}\n',
-        backendTestYaml: 'version: "1.0"\n',
+        environmentConfigId: 'config-1',
+        revisionNumber: 2,
+        status: RevisionStatus.DRAFT,
+        schemaVersion: 1,
+        sourceMode: 'YAML',
+        compiledComposeYaml: 'services: {}\n',
+        compiledRuntimeYaml: 'version: "1.0"\n',
         visualConfig: Prisma.JsonNull,
+        createdById: userId,
       },
     });
   });
 
-  it('stores visual config with generated YAML on create', async () => {
-    const visualConfig = createVisualConfig();
+  it('publishes a draft revision without changing content', async () => {
+    await service.publishRevision(projectId, companyId, userId, 'revision-1');
 
-    await service.create(projectId, companyId, { type: 'DOCKER_COMPOSE', visualConfig });
-    const call = prisma.environmentConfig.create.mock.calls[0][0] as {
-      data: { composeYaml: string; backendTestYaml: string; visualConfig: unknown };
-    };
-
-    expect(call.data.composeYaml).toContain('services:');
-    expect(call.data.backendTestYaml).toContain('compose_file');
-    expect(call.data.visualConfig).toEqual(visualConfig);
+    expect(prisma.environmentConfigRevision.updateMany).toHaveBeenCalledWith({
+      where: { id: 'revision-1', status: RevisionStatus.DRAFT },
+      data: {
+        status: RevisionStatus.PUBLISHED,
+        publishedById: userId,
+        publishedAt: expect.any(Date),
+      },
+    });
   });
 
-  it('stores visual config with generated YAML on update', async () => {
-    const visualConfig = createVisualConfig();
+  it('returns the latest revision as current even when older drafts exist', async () => {
+    prisma.environmentConfig.findUnique.mockResolvedValueOnce({
+      id: 'config-1',
+      projectId,
+      type: 'DOCKER_COMPOSE',
+      revisions: [
+        {
+          id: 'revision-3',
+          revisionNumber: 3,
+          status: RevisionStatus.PUBLISHED,
+          compiledComposeYaml: 'services: { app: {} }\n',
+          compiledRuntimeYaml: 'version: "1.0"\n',
+          visualConfig: Prisma.JsonNull,
+        },
+        {
+          id: 'revision-2',
+          revisionNumber: 2,
+          status: RevisionStatus.DRAFT,
+          compiledComposeYaml: 'services: {}\n',
+          compiledRuntimeYaml: 'version: "1.0"\n',
+          visualConfig: Prisma.JsonNull,
+        },
+      ],
+    });
 
-    await service.update(projectId, companyId, { type: 'DOCKER_COMPOSE', visualConfig });
-    const call = prisma.environmentConfig.upsert.mock.calls[0][0] as {
-      update: { composeYaml: string; backendTestYaml: string; visualConfig: unknown };
-    };
+    const config = await service.find(projectId, companyId);
 
-    expect(call.update.composeYaml).toContain('api:');
-    expect(call.update.backendTestYaml).toContain('timeout_minutes');
-    expect(call.update.visualConfig).toEqual(visualConfig);
+    expect(config.currentRevision.id).toBe('revision-3');
+  });
+
+  it('rejects publishing an already published revision', async () => {
+    prisma.environmentConfigRevision.findFirst.mockResolvedValueOnce({
+      id: 'revision-1',
+      environmentConfigId: 'config-1',
+      status: RevisionStatus.PUBLISHED,
+    });
+
+    await expect(
+      service.publishRevision(projectId, companyId, userId, 'revision-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects a concurrent publish that already consumed the draft state', async () => {
+    prisma.environmentConfigRevision.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      service.publishRevision(projectId, companyId, userId, 'revision-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('checks project ownership before reading revision history', async () => {
+    projectAccess.getProjectOrThrow.mockRejectedValueOnce(new ForbiddenException());
+
+    await expect(service.listRevisions(projectId, 'other-company')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(prisma.environmentConfigRevision.findMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects revision compare without both revision IDs', async () => {
+    await expect(
+      service.compareRevisions(projectId, companyId, '', 'revision-2'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
-
-function createVisualConfig() {
-  return {
-    version: '1.0' as const,
-    services: [{ name: 'api', image: 'api:latest' }],
-    app: {
-      mainServiceName: 'api',
-      baseUrl: 'http://localhost:8000',
-      healthcheckPath: '/health',
-      healthcheckExpectedStatus: 200,
-      healthcheckTimeoutSeconds: 60,
-    },
-    run: { timeoutMinutes: 10, cleanup: true },
-  };
-}

@@ -63,10 +63,11 @@ Current core models:
 
 - `Company`, `User`, `SubscriptionPlan`.
 - `Project`.
-- `EnvironmentConfig`: one mutable config per project, with `composeYaml`, `backendTestYaml`, and optional `visualConfig`.
+- `EnvironmentConfig`: one logical config per project; immutable content is stored in `EnvironmentConfigRevision`.
 - `Secret`.
-- `TestSuite`: mutable suite rows with `yamlContent` and optional `visualFlow`.
-- `TestRun`: run status, counters, timing, error message, related results and logs.
+- `TestSuite`: logical suite rows with soft-delete; immutable content is stored in `TestSuiteRevision`.
+- `TestRun`: run status, counters, timing, error message, runner/report schema metadata, and snapshot links to exact environment/suite revisions.
+- `TestRunSuiteRevision`: ordered suite revision snapshot rows used by a run.
 - `TestResult`: one persisted row per executed step/test case, including request and response body JSON.
 - `RunnerLog`: one row per stored runner log message.
 
@@ -79,9 +80,9 @@ Current migrations:
 
 Important gaps:
 
-- No immutable environment revisions.
-- No immutable suite revisions.
-- `TestRun` does not reference execution snapshots or a canonical execution plan.
+- Environment and suite revisions now exist and are immutable after creation.
+- `TestRun` now references a published environment revision and ordered published suite revisions at create time.
+- Execution plans are still minimal metadata snapshots; deeper canonical step plans remain future work.
 - Cancellation and queue state are not durable.
 - Large response bodies and logs can still pressure PostgreSQL despite Docker logs being truncated before insertion.
 
@@ -169,10 +170,10 @@ Current lifecycle:
 3. It creates a `TestRun` row with `CREATED`.
 4. It enqueues a BullMQ job and marks the run `QUEUED`.
 5. The worker claims the job and marks the run `CLAIMED`.
-6. The runner loads the run with project, environment config, and test suites.
+6. The runner loads the run with project health settings and immutable revision snapshots.
 7. It creates a local workspace.
 8. It advances through durable phase statuses.
-9. It writes Docker Compose, backend-test YAML, and suite YAML files.
+9. It writes Docker Compose, backend-test YAML, and suite YAML files from the snapshotted revisions.
 10. It validates and starts Docker Compose.
 11. It waits for healthcheck.
 12. It executes suites and steps.
@@ -186,7 +187,7 @@ Important gaps:
 - Worker crash recovery exists for queued jobs, but claimed/in-flight recovery still needs stronger lease handling.
 - No idempotency key exists for run creation.
 - Concurrent run creation can still race against subscription/concurrency limits because there is no database lock around active run capacity.
-- Run execution reads mutable project config and mutable test suites at start time.
+- Run execution no longer reads mutable project config or mutable test suites at start time.
 
 ## RunnerOrchestratorService
 

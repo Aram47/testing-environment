@@ -19,13 +19,12 @@ describe('RunnerOrchestratorService', () => {
           .mockResolvedValueOnce({
             id: 'run-1',
             status: TestRunStatus.CLAIMED,
-            project: {
-              environmentConfig: {
-                composeYaml: 'services: {}\n',
-                backendTestYaml: 'version: "1.0"\n',
-              },
-              testSuites: [],
+            project: {},
+            environmentConfigRevision: {
+              compiledComposeYaml: 'services: {}\n',
+              compiledRuntimeYaml: 'version: "1.0"\n',
             },
+            suiteRevisions: [],
           })
           .mockResolvedValueOnce({
             status: TestRunStatus.CLAIMED,

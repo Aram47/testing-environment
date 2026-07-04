@@ -191,12 +191,18 @@ async function createFixture(options: FixtureOptions = {}) {
       healthcheckPath: '/health',
       healthcheckExpectedStatus: 200,
       healthcheckTimeoutSeconds: 1,
-      environmentConfig: {
-        composeYaml: 'services:\n  app:\n    image: nginx\n',
-        backendTestYaml: 'version: "1.0"\n',
-      },
-      testSuites: [{ id: 'suite-1', name: 'Suite', yamlContent: 'suite: Suite\n' }],
     },
+    environmentConfigRevision: {
+      compiledComposeYaml: 'services:\n  app:\n    image: nginx\n',
+      compiledRuntimeYaml: 'version: "1.0"\n',
+    },
+    suiteRevisions: [
+      {
+        testSuiteRevisionId: 'suite-revision-1',
+        suiteName: 'Suite',
+        testSuiteRevision: { compiledYaml: 'suite: Suite\n' },
+      },
+    ],
   };
 
   const prisma = {

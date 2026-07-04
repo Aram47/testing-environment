@@ -63,6 +63,7 @@ export function TestSuitesPage() {
               <h2 className="text-lg font-semibold text-ink">{suite.name}</h2>
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 <Info label="Tests" value={String(suite.testsCount ?? 'Unknown')} />
+                <Info label="Revision" value={suite.currentRevision ? `#${suite.currentRevision.revisionNumber} ${suite.currentRevision.status}` : 'Draft'} />
                 <Info label="Updated" value={Format.date(suite.updatedAt)} />
               </dl>
               <div className="mt-5 flex justify-end gap-3">
