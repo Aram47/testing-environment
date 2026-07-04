@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpExecutionResult, YamlTestCase } from './types/yaml-test.types';
+import { HttpExecutionResult, YamlRequestStep } from './types/yaml-test.types';
 import { VariableStoreService } from './variable-store.service';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class HttpTestExecutorService {
     private readonly variables: VariableStoreService,
   ) {}
 
-  async execute(baseUrl: string, test: YamlTestCase, store: Map<string, string>): Promise<HttpExecutionResult> {
+  async execute(baseUrl: string, test: YamlRequestStep, store: Map<string, string>): Promise<HttpExecutionResult> {
     const started = Date.now();
     const request = this.variables.interpolate(test.request, store);
     const controller = new AbortController();

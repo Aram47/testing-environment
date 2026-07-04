@@ -9,9 +9,16 @@ import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
 import { HttpTestExecutorService } from './http-test-executor.service';
-import { YamlTestCase } from './types/yaml-test.types';
+import { HttpExecutionResult, YamlPollStep, YamlRequest, YamlTestCase, YamlWaitStep } from './types/yaml-test.types';
 import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
+
+interface StepExecutionResult extends HttpExecutionResult {
+  status: TestResultStatus;
+  errorMessage?: string;
+  attempts: number;
+  durationMs: number;
+}
 
 @Injectable()
 export class RunnerOrchestratorService {
@@ -128,23 +135,27 @@ export class RunnerOrchestratorService {
       for (const test of suite.tests) {
         this.ensureNotCancelled(testRunId);
         totalTests += 1;
-        this.emit('test.started', testRunId, { suiteName: suite.suite, testName: test.name });
-        const result = await this.executeTest(baseUrl, test, store);
+        const stepMeta = this.getStepMeta(test);
+        this.emit('test.started', testRunId, { suiteName: suite.suite, testName: test.name, ...stepMeta });
+        const result = await this.executeStep(testRunId, baseUrl, test, store);
         const passed = result.status === TestResultStatus.PASSED;
         passedTests += passed ? 1 : 0;
         failedTests += passed ? 0 : 1;
         await this.prisma.testResult.create({
           data: {
             testRunId,
+            stepId: stepMeta.stepId,
+            stepType: stepMeta.stepType,
             suiteName: suite.suite,
             testName: test.name,
             status: result.status,
-            method: test.request.method.toUpperCase(),
-            path: test.request.path,
-            expectedStatus: test.request.expect?.status ?? 200,
+            method: stepMeta.method,
+            path: stepMeta.path,
+            expectedStatus: stepMeta.expectedStatus,
             actualStatus: result.actualStatus,
+            attempts: result.attempts,
             durationMs: result.durationMs,
-            requestBody: this.toJsonValue(test.request.json),
+            requestBody: this.toJsonValue(stepMeta.requestBody),
             responseBody: this.toJsonValue(result.responseBody),
             errorMessage: result.errorMessage,
           },
@@ -152,6 +163,8 @@ export class RunnerOrchestratorService {
         this.emit(passed ? 'test.passed' : 'test.failed', testRunId, {
           suiteName: suite.suite,
           testName: test.name,
+          ...stepMeta,
+          attempts: result.attempts,
           errorMessage: result.errorMessage,
         });
       }
@@ -159,13 +172,84 @@ export class RunnerOrchestratorService {
     return { totalTests, passedTests, failedTests };
   }
 
-  private async executeTest(baseUrl: string, test: YamlTestCase, store: Map<string, string>) {
-    const request = this.variables.interpolate(test.request, store);
-    const result = await this.http.execute(baseUrl, { ...test, request }, store);
+  private async executeStep(
+    testRunId: string,
+    baseUrl: string,
+    test: YamlTestCase,
+    store: Map<string, string>,
+  ): Promise<StepExecutionResult> {
+    if (this.isWaitStep(test)) {
+      return this.executeWait(testRunId, test);
+    }
+
+    if (this.isPollStep(test)) {
+      return this.executePoll(testRunId, baseUrl, test, store);
+    }
+
+    return this.executeRequest(baseUrl, test.name, test.request, store);
+  }
+
+  private async executeRequest(baseUrl: string, name: string, requestDefinition: YamlRequest, store: Map<string, string>): Promise<StepExecutionResult> {
+    const request = this.variables.interpolate(requestDefinition, store);
+    const result = await this.http.execute(baseUrl, { name, request }, store);
+    return this.evaluateRequestResult(result, request, store, 1);
+  }
+
+  private async executePoll(
+    testRunId: string,
+    baseUrl: string,
+    test: YamlPollStep,
+    store: Map<string, string>,
+  ): Promise<StepExecutionResult> {
+    const started = Date.now();
+    const timeoutMs = test.poll.timeout_seconds * 1000;
+    const intervalMs = test.poll.interval_seconds * 1000;
+    let attempts = 0;
+    let lastResult: StepExecutionResult | undefined;
+
+    while (Date.now() - started <= timeoutMs) {
+      this.ensureNotCancelled(testRunId);
+      attempts += 1;
+      const request = this.variables.interpolate(test.poll.request, store);
+      const httpResult = await this.http.execute(baseUrl, { name: test.name, request }, store);
+      lastResult = this.evaluateRequestResult(httpResult, request, store, attempts);
+      if (lastResult.status === TestResultStatus.PASSED) {
+        return { ...lastResult, durationMs: Date.now() - started, attempts };
+      }
+      await this.sleep(Math.min(intervalMs, Math.max(timeoutMs - (Date.now() - started), 0)), testRunId);
+    }
+
+    return {
+      ...(lastResult ?? { durationMs: Date.now() - started }),
+      status: TestResultStatus.FAILED,
+      attempts,
+      durationMs: Date.now() - started,
+      errorMessage: test.poll.failure_message ?? `Poll timed out after ${test.poll.timeout_seconds} seconds`,
+    };
+  }
+
+  private async executeWait(testRunId: string, test: YamlWaitStep): Promise<StepExecutionResult> {
+    const started = Date.now();
+    await this.sleep(test.wait.duration_ms, testRunId);
+    return {
+      status: TestResultStatus.PASSED,
+      durationMs: Date.now() - started,
+      attempts: 1,
+      responseBody: { waitedMs: test.wait.duration_ms },
+    };
+  }
+
+  private evaluateRequestResult(
+    result: HttpExecutionResult,
+    request: YamlRequest,
+    store: Map<string, string>,
+    attempts: number,
+  ): StepExecutionResult {
     const expectedStatus = request.expect?.status ?? 200;
     const statusMatches = result.actualStatus === expectedStatus;
     const bodyMatches = this.assertions.contains(result.responseBody, request.expect?.json_contains);
-    const passed = !result.errorMessage && statusMatches && bodyMatches;
+    const assertionResult = this.assertions.evaluateAssertions(result.responseBody, request.expect?.assertions);
+    const passed = !result.errorMessage && statusMatches && bodyMatches && assertionResult.passed;
     if (passed && request.save) {
       for (const [key, path] of Object.entries(request.save)) {
         const value = this.assertions.readJsonPath(result.responseBody, path);
@@ -177,11 +261,62 @@ export class RunnerOrchestratorService {
     return {
       ...result,
       status: passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
+      attempts,
       errorMessage:
         result.errorMessage ??
         (!statusMatches ? `Expected status ${expectedStatus}, got ${result.actualStatus}` : undefined) ??
-        (!bodyMatches ? 'Response body does not contain expected JSON' : undefined),
+        (!bodyMatches ? 'Response body does not contain expected JSON' : undefined) ??
+        assertionResult.message,
     };
+  }
+
+  private getStepMeta(test: YamlTestCase) {
+    if (this.isWaitStep(test)) {
+      return {
+        stepId: test.id,
+        stepType: 'wait',
+        method: 'WAIT',
+        path: 'delay',
+        expectedStatus: 0,
+        requestBody: { durationMs: test.wait.duration_ms },
+      };
+    }
+
+    if (this.isPollStep(test)) {
+      return {
+        stepId: test.id,
+        stepType: 'pollUntil',
+        method: test.poll.request.method.toUpperCase(),
+        path: test.poll.request.path,
+        expectedStatus: test.poll.request.expect?.status ?? 200,
+        requestBody: test.poll.request.json,
+      };
+    }
+
+    return {
+      stepId: test.id,
+      stepType: 'apiRequest',
+      method: test.request.method.toUpperCase(),
+      path: test.request.path,
+      expectedStatus: test.request.expect?.status ?? 200,
+      requestBody: test.request.json,
+    };
+  }
+
+  private isWaitStep(test: YamlTestCase): test is YamlWaitStep {
+    return 'wait' in test;
+  }
+
+  private isPollStep(test: YamlTestCase): test is YamlPollStep {
+    return 'poll' in test;
+  }
+
+  private async sleep(durationMs: number, testRunId: string): Promise<void> {
+    const deadline = Date.now() + durationMs;
+    while (Date.now() < deadline) {
+      this.ensureNotCancelled(testRunId);
+      await new Promise((resolve) => setTimeout(resolve, Math.min(250, deadline - Date.now())));
+    }
   }
 
   private async createWorkspace(testRunId: string): Promise<string> {

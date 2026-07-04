@@ -13,6 +13,7 @@ import { useToast } from '../components/ui/toastContext';
 import { LogsPanel } from '../features/test-runs/LogsPanel';
 import { TestResultDetailsDrawer } from '../features/test-runs/TestResultDetailsDrawer';
 import { TestRunProgress } from '../features/test-runs/TestRunProgress';
+import { TestRunTimeline } from '../features/test-runs/TestRunTimeline';
 import { ErrorPresenter } from '../lib/errors';
 import { Format } from '../lib/format';
 import { TestResultsTable } from '../tables/TestResultsTable';
@@ -113,6 +114,7 @@ export function TestRunDetailPage() {
       />
       <div className="space-y-6">
         <TestRunProgress run={run} />
+        <TestRunTimeline results={results} />
         <LogsPanel logs={logsQuery.data ?? []} events={events} />
         {results.length ? (
           <TestResultsTable results={results} onSelect={setSelectedResult} />

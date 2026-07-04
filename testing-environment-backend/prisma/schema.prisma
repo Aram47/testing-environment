@@ -171,6 +171,8 @@ model TestResult {
   id             String           @id @default(uuid())
   testRunId      String
   testRun        TestRun          @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  stepId         String?
+  stepType       String           @default("apiRequest")
   suiteName      String
   testName       String
   status         TestResultStatus
@@ -178,6 +180,7 @@ model TestResult {
   path           String
   expectedStatus Int
   actualStatus   Int?
+  attempts       Int              @default(1)
   durationMs     Int
   requestBody    Json?
   responseBody   Json?
@@ -185,6 +188,7 @@ model TestResult {
   createdAt      DateTime         @default(now())
 
   @@index([testRunId])
+  @@index([stepId])
 }
 
 model RunnerLog {

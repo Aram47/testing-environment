@@ -12,6 +12,7 @@ export function TestResultDetailsDrawer({ result, onClose }: { result: TestResul
         <div>
           <h2 className="text-lg font-semibold text-ink">{result.testName}</h2>
           <p className="text-sm text-muted">{result.method} {result.path}</p>
+          <p className="mt-1 text-xs text-muted">Type: {result.stepType ?? 'apiRequest'} · Attempts: {result.attempts ?? 1}</p>
         </div>
         <Button variant="secondary" onClick={onClose}>Close</Button>
       </div>

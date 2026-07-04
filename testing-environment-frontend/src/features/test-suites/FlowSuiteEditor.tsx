@@ -14,18 +14,29 @@ import {
   type NodeChange,
   type NodeProps,
 } from '@xyflow/react';
-import { CheckCircle2, FileCode2, Plus, Wand2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Copy, FileCode2, Plus, SearchCheck, Trash2, Wand2 } from 'lucide-react';
 import { testSuitesApi } from '../../api/test-suites.api';
 import { Button } from '../../components/ui/Button';
-import type { FlowApiNode, FlowSuiteDefinition } from '../../types';
+import type {
+  FlowApiNode,
+  FlowAssertion,
+  FlowAssertionOperator,
+  FlowNode,
+  FlowPollUntilNode,
+  FlowSuiteDefinition,
+  FlowWaitNode,
+} from '../../types';
 
-type ApiNodeData = Record<string, unknown> & {
-  api: FlowApiNode;
+type FlowNodeData = Record<string, unknown> & {
+  flowNode: FlowNode;
 };
 
-type ApiFlowNode = Node<ApiNodeData, 'apiCall'>;
+type FlowEditorNode = Node<FlowNodeData, 'flowStep'>;
+
+type RequestFieldChanges = Partial<Pick<FlowApiNode, 'method' | 'path' | 'headers' | 'query' | 'jsonBody' | 'expectStatus' | 'assertions' | 'save'>>;
 
 const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+const assertionOperators: FlowAssertionOperator[] = ['equals', 'contains', 'exists'];
 
 interface FlowSuiteEditorProps {
   projectId: string;
@@ -37,47 +48,44 @@ interface FlowSuiteEditorProps {
 }
 
 export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml, onSave, onMessage }: FlowSuiteEditorProps) {
-  const [nodes, setNodes] = useState<ApiFlowNode[]>(() => toReactNodes(initialFlow));
+  const [nodes, setNodes] = useState<FlowEditorNode[]>(() => toReactNodes(initialFlow));
   const [edges, setEdges] = useState<Edge[]>(() => toReactEdges(initialFlow));
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(() => initialFlow?.nodes[0]?.id);
   const [yamlPreview, setYamlPreview] = useState(initialYaml);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<string[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
   const selectedNode = nodes.find((node) => node.id === selectedNodeId);
-  const nodeTypes = useMemo(() => ({ apiCall: ApiCallNode }), []);
+  const nodeTypes = useMemo(() => ({ flowStep: FlowStepNode }), []);
+  const variables = useMemo(() => collectVariables(nodes), [nodes]);
 
   const buildFlow = (): FlowSuiteDefinition => ({
     version: '1.0',
     suiteName,
     nodes: nodes.map((node) => ({
-      ...node.data.api,
+      ...node.data.flowNode,
       position: node.position,
     })),
     edges: edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
   });
 
-  const addNode = () => {
-    const id = `api-${Date.now()}`;
-    const api: FlowApiNode = {
-      id,
-      position: { x: 120 + nodes.length * 48, y: 80 + nodes.length * 32 },
-      name: `API call ${nodes.length + 1}`,
-      method: 'GET',
-      path: '/',
-      expectStatus: 200,
-    };
-    setNodes((current) => [...current, toReactNode(api)]);
-    setSelectedNodeId(id);
+  const addApiNode = () => addNode(createApiNode(nodes.length + 1));
+  const addWaitNode = () => addNode(createWaitNode(nodes.length + 1));
+  const addPollNode = () => addNode(createPollNode(nodes.length + 1));
+
+  const addNode = (flowNode: FlowNode) => {
+    setNodes((current) => [...current, toReactNode(flowNode)]);
+    setSelectedNodeId(flowNode.id);
   };
 
-  const updateSelectedNode = (nextApi: FlowApiNode) => {
+  const updateSelectedNode = (nextNode: FlowNode) => {
     setNodes((current) =>
       current.map((node) =>
-        node.id === nextApi.id
+        node.id === nextNode.id
           ? {
               ...node,
-              data: { api: nextApi },
-              position: nextApi.position,
+              data: { flowNode: nextNode },
+              position: nextNode.position,
             }
           : node,
       ),
@@ -85,6 +93,13 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
   };
 
   const compileFlow = async () => {
+    const validationErrors = validateFlow(buildFlow());
+    setFieldErrors(validationErrors);
+    if (validationErrors.length > 0) {
+      onMessage(validationErrors[0], 'error');
+      return false;
+    }
+
     setIsCompiling(true);
     try {
       const result = await testSuitesApi.compileFlow(projectId, buildFlow());
@@ -93,7 +108,7 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
       onMessage(result.warnings.length > 0 ? 'Flow compiled with warnings' : 'Flow is valid', result.warnings.length > 0 ? 'info' : 'success');
       return true;
     } catch (error) {
-      onMessage(error instanceof Error ? error.message : 'Flow validation failed', 'error');
+      onMessage(error instanceof Error ? error.message : 'Flow validation failed. Check highlighted fields and try again.', 'error');
       return false;
     } finally {
       setIsCompiling(false);
@@ -108,11 +123,17 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
 
   return (
     <section className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[190px_minmax(0,1fr)_380px]">
         <aside className="rounded-lg border border-border bg-white p-3 shadow-sm">
           <div className="space-y-2">
-            <Button type="button" className="w-full justify-start" onClick={addNode}>
+            <Button type="button" className="w-full justify-start" onClick={addApiNode}>
               <Plus size={16} /> Add API
+            </Button>
+            <Button type="button" variant="secondary" className="w-full justify-start" onClick={addWaitNode}>
+              <Clock3 size={16} /> Add Wait
+            </Button>
+            <Button type="button" variant="secondary" className="w-full justify-start" onClick={addPollNode}>
+              <SearchCheck size={16} /> Add Poll
             </Button>
             <Button type="button" variant="secondary" className="w-full justify-start" onClick={() => setNodes(autoLayout(nodes, edges))}>
               <Wand2 size={16} /> Auto layout
@@ -123,17 +144,17 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
           </div>
         </aside>
 
-        <div className="min-h-[520px] overflow-hidden rounded-lg border border-border bg-white shadow-sm">
+        <div className="min-h-[540px] overflow-hidden rounded-lg border border-border bg-white shadow-sm">
           {nodes.length === 0 ? (
-            <div className="flex h-[520px] flex-col items-center justify-center gap-3 p-6 text-center">
-              <p className="text-lg font-semibold text-ink">Create your first API call</p>
-              <p className="max-w-sm text-sm text-muted">Connect calls to describe the order of a real user flow.</p>
-              <Button type="button" onClick={addNode}>
+            <div className="flex h-[540px] flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-lg font-semibold text-ink">Create your first flow step</p>
+              <p className="max-w-sm text-sm text-muted">Combine API requests, waits, and polling to describe a real backend flow.</p>
+              <Button type="button" onClick={addApiNode}>
                 <Plus size={16} /> Add first API
               </Button>
             </div>
           ) : (
-            <ReactFlow<ApiFlowNode, Edge>
+            <ReactFlow<FlowEditorNode, Edge>
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
@@ -165,12 +186,12 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
           )}
         </div>
 
-        <NodeInspector node={selectedNode?.data.api} onChange={updateSelectedNode} />
+        <NodeInspector node={selectedNode?.data.flowNode} variables={variables} errors={fieldErrors} onChange={updateSelectedNode} />
       </div>
 
-      {warnings.length > 0 ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          {warnings.map((warning) => (
+      {[...fieldErrors, ...warnings].length > 0 ? (
+        <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          {[...fieldErrors, ...warnings].map((warning) => (
             <p key={warning}>{warning}</p>
           ))}
         </div>
@@ -195,43 +216,106 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
   );
 }
 
-function ApiCallNode({ data }: NodeProps<ApiFlowNode>) {
-  const api = data.api;
+function FlowStepNode({ data }: NodeProps<FlowEditorNode>) {
+  const node = data.flowNode;
+  const typeLabel = stepTypeLabel(node);
 
   return (
-    <article className="min-w-56 rounded-md border border-border bg-white px-3 py-2 text-left shadow-sm">
+    <article className="min-w-60 rounded-md border border-border bg-white px-3 py-2 text-left shadow-sm">
       <Handle type="target" position={Position.Left} />
-      <p className="text-xs font-semibold uppercase text-brand">{api.method}</p>
-      <h3 className="truncate text-sm font-semibold text-ink">{api.name}</h3>
-      <p className="truncate text-xs text-muted">{api.path}</p>
+      <p className="text-xs font-semibold uppercase text-brand">{typeLabel}</p>
+      <h3 className="truncate text-sm font-semibold text-ink">{node.name}</h3>
+      <p className="truncate text-xs text-muted">{stepSummary(node)}</p>
       <Handle type="source" position={Position.Right} />
     </article>
   );
 }
 
 interface NodeInspectorProps {
-  node?: FlowApiNode;
-  onChange: (node: FlowApiNode) => void;
+  node?: FlowNode;
+  variables: string[];
+  errors: string[];
+  onChange: (node: FlowNode) => void;
 }
 
-function NodeInspector({ node, onChange }: NodeInspectorProps) {
+function NodeInspector({ node, variables, errors, onChange }: NodeInspectorProps) {
   if (!node) {
     return (
       <aside className="rounded-lg border border-border bg-white p-4 text-sm text-muted shadow-sm">
-        Select a node to edit request details.
+        Select a step to edit details.
       </aside>
     );
   }
 
+  return (
+    <aside className="max-h-[760px] space-y-4 overflow-y-auto rounded-lg border border-border bg-white p-4 shadow-sm">
+      <div>
+        <h2 className="text-sm font-semibold text-ink">{stepTypeLabel(node)} step</h2>
+        <FieldErrors errors={errors.filter((error) => error.includes(`"${node.name}"`) || error.includes(node.id))} />
+      </div>
+      {isWaitNode(node) ? (
+        <WaitInspector node={node} onChange={onChange} />
+      ) : isPollNode(node) ? (
+        <PollInspector node={node} variables={variables} onChange={onChange} />
+      ) : (
+        <ApiInspector node={node} variables={variables} onChange={onChange} />
+      )}
+    </aside>
+  );
+}
+
+function ApiInspector({ node, variables, onChange }: { node: FlowApiNode; variables: string[]; onChange: (node: FlowNode) => void }) {
   const update = (changes: Partial<FlowApiNode>) => onChange({ ...node, ...changes });
 
   return (
-    <aside className="space-y-4 rounded-lg border border-border bg-white p-4 shadow-sm">
-      <h2 className="text-sm font-semibold text-ink">API node</h2>
+    <>
       <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <RequestFields node={node} variables={variables} onChange={update} />
+    </>
+  );
+}
+
+function PollInspector({ node, variables, onChange }: { node: FlowPollUntilNode; variables: string[]; onChange: (node: FlowNode) => void }) {
+  const update = (changes: Partial<FlowPollUntilNode>) => onChange({ ...node, ...changes });
+
+  return (
+    <>
+      <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <RequestFields node={node} variables={variables} onChange={update} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberField label="Timeout seconds" value={node.timeoutSeconds} onChange={(timeoutSeconds) => update({ timeoutSeconds })} />
+        <NumberField label="Retry interval seconds" value={node.intervalSeconds} onChange={(intervalSeconds) => update({ intervalSeconds })} />
+      </div>
+      <TextField label="Failure message" value={node.failureMessage ?? ''} onChange={(failureMessage) => update({ failureMessage })} />
+    </>
+  );
+}
+
+function WaitInspector({ node, onChange }: { node: FlowWaitNode; onChange: (node: FlowNode) => void }) {
+  const update = (changes: Partial<FlowWaitNode>) => onChange({ ...node, ...changes });
+
+  return (
+    <>
+      <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <NumberField label="Duration milliseconds" value={node.durationMs} onChange={(durationMs) => update({ durationMs })} />
+    </>
+  );
+}
+
+function RequestFields({
+  node,
+  variables,
+  onChange,
+}: {
+  node: FlowApiNode | FlowPollUntilNode;
+  variables: string[];
+  onChange: (changes: RequestFieldChanges) => void;
+}) {
+  return (
+    <>
       <label className="block">
         <span className="mb-1 block text-sm font-medium text-ink">Method</span>
-        <select className="input" value={node.method} onChange={(event) => update({ method: event.target.value })}>
+        <select className="input" value={node.method} onChange={(event) => onChange({ method: event.target.value })}>
           {methods.map((method) => (
             <option key={method} value={method}>
               {method}
@@ -239,19 +323,35 @@ function NodeInspector({ node, onChange }: NodeInspectorProps) {
           ))}
         </select>
       </label>
-      <TextField label="Path" value={node.path} onChange={(path) => update({ path })} />
-      <KeyValueField label="Headers" value={node.headers} onChange={(headers) => update({ headers })} />
-      <KeyValueField label="Query params" value={node.query as Record<string, string> | undefined} onChange={(query) => update({ query })} />
-      <JsonField label="JSON body" value={node.jsonBody} onChange={(jsonBody) => update({ jsonBody })} />
-      <TextField
-        label="Expected status"
-        value={String(node.expectStatus ?? 200)}
-        type="number"
-        onChange={(value) => update({ expectStatus: Number(value) || 200 })}
+      <TextField label="Path" value={node.path} onChange={(path) => onChange({ path })} />
+      <VariablePicker variables={variables} />
+      <RecordTable label="Headers" keyLabel="Header" valueLabel="Value" value={node.headers} onChange={(headers) => onChange({ headers })} />
+      <RecordTable
+        label="Query params"
+        keyLabel="Param"
+        valueLabel="Value"
+        value={recordToStringMap(node.query)}
+        onChange={(query) => onChange({ query })}
       />
-      <JsonField label="JSON contains" value={node.jsonContains} onChange={(jsonContains) => update({ jsonContains })} />
-      <KeyValueField label="Save variables" value={node.save} placeholder="access_token=$.access_token" onChange={(save) => update({ save })} />
-    </aside>
+      <JsonField label="JSON body" value={node.jsonBody} onChange={(jsonBody) => onChange({ jsonBody })} />
+      <NumberField label="Expected status" value={node.expectStatus ?? 200} onChange={(expectStatus) => onChange({ expectStatus })} />
+      <AssertionBuilder value={node.assertions ?? []} onChange={(assertions) => onChange({ assertions })} />
+      <RecordTable label="Save variables" keyLabel="Variable" valueLabel="Response path" value={node.save} onChange={(save) => onChange({ save })} />
+    </>
+  );
+}
+
+function FieldErrors({ errors }: { errors: string[] }) {
+  if (errors.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 space-y-1 rounded-md border border-red-200 bg-red-50 p-2 text-xs font-medium text-red-700">
+      {errors.map((error) => (
+        <p key={error}>{error}</p>
+      ))}
+    </div>
   );
 }
 
@@ -271,35 +371,132 @@ function TextField({ label, value, type = 'text', onChange }: TextFieldProps) {
   );
 }
 
-interface KeyValueFieldProps {
-  label: string;
-  value?: Record<string, string>;
-  placeholder?: string;
-  onChange: (value: Record<string, string> | undefined) => void;
-}
-
-function KeyValueField({ label, value, placeholder = 'Authorization=Bearer {{ access_token }}', onChange }: KeyValueFieldProps) {
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
-      <textarea
-        className="input min-h-24 font-mono"
-        spellCheck={false}
-        placeholder={placeholder}
-        value={formatKeyValue(value)}
-        onChange={(event) => onChange(parseKeyValue(event.target.value))}
-      />
-    </label>
+    <TextField
+      label={label}
+      type="number"
+      value={String(value)}
+      onChange={(nextValue) => onChange(Number(nextValue))}
+    />
   );
 }
 
-interface JsonFieldProps {
+function RecordTable({
+  label,
+  keyLabel,
+  valueLabel,
+  value,
+  onChange,
+}: {
   label: string;
-  value: unknown;
-  onChange: (value: unknown) => void;
+  keyLabel: string;
+  valueLabel: string;
+  value?: Record<string, string>;
+  onChange: (value: Record<string, string> | undefined) => void;
+}) {
+  const rows = Object.entries(value ?? {}).map(([key, entryValue], index) => ({ id: `${key}-${index}`, key, value: entryValue }));
+  const updateRows = (nextRows: Array<{ key: string; value: string }>) => {
+    const entries = nextRows.filter((row) => row.key.trim()).map((row) => [row.key.trim(), row.value] as const);
+    onChange(entries.length > 0 ? Object.fromEntries(entries) : undefined);
+  };
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-ink">{label}</h3>
+        <Button type="button" variant="secondary" className="min-h-9 px-3" onClick={() => updateRows([...rows, { key: '', value: '' }])}>
+          <Plus size={14} /> Add
+        </Button>
+      </div>
+      {rows.length === 0 ? <p className="rounded-md bg-slate-50 p-3 text-xs text-muted">No rows yet.</p> : null}
+      {rows.map((row, index) => (
+        <div key={row.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <input
+            className="input"
+            aria-label={keyLabel}
+            placeholder={keyLabel}
+            value={row.key}
+            onChange={(event) => updateRows(replaceRow(rows, index, { ...row, key: event.target.value }))}
+          />
+          <input
+            className="input"
+            aria-label={valueLabel}
+            placeholder={valueLabel}
+            value={row.value}
+            onChange={(event) => updateRows(replaceRow(rows, index, { ...row, value: event.target.value }))}
+          />
+          <Button type="button" variant="ghost" className="min-h-11 px-3" onClick={() => updateRows(rows.filter((_, rowIndex) => rowIndex !== index))}>
+            <Trash2 size={16} />
+          </Button>
+        </div>
+      ))}
+    </section>
+  );
 }
 
-function JsonField({ label, value, onChange }: JsonFieldProps) {
+function AssertionBuilder({ value, onChange }: { value: FlowAssertion[]; onChange: (value: FlowAssertion[] | undefined) => void }) {
+  const updateRows = (rows: FlowAssertion[]) => {
+    const cleanRows = rows.filter((row) => row.fieldPath.trim());
+    onChange(cleanRows.length > 0 ? cleanRows : undefined);
+  };
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-ink">Response assertions</h3>
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-9 px-3"
+          onClick={() => updateRows([...value, { id: `assertion-${Date.now()}`, fieldPath: '$.', operator: 'exists' }])}
+        >
+          <Plus size={14} /> Add
+        </Button>
+      </div>
+      {value.length === 0 ? <p className="rounded-md bg-slate-50 p-3 text-xs text-muted">No assertions. Expected status is still checked.</p> : null}
+      {value.map((assertion, index) => (
+        <div key={assertion.id ?? `${assertion.fieldPath}-${index}`} className="grid gap-2">
+          <div className="grid gap-2 sm:grid-cols-[1fr_120px_auto]">
+            <input
+              className="input"
+              aria-label="Response field path"
+              placeholder="$.data.status"
+              value={assertion.fieldPath}
+              onChange={(event) => updateRows(replaceRow(value, index, { ...assertion, fieldPath: event.target.value }))}
+            />
+            <select
+              className="input"
+              aria-label="Assertion operator"
+              value={assertion.operator}
+              onChange={(event) => updateRows(replaceRow(value, index, { ...assertion, operator: event.target.value as FlowAssertionOperator }))}
+            >
+              {assertionOperators.map((operator) => (
+                <option key={operator} value={operator}>
+                  {operator}
+                </option>
+              ))}
+            </select>
+            <Button type="button" variant="ghost" className="min-h-11 px-3" onClick={() => updateRows(value.filter((_, rowIndex) => rowIndex !== index))}>
+              <Trash2 size={16} />
+            </Button>
+          </div>
+          {assertion.operator !== 'exists' ? (
+            <input
+              className="input"
+              aria-label="Expected value"
+              placeholder="Expected value"
+              value={assertion.expectedValue ?? ''}
+              onChange={(event) => updateRows(replaceRow(value, index, { ...assertion, expectedValue: event.target.value }))}
+            />
+          ) : null}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function JsonField({ label, value, onChange }: { label: string; value: unknown; onChange: (value: unknown) => void }) {
   const [text, setText] = useState(() => formatJson(value));
   const [error, setError] = useState('');
 
@@ -314,7 +511,7 @@ function JsonField({ label, value, onChange }: JsonFieldProps) {
       <textarea
         className="input min-h-28 font-mono"
         spellCheck={false}
-        placeholder={'{"id": 1}'}
+        placeholder={'{"id": "{{ user_id }}"}'}
         value={text}
         onChange={(event) => {
           const next = event.target.value;
@@ -337,16 +534,44 @@ function JsonField({ label, value, onChange }: JsonFieldProps) {
   );
 }
 
-function toReactNodes(flow?: FlowSuiteDefinition): ApiFlowNode[] {
-  return (flow?.nodes ?? []).map(toReactNode);
+function VariablePicker({ variables }: { variables: string[] }) {
+  if (variables.length === 0) {
+    return <p className="rounded-md bg-slate-50 p-3 text-xs text-muted">Saved variables will appear here after you add them to previous steps.</p>;
+  }
+
+  const copyVariable = (variable: string) => {
+    void navigator.clipboard?.writeText(`{{ ${variable} }}`);
+  };
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-medium text-ink">Variables</h3>
+      <div className="flex flex-wrap gap-2">
+        {variables.map((variable) => (
+          <button
+            key={variable}
+            type="button"
+            className="focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-2 text-xs font-medium text-ink"
+            onClick={() => copyVariable(variable)}
+          >
+            <Copy size={13} /> {`{{ ${variable} }}`}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 }
 
-function toReactNode(api: FlowApiNode): ApiFlowNode {
+function toReactNodes(flow?: FlowSuiteDefinition): FlowEditorNode[] {
+  return (flow?.nodes ?? []).map((node) => toReactNode(normalizeNode(node)));
+}
+
+function toReactNode(flowNode: FlowNode): FlowEditorNode {
   return {
-    id: api.id,
-    type: 'apiCall',
-    position: api.position,
-    data: { api },
+    id: flowNode.id,
+    type: 'flowStep',
+    position: flowNode.position,
+    data: { flowNode },
   };
 }
 
@@ -354,47 +579,154 @@ function toReactEdges(flow?: FlowSuiteDefinition): Edge[] {
   return (flow?.edges ?? []).map((edge) => ({ id: edge.id, source: edge.source, target: edge.target }));
 }
 
-function applyFlowNodeChanges(changes: NodeChange<ApiFlowNode>[], nodes: ApiFlowNode[]): ApiFlowNode[] {
+function applyFlowNodeChanges(changes: NodeChange<FlowEditorNode>[], nodes: FlowEditorNode[]): FlowEditorNode[] {
   return applyNodeChanges(changes, nodes).map((node) => ({
     ...node,
     data: {
-      api: {
-        ...node.data.api,
+      flowNode: {
+        ...node.data.flowNode,
         position: node.position,
       },
     },
   }));
 }
 
-function autoLayout(nodes: ApiFlowNode[], edges: Edge[]): ApiFlowNode[] {
+function autoLayout(nodes: FlowEditorNode[], edges: Edge[]): FlowEditorNode[] {
   const targets = new Set(edges.map((edge) => edge.target));
   const orderedIds = [...nodes.filter((node) => !targets.has(node.id)).map((node) => node.id), ...nodes.map((node) => node.id)];
   const uniqueIds = [...new Set(orderedIds)];
   return nodes.map((node) => {
     const index = uniqueIds.indexOf(node.id);
-    const position = { x: 80 + index * 260, y: 120 };
-    return { ...node, position, data: { api: { ...node.data.api, position } } };
+    const position = { x: 80 + index * 280, y: 120 };
+    return { ...node, position, data: { flowNode: { ...node.data.flowNode, position } } };
   });
 }
 
-function formatKeyValue(value?: Record<string, string>): string {
-  return Object.entries(value ?? {})
-    .map(([key, entryValue]) => `${key}=${entryValue}`)
-    .join('\n');
+function createApiNode(index: number): FlowApiNode {
+  const id = `api-${Date.now()}`;
+  return {
+    id,
+    type: 'apiRequest',
+    position: { x: 120 + index * 48, y: 80 + index * 32 },
+    name: `API call ${index}`,
+    method: 'GET',
+    path: '/',
+    expectStatus: 200,
+  };
 }
 
-function parseKeyValue(value: string): Record<string, string> | undefined {
-  const entries = value
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const separator = line.indexOf('=');
-      return separator === -1 ? [line, ''] : [line.slice(0, separator).trim(), line.slice(separator + 1).trim()];
-    })
-    .filter(([key]) => key);
+function createWaitNode(index: number): FlowWaitNode {
+  const id = `wait-${Date.now()}`;
+  return {
+    id,
+    type: 'wait',
+    position: { x: 120 + index * 48, y: 80 + index * 32 },
+    name: `Wait ${index}`,
+    durationMs: 1000,
+  };
+}
 
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+function createPollNode(index: number): FlowPollUntilNode {
+  const id = `poll-${Date.now()}`;
+  return {
+    id,
+    type: 'pollUntil',
+    position: { x: 120 + index * 48, y: 80 + index * 32 },
+    name: `Poll ${index}`,
+    method: 'GET',
+    path: '/',
+    expectStatus: 200,
+    timeoutSeconds: 30,
+    intervalSeconds: 2,
+  };
+}
+
+function normalizeNode(node: FlowNode): FlowNode {
+  return node.type ? node : { ...node, type: 'apiRequest' };
+}
+
+function validateFlow(flow: FlowSuiteDefinition): string[] {
+  const errors: string[] = [];
+  for (const node of flow.nodes.map(normalizeNode)) {
+    if (!node.name.trim()) {
+      errors.push(`Step ${node.id} needs a name.`);
+    }
+    if (isWaitNode(node)) {
+      if (!Number.isFinite(node.durationMs) || node.durationMs <= 0) {
+        errors.push(`Wait step "${node.name}" needs a duration greater than 0 ms.`);
+      }
+      continue;
+    }
+    if (!node.path.trim()) {
+      errors.push(`API step "${node.name}" needs a path.`);
+    }
+    for (const key of Object.keys(node.save ?? {})) {
+      if (!key.trim()) {
+        errors.push(`Saved variable in "${node.name}" needs a name.`);
+      }
+    }
+    for (const assertion of node.assertions ?? []) {
+      if (!assertion.fieldPath.trim()) {
+        errors.push(`Assertion in "${node.name}" needs a response field path.`);
+      }
+    }
+    if (isPollNode(node)) {
+      if (!Number.isFinite(node.timeoutSeconds) || node.timeoutSeconds <= 0) {
+        errors.push(`Poll step "${node.name}" needs a timeout greater than 0 seconds.`);
+      }
+      if (!Number.isFinite(node.intervalSeconds) || node.intervalSeconds <= 0) {
+        errors.push(`Poll step "${node.name}" needs a retry interval greater than 0 seconds.`);
+      }
+      if (node.intervalSeconds > node.timeoutSeconds) {
+        errors.push(`Poll step "${node.name}" interval cannot be greater than timeout.`);
+      }
+    }
+  }
+  return errors;
+}
+
+function collectVariables(nodes: FlowEditorNode[]): string[] {
+  const variables = nodes.flatMap((node) => (isWaitNode(node.data.flowNode) ? [] : Object.keys(node.data.flowNode.save ?? {})));
+  return [...new Set(variables.filter(Boolean))];
+}
+
+function stepTypeLabel(node: FlowNode): string {
+  if (isWaitNode(node)) {
+    return 'Wait';
+  }
+  if (isPollNode(node)) {
+    return 'Poll until';
+  }
+  return node.method;
+}
+
+function stepSummary(node: FlowNode): string {
+  if (isWaitNode(node)) {
+    return `${node.durationMs} ms`;
+  }
+  if (isPollNode(node)) {
+    return `${node.method} ${node.path} for ${node.timeoutSeconds}s`;
+  }
+  return node.path;
+}
+
+function isWaitNode(node: FlowNode): node is FlowWaitNode {
+  return node.type === 'wait';
+}
+
+function isPollNode(node: FlowNode): node is FlowPollUntilNode {
+  return node.type === 'pollUntil';
+}
+
+function replaceRow<T>(rows: T[], index: number, row: T): T[] {
+  return rows.map((item, itemIndex) => (itemIndex === index ? row : item));
+}
+
+function recordToStringMap(value?: Record<string, unknown>): Record<string, string> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, entryValue]) => [key, String(entryValue)]));
 }
 
 function formatJson(value: unknown): string {
