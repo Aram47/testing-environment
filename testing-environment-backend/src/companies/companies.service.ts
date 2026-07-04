@@ -78,7 +78,11 @@ export class CompaniesService {
     ]);
   }
 
-  private toCompanyProfile(company: CompanyWithPlan, runsThisMonth: number, concurrentRuns: number): CompanyProfile {
+  private toCompanyProfile(
+    company: CompanyWithPlan,
+    runsThisMonth: number,
+    concurrentRuns: number,
+  ): CompanyProfile {
     return {
       id: company.id,
       name: company.name,

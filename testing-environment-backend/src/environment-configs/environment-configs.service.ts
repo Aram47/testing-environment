@@ -4,7 +4,10 @@ import { ProjectAccessService } from '../common/services/project-access.service'
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertEnvironmentConfigDto } from './dto/upsert-environment-config.dto';
 import { EnvironmentConfigCompilerService } from './environment-config-compiler.service';
-import { EnvironmentCompileResult, EnvironmentVisualConfig } from './types/environment-visual-config.types';
+import {
+  EnvironmentCompileResult,
+  EnvironmentVisualConfig,
+} from './types/environment-visual-config.types';
 
 @Injectable()
 export class EnvironmentConfigsService {
@@ -38,12 +41,19 @@ export class EnvironmentConfigsService {
     });
   }
 
-  async compile(projectId: string, companyId: string, visualConfig: EnvironmentVisualConfig): Promise<EnvironmentCompileResult> {
+  async compile(
+    projectId: string,
+    companyId: string,
+    visualConfig: EnvironmentVisualConfig,
+  ): Promise<EnvironmentCompileResult> {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
     return this.compiler.compile(visualConfig);
   }
 
-  private toCreateData(projectId: string, dto: UpsertEnvironmentConfigDto): Prisma.EnvironmentConfigUncheckedCreateInput {
+  private toCreateData(
+    projectId: string,
+    dto: UpsertEnvironmentConfigDto,
+  ): Prisma.EnvironmentConfigUncheckedCreateInput {
     if (dto.visualConfig) {
       const compiled = this.compiler.compile(dto.visualConfig);
       return {

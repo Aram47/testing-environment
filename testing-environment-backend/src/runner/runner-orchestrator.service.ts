@@ -9,7 +9,13 @@ import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
 import { HttpTestExecutorService } from './http-test-executor.service';
-import { HttpExecutionResult, YamlPollStep, YamlRequest, YamlTestCase, YamlWaitStep } from './types/yaml-test.types';
+import {
+  HttpExecutionResult,
+  YamlPollStep,
+  YamlRequest,
+  YamlTestCase,
+  YamlWaitStep,
+} from './types/yaml-test.types';
 import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
 
@@ -20,10 +26,15 @@ interface StepExecutionResult extends HttpExecutionResult {
   durationMs: number;
 }
 
+class TestRunCancellationError extends Error {
+  constructor() {
+    super('Test run was cancelled');
+  }
+}
+
 @Injectable()
 export class RunnerOrchestratorService {
   private readonly logger = new Logger(RunnerOrchestratorService.name);
-  private readonly cancelledRuns = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,15 +48,7 @@ export class RunnerOrchestratorService {
     private readonly realtime: RealtimeService,
   ) {}
 
-  start(testRunId: string): void {
-    void this.execute(testRunId).catch((error) => this.logger.error(error));
-  }
-
-  cancel(testRunId: string): void {
-    this.cancelledRuns.add(testRunId);
-  }
-
-  private async execute(testRunId: string): Promise<void> {
+  async execute(testRunId: string): Promise<void> {
     const started = Date.now();
     let workspace = '';
     try {
@@ -56,6 +59,11 @@ export class RunnerOrchestratorService {
       if (!run) {
         throw new NotFoundException('Test run not found');
       }
+      await this.ensureNotCancelled(testRunId);
+      if (run.status !== TestRunStatus.PENDING) {
+        this.logger.warn(`Skipping test run ${testRunId} because it is ${run.status}`);
+        return;
+      }
       if (!run.project.environmentConfig) {
         throw new Error('Environment config is required before running tests');
       }
@@ -63,8 +71,11 @@ export class RunnerOrchestratorService {
         throw new Error('At least one test suite is required');
       }
 
+      const claimed = await this.markRunning(testRunId);
+      if (!claimed) {
+        return;
+      }
       workspace = await this.createWorkspace(testRunId);
-      await this.markRunning(testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing isolated local workspace');
       this.emit('run.started', testRunId);
 
@@ -77,12 +88,12 @@ export class RunnerOrchestratorService {
         await writeFile(join(workspace, 'tests', `${suite.id}.yml`), suite.yamlContent);
       }
 
-      this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId);
       this.emit('environment.starting', testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
       await this.docker.up(workspace);
 
-      this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId);
       await this.healthcheck.waitFor(
         run.project.baseUrl,
         run.project.healthcheckPath,
@@ -98,24 +109,26 @@ export class RunnerOrchestratorService {
         this.emit('logs.updated', testRunId);
       }
 
-      const status = this.cancelledRuns.has(testRunId)
+      const status = (await this.isCancellationRequested(testRunId))
         ? TestRunStatus.CANCELLED
         : stats.failedTests > 0
           ? TestRunStatus.FAILED
           : TestRunStatus.PASSED;
       await this.finish(testRunId, status, started, stats);
     } catch (error) {
-      const status = this.cancelledRuns.has(testRunId) ? TestRunStatus.CANCELLED : TestRunStatus.FAILED;
+      const status =
+        error instanceof TestRunCancellationError ? TestRunStatus.CANCELLED : TestRunStatus.FAILED;
       const message = error instanceof Error ? error.message : 'Runner failed';
       await this.log(testRunId, RunnerLogSource.ERROR, message).catch(() => undefined);
       await this.finish(testRunId, status, started, undefined, message).catch(() => undefined);
     } finally {
       if (workspace) {
         this.emit('environment.stopping', testRunId);
-        await this.docker.down(workspace).catch((error) => this.log(testRunId, RunnerLogSource.ERROR, String(error)));
+        await this.docker
+          .down(workspace)
+          .catch((error) => this.log(testRunId, RunnerLogSource.ERROR, String(error)));
         await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       }
-      this.cancelledRuns.delete(testRunId);
       this.emit('run.finished', testRunId);
     }
   }
@@ -133,10 +146,14 @@ export class RunnerOrchestratorService {
     for (const suiteRecord of suites) {
       const suite = this.parser.parseSuite(suiteRecord.yamlContent);
       for (const test of suite.tests) {
-        this.ensureNotCancelled(testRunId);
+        await this.ensureNotCancelled(testRunId);
         totalTests += 1;
         const stepMeta = this.getStepMeta(test);
-        this.emit('test.started', testRunId, { suiteName: suite.suite, testName: test.name, ...stepMeta });
+        this.emit('test.started', testRunId, {
+          suiteName: suite.suite,
+          testName: test.name,
+          ...stepMeta,
+        });
         const result = await this.executeStep(testRunId, baseUrl, test, store);
         const passed = result.status === TestResultStatus.PASSED;
         passedTests += passed ? 1 : 0;
@@ -189,7 +206,12 @@ export class RunnerOrchestratorService {
     return this.executeRequest(baseUrl, test.name, test.request, store);
   }
 
-  private async executeRequest(baseUrl: string, name: string, requestDefinition: YamlRequest, store: Map<string, string>): Promise<StepExecutionResult> {
+  private async executeRequest(
+    baseUrl: string,
+    name: string,
+    requestDefinition: YamlRequest,
+    store: Map<string, string>,
+  ): Promise<StepExecutionResult> {
     const request = this.variables.interpolate(requestDefinition, store);
     const result = await this.http.execute(baseUrl, { name, request }, store);
     return this.evaluateRequestResult(result, request, store, 1);
@@ -208,7 +230,7 @@ export class RunnerOrchestratorService {
     let lastResult: StepExecutionResult | undefined;
 
     while (Date.now() - started <= timeoutMs) {
-      this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId);
       attempts += 1;
       const request = this.variables.interpolate(test.poll.request, store);
       const httpResult = await this.http.execute(baseUrl, { name: test.name, request }, store);
@@ -216,7 +238,10 @@ export class RunnerOrchestratorService {
       if (lastResult.status === TestResultStatus.PASSED) {
         return { ...lastResult, durationMs: Date.now() - started, attempts };
       }
-      await this.sleep(Math.min(intervalMs, Math.max(timeoutMs - (Date.now() - started), 0)), testRunId);
+      await this.sleep(
+        Math.min(intervalMs, Math.max(timeoutMs - (Date.now() - started), 0)),
+        testRunId,
+      );
     }
 
     return {
@@ -224,7 +249,8 @@ export class RunnerOrchestratorService {
       status: TestResultStatus.FAILED,
       attempts,
       durationMs: Date.now() - started,
-      errorMessage: test.poll.failure_message ?? `Poll timed out after ${test.poll.timeout_seconds} seconds`,
+      errorMessage:
+        test.poll.failure_message ?? `Poll timed out after ${test.poll.timeout_seconds} seconds`,
     };
   }
 
@@ -247,8 +273,14 @@ export class RunnerOrchestratorService {
   ): StepExecutionResult {
     const expectedStatus = request.expect?.status ?? 200;
     const statusMatches = result.actualStatus === expectedStatus;
-    const bodyMatches = this.assertions.contains(result.responseBody, request.expect?.json_contains);
-    const assertionResult = this.assertions.evaluateAssertions(result.responseBody, request.expect?.assertions);
+    const bodyMatches = this.assertions.contains(
+      result.responseBody,
+      request.expect?.json_contains,
+    );
+    const assertionResult = this.assertions.evaluateAssertions(
+      result.responseBody,
+      request.expect?.assertions,
+    );
     const passed = !result.errorMessage && statusMatches && bodyMatches && assertionResult.passed;
     if (passed && request.save) {
       for (const [key, path] of Object.entries(request.save)) {
@@ -264,7 +296,9 @@ export class RunnerOrchestratorService {
       attempts,
       errorMessage:
         result.errorMessage ??
-        (!statusMatches ? `Expected status ${expectedStatus}, got ${result.actualStatus}` : undefined) ??
+        (!statusMatches
+          ? `Expected status ${expectedStatus}, got ${result.actualStatus}`
+          : undefined) ??
         (!bodyMatches ? 'Response body does not contain expected JSON' : undefined) ??
         assertionResult.message,
     };
@@ -314,7 +348,7 @@ export class RunnerOrchestratorService {
   private async sleep(durationMs: number, testRunId: string): Promise<void> {
     const deadline = Date.now() + durationMs;
     while (Date.now() < deadline) {
-      this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId);
       await new Promise((resolve) => setTimeout(resolve, Math.min(250, deadline - Date.now())));
     }
   }
@@ -326,11 +360,17 @@ export class RunnerOrchestratorService {
     return workspace;
   }
 
-  private async markRunning(testRunId: string): Promise<void> {
-    await this.prisma.testRun.update({
-      where: { id: testRunId },
-      data: { status: TestRunStatus.RUNNING, startedAt: new Date() },
+  private async markRunning(testRunId: string): Promise<boolean> {
+    const result = await this.prisma.testRun.updateMany({
+      where: { id: testRunId, status: TestRunStatus.PENDING, cancellationRequestedAt: null },
+      data: { status: TestRunStatus.RUNNING, startedAt: new Date(), claimedAt: new Date() },
     });
+    if (result.count === 0) {
+      await this.ensureNotCancelled(testRunId);
+      this.logger.warn(`Skipping test run ${testRunId} because it could not be claimed`);
+      return false;
+    }
+    return true;
   }
 
   private async finish(
@@ -364,10 +404,18 @@ export class RunnerOrchestratorService {
     }
   }
 
-  private ensureNotCancelled(testRunId: string): void {
-    if (this.cancelledRuns.has(testRunId)) {
-      throw new Error('Test run was cancelled');
+  private async ensureNotCancelled(testRunId: string): Promise<void> {
+    if (await this.isCancellationRequested(testRunId)) {
+      throw new TestRunCancellationError();
     }
+  }
+
+  private async isCancellationRequested(testRunId: string): Promise<boolean> {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: { cancellationRequestedAt: true, status: true },
+    });
+    return run?.status === TestRunStatus.CANCELLED || Boolean(run?.cancellationRequestedAt);
   }
 
   private emit(type: string, testRunId: string, payload?: Record<string, unknown>): void {

@@ -39,7 +39,9 @@ export class EnvironmentConfigCompilerService {
       }
       serviceNames.add(service.name);
       if (!service.image?.trim() && !service.buildContext?.trim()) {
-        throw new BadRequestException(`Service "${service.name}" must define image or build context`);
+        throw new BadRequestException(
+          `Service "${service.name}" must define image or build context`,
+        );
       }
     }
 
@@ -71,7 +73,9 @@ export class EnvironmentConfigCompilerService {
 
   private toComposeFile(config: EnvironmentVisualConfig): Record<string, unknown> {
     return {
-      services: Object.fromEntries(config.services.map((service) => [service.name, this.toComposeService(service)])),
+      services: Object.fromEntries(
+        config.services.map((service) => [service.name, this.toComposeService(service)]),
+      ),
     };
   }
 

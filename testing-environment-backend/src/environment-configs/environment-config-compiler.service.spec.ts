@@ -8,7 +8,9 @@ describe('EnvironmentConfigCompilerService', () => {
   it('compiles a single API service to Docker Compose YAML', () => {
     const result = service.compile({
       version: '1.0',
-      services: [{ name: 'api', image: 'api:latest', ports: [{ host: '8000', container: '8000' }] }],
+      services: [
+        { name: 'api', image: 'api:latest', ports: [{ host: '8000', container: '8000' }] },
+      ],
       app: {
         mainServiceName: 'api',
         baseUrl: 'http://localhost:8000',
@@ -19,7 +21,9 @@ describe('EnvironmentConfigCompilerService', () => {
       run: { timeoutMinutes: 10, cleanup: true },
     });
 
-    const compose = yaml.load(result.composeYaml) as { services: Record<string, { image: string; ports: string[] }> };
+    const compose = yaml.load(result.composeYaml) as {
+      services: Record<string, { image: string; ports: string[] }>;
+    };
     expect(compose.services.api.image).toBe('api:latest');
     expect(compose.services.api.ports).toEqual(['8000:8000']);
   });
@@ -37,13 +41,20 @@ describe('EnvironmentConfigCompilerService', () => {
   it('compiles backend-test YAML from app and run settings', () => {
     const result = service.compile(createVisualConfig());
     const backendTest = yaml.load(result.backendTestYaml) as {
-      app: { service: string; healthcheck: { path: string; expected_status: number; timeout_seconds: number } };
+      app: {
+        service: string;
+        healthcheck: { path: string; expected_status: number; timeout_seconds: number };
+      };
       tests: string[];
       run: { timeout_minutes: number; cleanup: boolean };
     };
 
     expect(backendTest.app.service).toBe('api');
-    expect(backendTest.app.healthcheck).toMatchObject({ path: '/health', expected_status: 200, timeout_seconds: 60 });
+    expect(backendTest.app.healthcheck).toMatchObject({
+      path: '/health',
+      expected_status: 200,
+      timeout_seconds: 60,
+    });
     expect(backendTest.tests).toEqual(['./tests/*.yml']);
     expect(backendTest.run).toEqual({ timeout_minutes: 10, cleanup: true });
   });
@@ -59,7 +70,9 @@ describe('EnvironmentConfigCompilerService', () => {
     const config = createVisualConfig();
     config.services[0] = { name: 'api' };
 
-    expect(() => service.compile(config)).toThrow('Service "api" must define image or build context');
+    expect(() => service.compile(config)).toThrow(
+      'Service "api" must define image or build context',
+    );
   });
 });
 

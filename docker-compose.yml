@@ -19,12 +19,26 @@ services:
     networks:
       - testing-network
 
-  # NestJS Backend
-  backend:
+  redis:
+    image: redis:7-alpine
+    container_name: testing-env-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - testing-network
+
+  # NestJS Backend API
+  backend-api:
     build:
       context: ./testing-environment-backend
       dockerfile: Dockerfile
-    container_name: testing-env-backend
+      target: api
+    container_name: testing-env-backend-api
     ports:
       - "3000:3000"
     environment:
@@ -34,11 +48,49 @@ services:
       JWT_SECRET: your-secret-key-change-this-in-production
       JWT_EXPIRES_IN: 15m
       SECRET_ENCRYPTION_KEY: your-32-byte-base64-key-change-this-in-production
+      REDIS_URL: redis://redis:6379
       RUNNER_WORKSPACE_ROOT: /tmp/backend-test-runner
       RUNNER_REQUEST_TIMEOUT_MS: 30000
       RUNNER_DEFAULT_TIMEOUT_MINUTES: 10
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - testing-network
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Dedicated runner worker with Docker socket access
+  runner-worker:
+    build:
+      context: ./testing-environment-backend
+      dockerfile: Dockerfile
+      target: runner-worker
+    container_name: testing-env-runner-worker
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/backend_test_runner?schema=public
+      JWT_SECRET: your-secret-key-change-this-in-production
+      JWT_EXPIRES_IN: 15m
+      SECRET_ENCRYPTION_KEY: your-32-byte-base64-key-change-this-in-production
+      REDIS_URL: redis://redis:6379
+      RUNNER_WORKSPACE_ROOT: /tmp/backend-test-runner
+      RUNNER_REQUEST_TIMEOUT_MS: 30000
+      RUNNER_DEFAULT_TIMEOUT_MINUTES: 10
+      TEST_RUN_QUEUE_CONCURRENCY: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend-api:
         condition: service_healthy
     volumes:
       - /tmp/backend-test-runner:/tmp/backend-test-runner
@@ -46,12 +98,6 @@ services:
     networks:
       - testing-network
     restart: on-failure
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/docs"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   # React Frontend (nginx)
   frontend:
@@ -62,7 +108,7 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      - backend-api
     networks:
       - testing-network
     restart: on-failure

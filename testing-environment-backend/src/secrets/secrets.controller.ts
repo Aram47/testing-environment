@@ -18,7 +18,11 @@ export class SecretsController {
 
   @Post()
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  create(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: CreateSecretDto) {
+  create(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateSecretDto,
+  ) {
     return this.service.create(projectId, user.companyId, dto);
   }
 
@@ -29,7 +33,11 @@ export class SecretsController {
 
   @Delete(':secretId')
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  delete(@Param('projectId') projectId: string, @Param('secretId') secretId: string, @CurrentUser() user: AuthenticatedUser) {
+  delete(
+    @Param('projectId') projectId: string,
+    @Param('secretId') secretId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.delete(projectId, secretId, user.companyId);
   }
 }

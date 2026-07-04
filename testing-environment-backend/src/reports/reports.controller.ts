@@ -13,12 +13,20 @@ export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 
   @Get('report')
-  report(@Param('projectId') projectId: string, @Param('runId') runId: string, @CurrentUser() user: AuthenticatedUser) {
+  report(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.report(projectId, runId, user.companyId);
   }
 
   @Get('logs')
-  logs(@Param('projectId') projectId: string, @Param('runId') runId: string, @CurrentUser() user: AuthenticatedUser) {
+  logs(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.logs(projectId, runId, user.companyId);
   }
 }

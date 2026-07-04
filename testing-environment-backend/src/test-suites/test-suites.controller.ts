@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -21,12 +31,20 @@ export class TestSuitesController {
 
   @Post()
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
-  create(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: CreateTestSuiteDto) {
+  create(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateTestSuiteDto,
+  ) {
     return this.service.create(projectId, user.companyId, dto);
   }
 
   @Get()
-  list(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Query() query: PaginationQueryDto) {
+  list(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
     return this.service.list(projectId, user.companyId, query);
   }
 
@@ -41,19 +59,32 @@ export class TestSuitesController {
   }
 
   @Get(':suiteId')
-  find(@Param('projectId') projectId: string, @Param('suiteId') suiteId: string, @CurrentUser() user: AuthenticatedUser) {
+  find(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.find(projectId, suiteId, user.companyId);
   }
 
   @Patch(':suiteId')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
-  update(@Param('projectId') projectId: string, @Param('suiteId') suiteId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateTestSuiteDto) {
+  update(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateTestSuiteDto,
+  ) {
     return this.service.update(projectId, suiteId, user.companyId, dto);
   }
 
   @Delete(':suiteId')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
-  delete(@Param('projectId') projectId: string, @Param('suiteId') suiteId: string, @CurrentUser() user: AuthenticatedUser) {
+  delete(
+    @Param('projectId') projectId: string,
+    @Param('suiteId') suiteId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.delete(projectId, suiteId, user.companyId);
   }
 }

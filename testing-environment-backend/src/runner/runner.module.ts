@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { RealtimeModule } from '../websocket/realtime.module';
+import { RealtimeCoreModule } from '../websocket/realtime-core.module';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
@@ -9,7 +9,7 @@ import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
 
 @Module({
-  imports: [RealtimeModule],
+  imports: [RealtimeCoreModule],
   providers: [
     AssertionEngineService,
     DockerComposeManagerService,

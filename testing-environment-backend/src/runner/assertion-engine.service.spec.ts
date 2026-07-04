@@ -19,17 +19,29 @@ describe('AssertionEngineService', () => {
   it('evaluates equals, contains, and exists assertions', () => {
     const payload = { user: { email: 'qa@example.com', name: 'QA Engineer' } };
 
-    expect(service.evaluateAssertions(payload, [{ field_path: '$.user.email', operator: 'equals', expected_value: 'qa@example.com' }])).toEqual({
+    expect(
+      service.evaluateAssertions(payload, [
+        { field_path: '$.user.email', operator: 'equals', expected_value: 'qa@example.com' },
+      ]),
+    ).toEqual({
       passed: true,
     });
-    expect(service.evaluateAssertions(payload, [{ field_path: '$.user.name', operator: 'contains', expected_value: 'Engineer' }])).toEqual({
+    expect(
+      service.evaluateAssertions(payload, [
+        { field_path: '$.user.name', operator: 'contains', expected_value: 'Engineer' },
+      ]),
+    ).toEqual({
       passed: true,
     });
-    expect(service.evaluateAssertions(payload, [{ field_path: '$.user.email', operator: 'exists' }])).toEqual({ passed: true });
+    expect(
+      service.evaluateAssertions(payload, [{ field_path: '$.user.email', operator: 'exists' }]),
+    ).toEqual({ passed: true });
   });
 
   it('returns readable assertion failures', () => {
-    const result = service.evaluateAssertions({ status: 'pending' }, [{ field_path: '$.status', operator: 'equals', expected_value: 'done' }]);
+    const result = service.evaluateAssertions({ status: 'pending' }, [
+      { field_path: '$.status', operator: 'equals', expected_value: 'done' },
+    ]);
 
     expect(result.passed).toBe(false);
     expect(result.message).toContain('Expected $.status to equal');

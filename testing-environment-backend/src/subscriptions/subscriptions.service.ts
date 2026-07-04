@@ -78,11 +78,15 @@ export class SubscriptionsService {
       throw new ConflictException('Monthly test run limit reached for current subscription plan');
     }
     if (concurrentRuns >= company.subscriptionPlan.maxConcurrentRuns) {
-      throw new ConflictException('Concurrent test run limit reached for current subscription plan');
+      throw new ConflictException(
+        'Concurrent test run limit reached for current subscription plan',
+      );
     }
   }
 
-  private async getUsage(companyId: string): Promise<{ projectsUsed: number; runsThisMonth: number; concurrentRuns: number }> {
+  private async getUsage(
+    companyId: string,
+  ): Promise<{ projectsUsed: number; runsThisMonth: number; concurrentRuns: number }> {
     const monthStart = new Date();
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
@@ -117,7 +121,9 @@ export class SubscriptionsService {
       throw new ConflictException(`Current monthly run usage exceeds the ${plan.name} plan limit`);
     }
     if (usage.concurrentRuns > plan.maxConcurrentRuns) {
-      throw new ConflictException(`Current concurrent run usage exceeds the ${plan.name} plan limit`);
+      throw new ConflictException(
+        `Current concurrent run usage exceeds the ${plan.name} plan limit`,
+      );
     }
   }
 }

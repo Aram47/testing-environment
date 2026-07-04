@@ -15,7 +15,9 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ accessToken: string; user: Omit<User, 'passwordHash'> }> {
+  async register(
+    dto: RegisterDto,
+  ): Promise<{ accessToken: string; user: Omit<User, 'passwordHash'> }> {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ConflictException('Email is already registered');

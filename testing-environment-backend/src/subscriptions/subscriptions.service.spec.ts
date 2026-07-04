@@ -47,9 +47,14 @@ describe('SubscriptionsService', () => {
       },
     };
     companies = {
-      getMe: jest.fn(() => Promise.resolve({ id: companyId, plan: { tier: SubscriptionPlanName.PRO } })),
+      getMe: jest.fn(() =>
+        Promise.resolve({ id: companyId, plan: { tier: SubscriptionPlanName.PRO } }),
+      ),
     };
-    service = new SubscriptionsService(prisma as unknown as PrismaService, companies as unknown as CompaniesService);
+    service = new SubscriptionsService(
+      prisma as unknown as PrismaService,
+      companies as unknown as CompaniesService,
+    );
   });
 
   it('changes plan when usage fits target limits', async () => {
@@ -82,7 +87,9 @@ describe('SubscriptionsService', () => {
     mockTargetPlan(freePlan);
     mockUsage({ projectsUsed: 3, runsThisMonth: 40, concurrentRuns: 1 });
 
-    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(ConflictException);
+    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(
+      ConflictException,
+    );
     expect(prisma.company.update).not.toHaveBeenCalled();
   });
 
@@ -91,7 +98,9 @@ describe('SubscriptionsService', () => {
     mockTargetPlan(freePlan);
     mockUsage({ projectsUsed: 2, runsThisMonth: 51, concurrentRuns: 1 });
 
-    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(ConflictException);
+    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(
+      ConflictException,
+    );
     expect(prisma.company.update).not.toHaveBeenCalled();
   });
 
@@ -100,21 +109,32 @@ describe('SubscriptionsService', () => {
     mockTargetPlan(freePlan);
     mockUsage({ projectsUsed: 2, runsThisMonth: 50, concurrentRuns: 2 });
 
-    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(ConflictException);
+    await expect(service.changePlan(companyId, SubscriptionPlanName.FREE)).rejects.toThrow(
+      ConflictException,
+    );
     expect(prisma.company.update).not.toHaveBeenCalled();
   });
 
   function mockCurrentPlan(plan: ReturnType<typeof createPlan>) {
-    prisma.company.findUniqueOrThrow.mockResolvedValue({ id: companyId, subscriptionPlanId: plan.id });
+    prisma.company.findUniqueOrThrow.mockResolvedValue({
+      id: companyId,
+      subscriptionPlanId: plan.id,
+    });
   }
 
   function mockTargetPlan(plan: ReturnType<typeof createPlan>) {
     prisma.subscriptionPlan.findUnique.mockResolvedValue(plan);
   }
 
-  function mockUsage(usage: { projectsUsed: number; runsThisMonth: number; concurrentRuns: number }) {
+  function mockUsage(usage: {
+    projectsUsed: number;
+    runsThisMonth: number;
+    concurrentRuns: number;
+  }) {
     prisma.project.count.mockResolvedValue(usage.projectsUsed);
-    prisma.testRun.count.mockResolvedValueOnce(usage.runsThisMonth).mockResolvedValueOnce(usage.concurrentRuns);
+    prisma.testRun.count
+      .mockResolvedValueOnce(usage.runsThisMonth)
+      .mockResolvedValueOnce(usage.concurrentRuns);
   }
 });
 

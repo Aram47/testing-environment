@@ -19,7 +19,11 @@ export class EnvironmentConfigsController {
 
   @Post()
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  create(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: UpsertEnvironmentConfigDto) {
+  create(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpsertEnvironmentConfigDto,
+  ) {
     return this.service.create(projectId, user.companyId, dto);
   }
 
@@ -40,7 +44,11 @@ export class EnvironmentConfigsController {
 
   @Patch()
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  update(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Body() dto: UpsertEnvironmentConfigDto) {
+  update(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpsertEnvironmentConfigDto,
+  ) {
     return this.service.update(projectId, user.companyId, dto);
   }
 }

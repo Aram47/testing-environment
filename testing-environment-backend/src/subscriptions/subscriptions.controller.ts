@@ -23,7 +23,10 @@ export class SubscriptionsController {
 
   @Patch('current')
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  changeCurrentPlan(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangeSubscriptionPlanDto) {
+  changeCurrentPlan(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangeSubscriptionPlanDto,
+  ) {
     return this.subscriptionsService.changePlan(user.companyId, dto.planName);
   }
 }

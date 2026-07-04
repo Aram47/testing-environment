@@ -19,7 +19,9 @@ export class AssertionEngineService {
       return false;
     }
     if (Array.isArray(expected)) {
-      return Array.isArray(actual) && expected.every((item, index) => this.contains(actual[index], item));
+      return (
+        Array.isArray(actual) && expected.every((item, index) => this.contains(actual[index], item))
+      );
     }
     return Object.entries(expected).every(([key, value]) =>
       this.contains((actual as Record<string, unknown>)[key], value),
@@ -46,7 +48,10 @@ export class AssertionEngineService {
       }, payload);
   }
 
-  evaluateAssertions(payload: unknown, assertions: YamlAssertion[] | undefined): AssertionEvaluation {
+  evaluateAssertions(
+    payload: unknown,
+    assertions: YamlAssertion[] | undefined,
+  ): AssertionEvaluation {
     for (const assertion of assertions ?? []) {
       const result = this.evaluateAssertion(payload, assertion);
       if (!result.passed) {
@@ -73,13 +78,19 @@ export class AssertionEngineService {
     if (assertion.operator === 'equals') {
       return String(actual) === expected
         ? { passed: true }
-        : { passed: false, message: `Expected ${assertion.field_path} to equal "${expected}", got "${String(actual)}"` };
+        : {
+            passed: false,
+            message: `Expected ${assertion.field_path} to equal "${expected}", got "${String(actual)}"`,
+          };
     }
 
     if (assertion.operator === 'contains') {
       return String(actual).includes(expected)
         ? { passed: true }
-        : { passed: false, message: `Expected ${assertion.field_path} to contain "${expected}", got "${String(actual)}"` };
+        : {
+            passed: false,
+            message: `Expected ${assertion.field_path} to contain "${expected}", got "${String(actual)}"`,
+          };
     }
 
     return { passed: false, message: `Unsupported assertion operator "${assertion.operator}"` };

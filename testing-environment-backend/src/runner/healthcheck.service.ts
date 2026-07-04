@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class HealthcheckService {
-  async waitFor(baseUrl: string, path: string, expectedStatus: number, timeoutSeconds: number): Promise<void> {
+  async waitFor(
+    baseUrl: string,
+    path: string,
+    expectedStatus: number,
+    timeoutSeconds: number,
+  ): Promise<void> {
     const url = new URL(path, baseUrl);
     const deadline = Date.now() + timeoutSeconds * 1000;
     let lastError = 'Healthcheck did not complete';

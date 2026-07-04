@@ -42,34 +42,35 @@ export class DashboardService {
     monthStart.setUTCDate(1);
     monthStart.setUTCHours(0, 0, 0, 0);
 
-    const [company, totalProjects, recentRuns, aggregate, runsThisMonth, concurrentRuns] = await Promise.all([
-      this.prisma.company.findUniqueOrThrow({
-        where: { id: companyId },
-        include: { subscriptionPlan: true },
-      }),
-      this.prisma.project.count({ where: { companyId } }),
-      this.prisma.testRun.findMany({
-        where: { project: { companyId } },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
-      }),
-      this.prisma.testRun.aggregate({
-        where: { project: { companyId } },
-        _sum: { passedTests: true, failedTests: true },
-      }),
-      this.prisma.testRun.count({
-        where: {
-          project: { companyId },
-          createdAt: { gte: monthStart },
-        },
-      }),
-      this.prisma.testRun.count({
-        where: {
-          project: { companyId },
-          status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
-        },
-      }),
-    ]);
+    const [company, totalProjects, recentRuns, aggregate, runsThisMonth, concurrentRuns] =
+      await Promise.all([
+        this.prisma.company.findUniqueOrThrow({
+          where: { id: companyId },
+          include: { subscriptionPlan: true },
+        }),
+        this.prisma.project.count({ where: { companyId } }),
+        this.prisma.testRun.findMany({
+          where: { project: { companyId } },
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        }),
+        this.prisma.testRun.aggregate({
+          where: { project: { companyId } },
+          _sum: { passedTests: true, failedTests: true },
+        }),
+        this.prisma.testRun.count({
+          where: {
+            project: { companyId },
+            createdAt: { gte: monthStart },
+          },
+        }),
+        this.prisma.testRun.count({
+          where: {
+            project: { companyId },
+            status: { in: [TestRunStatus.PENDING, TestRunStatus.RUNNING] },
+          },
+        }),
+      ]);
 
     return {
       totalProjects,

@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import Redis from 'ioredis';
 import { Server } from 'socket.io';
 
 export interface RunnerEvent {
@@ -13,11 +15,32 @@ export interface RunnerEventMessage extends RunnerEvent {
 }
 
 @Injectable()
-export class RealtimeService {
+export class RealtimeService implements OnModuleDestroy {
+  private readonly logger = new Logger(RealtimeService.name);
+  private readonly channel = 'runner-events';
+  private readonly publisher: Redis;
+  private readonly subscriber: Redis;
   private server?: Server;
+
+  constructor(private readonly config: ConfigService) {
+    const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
+    this.publisher = new Redis(redisUrl, {
+      lazyConnect: true,
+      connectTimeout: 1000,
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+    });
+    this.subscriber = new Redis(redisUrl, {
+      lazyConnect: true,
+      connectTimeout: 1000,
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+    });
+  }
 
   bind(server: Server): void {
     this.server = server;
+    void this.subscribe();
   }
 
   emitRunEvent(event: RunnerEvent): void {
@@ -26,7 +49,55 @@ export class RealtimeService {
       message: this.toMessage(event),
       timestamp: new Date().toISOString(),
     };
-    this.server?.to(event.testRunId).emit('runner.event', message);
+    if (this.server) {
+      this.emitToSocket(message);
+      return;
+    }
+    void this.publish(message);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    this.publisher.disconnect();
+    this.subscriber.disconnect();
+  }
+
+  private async subscribe(): Promise<void> {
+    try {
+      if (this.subscriber.status === 'wait') {
+        await this.subscriber.connect();
+      }
+      this.subscriber.on('message', (_channel, payload) => {
+        try {
+          this.emitToSocket(JSON.parse(payload) as RunnerEventMessage);
+        } catch (error) {
+          this.logger.warn(
+            `Failed to handle realtime payload: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      });
+      await this.subscriber.subscribe(this.channel);
+    } catch (error) {
+      this.logger.warn(
+        `Redis realtime subscriber is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async publish(message: RunnerEventMessage): Promise<void> {
+    try {
+      if (this.publisher.status === 'wait') {
+        await this.publisher.connect();
+      }
+      await this.publisher.publish(this.channel, JSON.stringify(message));
+    } catch (error) {
+      this.logger.warn(
+        `Redis realtime publisher is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private emitToSocket(message: RunnerEventMessage): void {
+    this.server?.to(message.testRunId).emit('runner.event', message);
   }
 
   private toMessage(event: RunnerEvent): string {

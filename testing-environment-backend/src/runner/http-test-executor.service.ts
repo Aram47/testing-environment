@@ -10,7 +10,11 @@ export class HttpTestExecutorService {
     private readonly variables: VariableStoreService,
   ) {}
 
-  async execute(baseUrl: string, test: YamlRequestStep, store: Map<string, string>): Promise<HttpExecutionResult> {
+  async execute(
+    baseUrl: string,
+    test: YamlRequestStep,
+    store: Map<string, string>,
+  ): Promise<HttpExecutionResult> {
     const started = Date.now();
     const request = this.variables.interpolate(test.request, store);
     const controller = new AbortController();
@@ -21,7 +25,9 @@ export class HttpTestExecutorService {
 
     try {
       const url = new URL(request.path, baseUrl);
-      Object.entries(request.query ?? {}).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+      Object.entries(request.query ?? {}).forEach(([key, value]) =>
+        url.searchParams.set(key, String(value)),
+      );
       const response = await fetch(url, {
         method: request.method.toUpperCase(),
         headers: { 'content-type': 'application/json', ...(request.headers ?? {}) },

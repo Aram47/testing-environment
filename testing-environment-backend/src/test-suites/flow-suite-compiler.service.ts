@@ -113,7 +113,9 @@ export class FlowSuiteCompilerService {
 
       if (this.isWaitNode(node)) {
         if (!Number.isFinite(node.durationMs) || node.durationMs <= 0) {
-          throw new BadRequestException(`Wait step "${node.name}" needs a duration greater than 0 ms`);
+          throw new BadRequestException(
+            `Wait step "${node.name}" needs a duration greater than 0 ms`,
+          );
         }
         continue;
       }
@@ -121,13 +123,19 @@ export class FlowSuiteCompilerService {
       if (this.isPollNode(node)) {
         this.validateRequestNode(node);
         if (!Number.isFinite(node.timeoutSeconds) || node.timeoutSeconds <= 0) {
-          throw new BadRequestException(`Poll step "${node.name}" needs a timeout greater than 0 seconds`);
+          throw new BadRequestException(
+            `Poll step "${node.name}" needs a timeout greater than 0 seconds`,
+          );
         }
         if (!Number.isFinite(node.intervalSeconds) || node.intervalSeconds <= 0) {
-          throw new BadRequestException(`Poll step "${node.name}" needs a retry interval greater than 0 seconds`);
+          throw new BadRequestException(
+            `Poll step "${node.name}" needs a retry interval greater than 0 seconds`,
+          );
         }
         if (node.intervalSeconds > node.timeoutSeconds) {
-          throw new BadRequestException(`Poll step "${node.name}" interval cannot be greater than timeout`);
+          throw new BadRequestException(
+            `Poll step "${node.name}" interval cannot be greater than timeout`,
+          );
         }
         continue;
       }
@@ -274,7 +282,9 @@ export class FlowSuiteCompilerService {
       .map((assertion) => ({
         field_path: assertion.fieldPath.trim(),
         operator: assertion.operator,
-        ...(assertion.expectedValue !== undefined && assertion.expectedValue !== '' ? { expected_value: assertion.expectedValue } : {}),
+        ...(assertion.expectedValue !== undefined && assertion.expectedValue !== ''
+          ? { expected_value: assertion.expectedValue }
+          : {}),
       }));
     return entries.length > 0 ? entries : undefined;
   }
@@ -294,7 +304,11 @@ export class FlowSuiteCompilerService {
     return node.type === 'pollUntil';
   }
 
-  private assignIfPresent<T extends object, K extends keyof T>(target: T, key: K, value: T[K] | undefined): void {
+  private assignIfPresent<T extends object, K extends keyof T>(
+    target: T,
+    key: K,
+    value: T[K] | undefined,
+  ): void {
     if (value !== undefined) {
       target[key] = value;
     }
@@ -305,7 +319,9 @@ export class FlowSuiteCompilerService {
       return undefined;
     }
 
-    const entries = Object.entries(record).filter(([, value]) => value !== undefined && value !== '');
+    const entries = Object.entries(record).filter(
+      ([, value]) => value !== undefined && value !== '',
+    );
     return entries.length > 0 ? (Object.fromEntries(entries) as T) : undefined;
   }
 }

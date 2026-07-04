@@ -22,15 +22,32 @@ export class TestSuitesService {
     return this.prisma.testSuite.create({ data: this.toCreateData(projectId, dto) });
   }
 
-  async list(projectId: string, companyId: string, query: PaginationQueryDto): Promise<PaginatedResult<unknown>> {
+  async list(
+    projectId: string,
+    companyId: string,
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<unknown>> {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
     const skip = (query.page - 1) * query.limit;
     const where: Prisma.TestSuiteWhereInput = { projectId };
     const [data, total] = await Promise.all([
-      this.prisma.testSuite.findMany({ where, skip, take: query.limit, orderBy: { createdAt: 'desc' } }),
+      this.prisma.testSuite.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: { createdAt: 'desc' },
+      }),
       this.prisma.testSuite.count({ where }),
     ]);
-    return { data, meta: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } };
+    return {
+      data,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async find(projectId: string, suiteId: string, companyId: string) {
@@ -53,11 +70,20 @@ export class TestSuitesService {
     return { deleted: true };
   }
 
-  compileFlow(projectId: string, companyId: string, flow: FlowSuiteDefinition): Promise<FlowCompileResult> {
-    return this.projectAccess.getProjectOrThrow(projectId, companyId).then(() => this.flowCompiler.compile(flow));
+  compileFlow(
+    projectId: string,
+    companyId: string,
+    flow: FlowSuiteDefinition,
+  ): Promise<FlowCompileResult> {
+    return this.projectAccess
+      .getProjectOrThrow(projectId, companyId)
+      .then(() => this.flowCompiler.compile(flow));
   }
 
-  private toCreateData(projectId: string, dto: CreateTestSuiteDto): Prisma.TestSuiteUncheckedCreateInput {
+  private toCreateData(
+    projectId: string,
+    dto: CreateTestSuiteDto,
+  ): Prisma.TestSuiteUncheckedCreateInput {
     if (dto.visualFlow) {
       const compiled = this.flowCompiler.compile(dto.visualFlow);
       return {
@@ -96,7 +122,9 @@ export class TestSuitesService {
 
     return {
       ...(dto.name === undefined ? {} : { name: dto.name }),
-      ...(dto.yamlContent === undefined ? {} : { yamlContent: dto.yamlContent, visualFlow: Prisma.JsonNull }),
+      ...(dto.yamlContent === undefined
+        ? {}
+        : { yamlContent: dto.yamlContent, visualFlow: Prisma.JsonNull }),
     };
   }
 }

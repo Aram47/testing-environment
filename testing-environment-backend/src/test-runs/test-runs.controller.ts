@@ -23,18 +23,30 @@ export class TestRunsController {
   }
 
   @Get()
-  list(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser, @Query() query: PaginationQueryDto) {
+  list(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
     return this.service.list(projectId, user.companyId, query);
   }
 
   @Get(':runId')
-  find(@Param('projectId') projectId: string, @Param('runId') runId: string, @CurrentUser() user: AuthenticatedUser) {
+  find(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.find(projectId, runId, user.companyId);
   }
 
   @Post(':runId/cancel')
   @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
-  cancel(@Param('projectId') projectId: string, @Param('runId') runId: string, @CurrentUser() user: AuthenticatedUser) {
+  cancel(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.service.cancel(projectId, runId, user.companyId);
   }
 }

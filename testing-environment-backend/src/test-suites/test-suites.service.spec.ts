@@ -35,7 +35,10 @@ describe('TestSuitesService', () => {
   });
 
   it('preserves legacy YAML create behavior', async () => {
-    await service.create(projectId, companyId, { name: 'Legacy', yamlContent: 'suite: Legacy\ntests: []\n' });
+    await service.create(projectId, companyId, {
+      name: 'Legacy',
+      yamlContent: 'suite: Legacy\ntests: []\n',
+    });
 
     expect(prisma.testSuite.create).toHaveBeenCalledWith({
       data: {
@@ -51,12 +54,16 @@ describe('TestSuitesService', () => {
     const visualFlow = {
       version: '1.0' as const,
       suiteName: 'Visual',
-      nodes: [{ id: 'node-1', position: { x: 0, y: 0 }, name: 'Health', method: 'GET', path: '/health' }],
+      nodes: [
+        { id: 'node-1', position: { x: 0, y: 0 }, name: 'Health', method: 'GET', path: '/health' },
+      ],
       edges: [],
     };
 
     await service.create(projectId, companyId, { name: 'Visual', visualFlow });
-    const call = prisma.testSuite.create.mock.calls[0][0] as { data: { yamlContent: string; visualFlow: unknown } };
+    const call = prisma.testSuite.create.mock.calls[0][0] as {
+      data: { yamlContent: string; visualFlow: unknown };
+    };
 
     expect(call.data.yamlContent).toContain('suite: Visual');
     expect(call.data.visualFlow).toEqual(visualFlow);
@@ -66,12 +73,16 @@ describe('TestSuitesService', () => {
     const visualFlow = {
       version: '1.0' as const,
       suiteName: 'Visual',
-      nodes: [{ id: 'node-1', position: { x: 0, y: 0 }, name: 'Health', method: 'GET', path: '/health' }],
+      nodes: [
+        { id: 'node-1', position: { x: 0, y: 0 }, name: 'Health', method: 'GET', path: '/health' },
+      ],
       edges: [],
     };
 
     await service.update(projectId, 'suite-1', companyId, { visualFlow });
-    const call = prisma.testSuite.update.mock.calls[0][0] as { data: { name: string; yamlContent: string; visualFlow: unknown } };
+    const call = prisma.testSuite.update.mock.calls[0][0] as {
+      data: { name: string; yamlContent: string; visualFlow: unknown };
+    };
 
     expect(call.data.name).toBe('Visual');
     expect(call.data.yamlContent).toContain('name: Health');

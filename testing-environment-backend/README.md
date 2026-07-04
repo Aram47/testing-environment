@@ -10,7 +10,8 @@ Production-oriented MVP backend for a SaaS platform that lets companies define p
 - bcrypt password hashing
 - class-validator/class-transformer DTO validation
 - WebSocket live run updates
-- Local Docker Compose runner via Node.js `child_process`
+- Redis + BullMQ durable test run queue
+- Dedicated Docker Compose runner worker via Node.js `child_process`
 - YAML API test execution with native `fetch`
 
 ## Local setup
@@ -33,10 +34,10 @@ Generate a 32-byte base64 secret key for `SECRET_ENCRYPTION_KEY`:
 openssl rand -base64 32
 ```
 
-3. Start PostgreSQL:
+3. Start PostgreSQL and Redis:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis
 ```
 
 4. Apply Prisma migration and seed plans:
@@ -52,7 +53,28 @@ npm run prisma:seed
 npm run start:dev
 ```
 
+6. In a separate shell, start the runner worker:
+
+```bash
+npm run build
+npm run start:worker
+```
+
 Swagger docs are available at `http://localhost:3000/docs`.
+
+The API process creates `TestRun` rows and enqueues BullMQ jobs. The worker process claims jobs from Redis and executes Docker Compose test runs. Docker socket access is required only for the worker runtime.
+
+## Queue and worker configuration
+
+- `REDIS_URL`: Redis connection string, default `redis://localhost:6379`.
+- `TEST_RUN_QUEUE_CONCURRENCY`: worker concurrency, default `1`.
+- `TEST_RUN_STALLED_INTERVAL_MS`: BullMQ stalled job check interval, default `30000`.
+- `TEST_RUN_MAX_STALLED_COUNT`: maximum stalled recoveries before failure, default `1`.
+
+Readiness endpoints:
+
+- `GET /health/live`
+- `GET /health/ready` checks PostgreSQL and Redis.
 
 ## Core API
 
@@ -106,7 +128,7 @@ Server emits `runner.event` with:
 
 ## Runner safety notes
 
-The MVP runner executes Docker Compose locally. It rejects privileged containers, host networking, Docker socket mounts, and obvious root host mounts.
+The MVP runner executes Docker Compose locally from the dedicated worker process. It rejects privileged containers, host networking, Docker socket mounts, and obvious root host mounts.
 
 This is only a local MVP guardrail. A production SaaS must run untrusted customer workloads in isolated VMs, ephemeral workers, or self-hosted runners with strong sandboxing and resource quotas.
 

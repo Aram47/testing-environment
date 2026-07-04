@@ -8,7 +8,10 @@ export class VariableStoreService {
 
   interpolate<T>(value: T, variables: Map<string, string>): T {
     if (typeof value === 'string') {
-      return value.replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_match, key) => variables.get(key) ?? '') as T;
+      return value.replace(
+        /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g,
+        (_match, key) => variables.get(key) ?? '',
+      ) as T;
     }
     if (Array.isArray(value)) {
       return value.map((item) => this.interpolate(item, variables)) as T;

@@ -146,24 +146,29 @@ model TestSuite {
 }
 
 model TestRun {
-  id           String        @id @default(uuid())
-  projectId    String
-  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  status       TestRunStatus @default(PENDING)
-  startedAt    DateTime?
-  finishedAt   DateTime?
-  totalTests   Int           @default(0)
-  passedTests  Int           @default(0)
-  failedTests  Int           @default(0)
-  durationMs   Int?
-  errorMessage String?
-  results      TestResult[]
-  logs         RunnerLog[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                      String        @id @default(uuid())
+  projectId               String
+  project                 Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status                  TestRunStatus @default(PENDING)
+  queueJobId              String?
+  enqueuedAt              DateTime?
+  claimedAt               DateTime?
+  cancellationRequestedAt DateTime?
+  startedAt               DateTime?
+  finishedAt              DateTime?
+  totalTests              Int           @default(0)
+  passedTests             Int           @default(0)
+  failedTests             Int           @default(0)
+  durationMs              Int?
+  errorMessage            String?
+  results                 TestResult[]
+  logs                    RunnerLog[]
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   @@index([projectId])
   @@index([status])
+  @@index([queueJobId])
   @@index([createdAt])
 }
 

@@ -31,7 +31,15 @@ export class ProjectsService {
       }),
       this.prisma.project.count({ where }),
     ]);
-    return { data, meta: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } };
+    return {
+      data,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async findOne(companyId: string, id: string) {

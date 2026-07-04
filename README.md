@@ -23,7 +23,8 @@ The main idea is simple: users work with forms and visual flows in the UI, while
 - Frontend: React, Vite, TypeScript, Tailwind CSS, React Query, React Flow.
 - Backend: NestJS, TypeScript, Prisma.
 - Database: PostgreSQL.
-- Runner: Docker Compose controlled by the backend container through Docker socket.
+- Queue: Redis + BullMQ for durable test run execution jobs.
+- Runner: Docker Compose controlled by a dedicated runner worker through Docker socket.
 - Realtime: Socket.IO events for test run progress.
 
 ## Repository Structure
@@ -42,7 +43,7 @@ The main idea is simple: users work with forms and visual flows in the UI, while
 
 - Docker and Docker Compose.
 - Node.js 22 if you want to run frontend/backend locally outside Docker.
-- Access to `/var/run/docker.sock` for the backend runner container.
+- Access to `/var/run/docker.sock` for the `runner-worker` container.
 
 ## Quick Start With Docker
 
@@ -65,9 +66,20 @@ Frontend: http://localhost
 Backend:  http://localhost:3000
 Swagger:  http://localhost:3000/docs
 Postgres: localhost:5432
+Redis:    localhost:6379
 ```
 
-The backend container runs Prisma migrations and seeds subscription plans on startup.
+The `backend-api` container runs Prisma migrations and seeds subscription plans on startup. The API creates `TestRun` records and enqueues BullMQ jobs. The `runner-worker` container claims those jobs, runs Docker Compose, and persists progress/results in PostgreSQL.
+
+Useful service commands:
+
+```bash
+docker compose up --build backend-api runner-worker redis postgres frontend
+docker compose logs -f backend-api
+docker compose logs -f runner-worker
+```
+
+`backend-api` intentionally does not mount `/var/run/docker.sock`. Only `runner-worker` has Docker socket access.
 
 ## First Login
 
