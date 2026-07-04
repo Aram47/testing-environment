@@ -39,6 +39,33 @@ export class TestRunResponseDto {
   cancellationRequestedAt?: Date | null;
 
   @ApiPropertyOptional()
+  cancelRequestedAt?: Date | null;
+
+  @ApiPropertyOptional()
+  cancelRequestedBy?: string | null;
+
+  @ApiPropertyOptional()
+  cancellationReason?: string | null;
+
+  @ApiPropertyOptional()
+  runnerId?: string | null;
+
+  @ApiPropertyOptional()
+  leaseAcquiredAt?: Date | null;
+
+  @ApiPropertyOptional()
+  leaseExpiresAt?: Date | null;
+
+  @ApiPropertyOptional()
+  heartbeatAt?: Date | null;
+
+  @ApiProperty()
+  attempt!: number;
+
+  @ApiPropertyOptional()
+  cleanupError?: string | null;
+
+  @ApiPropertyOptional()
   startedAt?: Date | null;
 
   @ApiPropertyOptional()

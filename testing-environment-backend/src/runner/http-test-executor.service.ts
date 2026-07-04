@@ -14,14 +14,17 @@ export class HttpTestExecutorService {
     baseUrl: string,
     test: YamlRequestStep,
     store: Map<string, string>,
+    signal?: AbortSignal,
   ): Promise<HttpExecutionResult> {
     const started = Date.now();
     const request = this.variables.interpolate(test.request, store);
     const controller = new AbortController();
+    const abortFromParent = () => controller.abort(signal?.reason);
     const timeout = setTimeout(
       () => controller.abort(),
       this.config.get<number>('RUNNER_REQUEST_TIMEOUT_MS', 30000),
     );
+    signal?.addEventListener('abort', abortFromParent, { once: true });
 
     try {
       const url = new URL(request.path, baseUrl);
@@ -44,6 +47,7 @@ export class HttpTestExecutorService {
       };
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', abortFromParent);
     }
   }
 

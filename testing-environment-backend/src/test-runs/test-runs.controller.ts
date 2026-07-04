@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -7,6 +7,7 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
+import { CancelTestRunDto } from './dto/cancel-test-run.dto';
 import { TestRunResponseDto } from './dto/test-run-response.dto';
 import { TestRunsService } from './test-runs.service';
 
@@ -51,7 +52,8 @@ export class TestRunsController {
     @Param('projectId') projectId: string,
     @Param('runId') runId: string,
     @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CancelTestRunDto,
   ) {
-    return this.service.cancel(projectId, runId, user.companyId);
+    return this.service.cancel(projectId, runId, user.companyId, user.id, body?.reason);
   }
 }

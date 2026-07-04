@@ -80,7 +80,13 @@ export class TestRunsService {
     return run;
   }
 
-  async cancel(projectId: string, runId: string, companyId: string) {
+  async cancel(
+    projectId: string,
+    runId: string,
+    companyId: string,
+    requestedBy?: string,
+    reason?: string,
+  ) {
     const run = await this.find(projectId, runId, companyId);
     if (this.state.isTerminal(run.status)) {
       return run;
@@ -94,7 +100,7 @@ export class TestRunsService {
       return run;
     }
 
-    await this.state.requestCancel(runId);
+    await this.state.requestCancel(runId, requestedBy, reason);
     if (run.status === TestRunStatus.QUEUED) {
       const queueState = await this.queue.cancelQueuedRun(runId);
       if (queueState === 'removed' || queueState === 'missing') {

@@ -7,6 +7,7 @@ import {
   TestRunStatus,
 } from '@prisma/client';
 import { mkdir, rm, writeFile } from 'fs/promises';
+import { hostname } from 'os';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
@@ -32,6 +33,11 @@ interface StepExecutionResult extends HttpExecutionResult {
   durationMs: number;
 }
 
+interface RunExecutionContext {
+  signal: AbortSignal;
+  stop: () => void;
+}
+
 class TestRunCancellationError extends Error {
   constructor() {
     super('Test run was cancelled');
@@ -47,6 +53,7 @@ class TestRunTimeoutError extends Error {
 @Injectable()
 export class RunnerOrchestratorService {
   private readonly logger = new Logger(RunnerOrchestratorService.name);
+  private readonly runnerId: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -59,11 +66,15 @@ export class RunnerOrchestratorService {
     private readonly variables: VariableStoreService,
     private readonly realtime: RealtimeService,
     private readonly state: TestRunStateService,
-  ) {}
+  ) {
+    this.runnerId =
+      this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
+  }
 
   async execute(testRunId: string): Promise<void> {
     const started = Date.now();
     let workspace = '';
+    let context: RunExecutionContext | undefined;
     try {
       const run = await this.prisma.testRun.findUnique({
         where: { id: testRunId },
@@ -72,11 +83,10 @@ export class RunnerOrchestratorService {
       if (!run) {
         throw new NotFoundException('Test run not found');
       }
-      if (run.status === TestRunStatus.CANCEL_REQUESTED) {
+      if (await this.isCancellationRequested(testRunId)) {
         await this.state.markCancelled(testRunId, Date.now() - started);
         return;
       }
-      await this.ensureNotCancelled(testRunId);
       if (run.status !== TestRunStatus.QUEUED) {
         this.logger.warn(`Skipping test run ${testRunId} because it is ${run.status}`);
         return;
@@ -88,8 +98,12 @@ export class RunnerOrchestratorService {
         throw new Error('At least one test suite is required');
       }
 
-      await this.state.claim(testRunId);
-      await this.ensureNotCancelled(testRunId);
+      await this.state.claim(testRunId, {
+        runnerId: this.runnerId,
+        leaseDurationMs: this.leaseDurationMs(),
+      });
+      context = this.createExecutionContext(testRunId);
+      await this.ensureNotCancelled(testRunId, context);
 
       await this.state.enterPhase(testRunId, TestRunStatus.PREPARING_WORKSPACE);
       workspace = await this.createWorkspace(testRunId);
@@ -106,26 +120,27 @@ export class RunnerOrchestratorService {
         await writeFile(join(workspace, 'tests', `${suite.id}.yml`), suite.yamlContent);
       }
 
-      await this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId, context);
       await this.state.enterPhase(testRunId, TestRunStatus.PULLING_IMAGES);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing docker images');
       await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
       this.emit('environment.starting', testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
-      await this.docker.up(workspace);
+      await this.docker.up(workspace, context.signal);
 
-      await this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId, context);
       await this.state.enterPhase(testRunId, TestRunStatus.WAITING_FOR_HEALTHCHECK);
       await this.healthcheck.waitFor(
         run.project.baseUrl,
         run.project.healthcheckPath,
         run.project.healthcheckExpectedStatus,
         run.project.healthcheckTimeoutSeconds,
+        context.signal,
       );
       this.emit('environment.ready', testRunId);
 
       await this.state.enterPhase(testRunId, TestRunStatus.EXECUTING_TESTS);
-      const stats = await this.executeSuites(testRunId, run.project.baseUrl, testSuites);
+      const stats = await this.executeSuites(testRunId, run.project.baseUrl, testSuites, context);
       await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
       const dockerLogs = await this.safeDockerLogs(workspace);
       if (dockerLogs) {
@@ -135,11 +150,7 @@ export class RunnerOrchestratorService {
 
       await this.state.enterPhase(testRunId, TestRunStatus.CLEANING_UP);
       if (workspace) {
-        this.emit('environment.stopping', testRunId);
-        await this.docker
-          .down(workspace)
-          .catch((error) => this.log(testRunId, RunnerLogSource.ERROR, String(error)));
-        await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
+        await this.cleanupWorkspace(testRunId, workspace);
         workspace = '';
       }
 
@@ -162,8 +173,18 @@ export class RunnerOrchestratorService {
         error instanceof TestRunCancellationError ||
         (await this.isCancellationRequested(testRunId))
       ) {
-        await this.state.requestCancel(testRunId).catch(() => undefined);
-        await this.state.markCancelled(testRunId, Date.now() - started).catch(() => undefined);
+        if (!(await this.state.isCancellationRequested(testRunId))) {
+          await this.state.requestCancel(testRunId).catch(() => undefined);
+        }
+        const cleanupError = workspace
+          ? await this.cleanupWorkspace(testRunId, workspace).catch((cleanupFailure) =>
+              String(cleanupFailure),
+            )
+          : undefined;
+        workspace = '';
+        await this.state
+          .markCancelled(testRunId, Date.now() - started, cleanupError)
+          .catch(() => undefined);
       } else if (error instanceof TestRunTimeoutError) {
         await this.state
           .markTimedOut(testRunId, message, Date.now() - started)
@@ -181,6 +202,7 @@ export class RunnerOrchestratorService {
         }
       }
     } finally {
+      context?.stop();
       if (workspace) {
         this.emit('environment.stopping', testRunId);
         await this.docker
@@ -196,6 +218,7 @@ export class RunnerOrchestratorService {
     testRunId: string,
     baseUrl: string,
     suites: { name: string; yamlContent: string }[],
+    context: RunExecutionContext,
   ): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
     const store = this.variables.create();
     let totalTests = 0;
@@ -205,7 +228,7 @@ export class RunnerOrchestratorService {
     for (const suiteRecord of suites) {
       const suite = this.parser.parseSuite(suiteRecord.yamlContent);
       for (const test of suite.tests) {
-        await this.ensureNotCancelled(testRunId);
+        await this.ensureNotCancelled(testRunId, context);
         totalTests += 1;
         const stepMeta = this.getStepMeta(test);
         this.emit('test.started', testRunId, {
@@ -213,7 +236,7 @@ export class RunnerOrchestratorService {
           testName: test.name,
           ...stepMeta,
         });
-        const result = await this.executeStep(testRunId, baseUrl, test, store);
+        const result = await this.executeStep(testRunId, baseUrl, test, store, context);
         const passed = result.status === TestResultStatus.PASSED;
         passedTests += passed ? 1 : 0;
         failedTests += passed ? 0 : 1;
@@ -253,26 +276,30 @@ export class RunnerOrchestratorService {
     baseUrl: string,
     test: YamlTestCase,
     store: Map<string, string>,
+    context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     if (this.isWaitStep(test)) {
-      return this.executeWait(testRunId, test);
+      return this.executeWait(testRunId, test, context);
     }
 
     if (this.isPollStep(test)) {
-      return this.executePoll(testRunId, baseUrl, test, store);
+      return this.executePoll(testRunId, baseUrl, test, store, context);
     }
 
-    return this.executeRequest(baseUrl, test.name, test.request, store);
+    return this.executeRequest(testRunId, baseUrl, test.name, test.request, store, context);
   }
 
   private async executeRequest(
+    testRunId: string,
     baseUrl: string,
     name: string,
     requestDefinition: YamlRequest,
     store: Map<string, string>,
+    context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     const request = this.variables.interpolate(requestDefinition, store);
-    const result = await this.http.execute(baseUrl, { name, request }, store);
+    const result = await this.http.execute(baseUrl, { name, request }, store, context.signal);
+    await this.ensureNotCancelled(testRunId, context);
     return this.evaluateRequestResult(result, request, store, 1);
   }
 
@@ -281,6 +308,7 @@ export class RunnerOrchestratorService {
     baseUrl: string,
     test: YamlPollStep,
     store: Map<string, string>,
+    context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     const started = Date.now();
     const timeoutMs = test.poll.timeout_seconds * 1000;
@@ -289,10 +317,16 @@ export class RunnerOrchestratorService {
     let lastResult: StepExecutionResult | undefined;
 
     while (Date.now() - started <= timeoutMs) {
-      await this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId, context);
       attempts += 1;
       const request = this.variables.interpolate(test.poll.request, store);
-      const httpResult = await this.http.execute(baseUrl, { name: test.name, request }, store);
+      const httpResult = await this.http.execute(
+        baseUrl,
+        { name: test.name, request },
+        store,
+        context.signal,
+      );
+      await this.ensureNotCancelled(testRunId, context);
       lastResult = this.evaluateRequestResult(httpResult, request, store, attempts);
       if (lastResult.status === TestResultStatus.PASSED) {
         return { ...lastResult, durationMs: Date.now() - started, attempts };
@@ -300,6 +334,7 @@ export class RunnerOrchestratorService {
       await this.sleep(
         Math.min(intervalMs, Math.max(timeoutMs - (Date.now() - started), 0)),
         testRunId,
+        context,
       );
     }
 
@@ -313,9 +348,13 @@ export class RunnerOrchestratorService {
     };
   }
 
-  private async executeWait(testRunId: string, test: YamlWaitStep): Promise<StepExecutionResult> {
+  private async executeWait(
+    testRunId: string,
+    test: YamlWaitStep,
+    context: RunExecutionContext,
+  ): Promise<StepExecutionResult> {
     const started = Date.now();
-    await this.sleep(test.wait.duration_ms, testRunId);
+    await this.sleep(test.wait.duration_ms, testRunId, context);
     return {
       status: TestResultStatus.PASSED,
       durationMs: Date.now() - started,
@@ -404,10 +443,14 @@ export class RunnerOrchestratorService {
     return 'poll' in test;
   }
 
-  private async sleep(durationMs: number, testRunId: string): Promise<void> {
+  private async sleep(
+    durationMs: number,
+    testRunId: string,
+    context: RunExecutionContext,
+  ): Promise<void> {
     const deadline = Date.now() + durationMs;
     while (Date.now() < deadline) {
-      await this.ensureNotCancelled(testRunId);
+      await this.ensureNotCancelled(testRunId, context);
       await new Promise((resolve) => setTimeout(resolve, Math.min(250, deadline - Date.now())));
     }
   }
@@ -431,22 +474,92 @@ export class RunnerOrchestratorService {
     }
   }
 
-  private async ensureNotCancelled(testRunId: string): Promise<void> {
+  private async ensureNotCancelled(
+    testRunId: string,
+    context?: RunExecutionContext,
+  ): Promise<void> {
+    if (context?.signal.aborted) {
+      throw context.signal.reason instanceof Error
+        ? context.signal.reason
+        : new TestRunCancellationError();
+    }
     if (await this.isCancellationRequested(testRunId)) {
       throw new TestRunCancellationError();
     }
   }
 
   private async isCancellationRequested(testRunId: string): Promise<boolean> {
-    const run = await this.prisma.testRun.findUnique({
-      where: { id: testRunId },
-      select: { cancellationRequestedAt: true, status: true },
+    return this.state.isCancellationRequested(testRunId);
+  }
+
+  private createExecutionContext(testRunId: string): RunExecutionContext {
+    const controller = new AbortController();
+    const timers: NodeJS.Timeout[] = [];
+    let stopped = false;
+
+    const abortIfCancellationRequested = async () => {
+      if (stopped || controller.signal.aborted) {
+        return;
+      }
+      if (await this.state.isCancellationRequested(testRunId)) {
+        controller.abort(new TestRunCancellationError());
+      }
+    };
+
+    const renewLease = async () => {
+      if (stopped || controller.signal.aborted) {
+        return;
+      }
+      const renewed = await this.state.renewLease(
+        testRunId,
+        this.runnerId,
+        this.leaseDurationMs(),
+      );
+      if (!renewed) {
+        controller.abort(new Error('Test run execution lease was lost'));
+      }
+    };
+
+    timers.push(setInterval(() => void abortIfCancellationRequested(), this.cancelPollMs()));
+    timers.push(setInterval(() => void renewLease(), this.heartbeatIntervalMs()));
+    void abortIfCancellationRequested();
+    void renewLease();
+
+    return {
+      signal: controller.signal,
+      stop: () => {
+        stopped = true;
+        timers.forEach((timer) => clearInterval(timer));
+      },
+    };
+  }
+
+  private async cleanupWorkspace(
+    testRunId: string,
+    workspace: string,
+  ): Promise<string | undefined> {
+    this.emit('environment.stopping', testRunId);
+    let cleanupError: string | undefined;
+    await this.docker.down(workspace).catch(async (error) => {
+      cleanupError = error instanceof Error ? error.message : String(error);
+      await this.log(testRunId, RunnerLogSource.ERROR, cleanupError).catch(() => undefined);
     });
-    return (
-      run?.status === TestRunStatus.CANCEL_REQUESTED ||
-      run?.status === TestRunStatus.CANCELLED ||
-      Boolean(run?.cancellationRequestedAt)
-    );
+    await rm(workspace, { recursive: true, force: true }).catch((error) => {
+      cleanupError = error instanceof Error ? error.message : String(error);
+    });
+    return cleanupError;
+  }
+
+  private leaseDurationMs(): number {
+    return this.config.get<number>('TEST_RUN_LEASE_DURATION_MS', 60000);
+  }
+
+  private heartbeatIntervalMs(): number {
+    return this.config.get<number>('TEST_RUN_HEARTBEAT_INTERVAL_MS', 15000);
+  }
+
+  private cancelPollMs(): number {
+    return this.config.get<number>('TEST_RUN_CANCELLATION_POLL_INTERVAL_MS', 1000);
   }
 
   private async failureCategoryFor(

@@ -183,6 +183,15 @@ model TestRun {
   enqueuedAt              DateTime?
   claimedAt               DateTime?
   cancellationRequestedAt DateTime?
+  cancelRequestedAt       DateTime?
+  cancelRequestedBy       String?
+  cancellationReason      String?
+  runnerId                String?
+  leaseAcquiredAt         DateTime?
+  leaseExpiresAt          DateTime?
+  heartbeatAt             DateTime?
+  attempt                 Int           @default(0)
+  cleanupError            String?
   startedAt               DateTime?
   finishedAt              DateTime?
   totalTests              Int           @default(0)
@@ -198,6 +207,8 @@ model TestRun {
   @@index([projectId])
   @@index([status])
   @@index([queueJobId])
+  @@index([runnerId])
+  @@index([leaseExpiresAt])
   @@index([createdAt])
 }
 

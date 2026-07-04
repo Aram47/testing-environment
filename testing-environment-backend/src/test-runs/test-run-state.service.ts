@@ -19,6 +19,11 @@ interface TransitionOptions {
   durationMs?: number;
 }
 
+interface LeaseOptions {
+  runnerId: string;
+  leaseDurationMs: number;
+}
+
 type TestRunStateRecord = Pick<
   TestRun,
   'id' | 'status' | 'phaseTimestamps' | 'startedAt' | 'finishedAt'
@@ -130,13 +135,23 @@ export class TestRunStateService {
     });
   }
 
-  async claim(testRunId: string): Promise<TestRun> {
+  async claim(testRunId: string, lease?: LeaseOptions): Promise<TestRun> {
     const now = new Date();
+    const leaseData: Prisma.TestRunUpdateInput = lease
+      ? {
+          runnerId: lease.runnerId,
+          leaseAcquiredAt: now,
+          leaseExpiresAt: new Date(now.getTime() + lease.leaseDurationMs),
+          heartbeatAt: now,
+          attempt: { increment: 1 },
+        }
+      : {};
     return this.transition(testRunId, TestRunStatus.CLAIMED, {
       claimedAt: now,
       startedAt: now,
       statusReason: null,
       failureCategory: null,
+      ...leaseData,
     });
   }
 
@@ -147,20 +162,34 @@ export class TestRunStateService {
     return this.transition(testRunId, phase, {});
   }
 
-  async requestCancel(testRunId: string): Promise<TestRun> {
+  async requestCancel(
+    testRunId: string,
+    requestedBy?: string,
+    reason?: string,
+  ): Promise<TestRun> {
+    const now = new Date();
     return this.transition(testRunId, TestRunStatus.CANCEL_REQUESTED, {
-      cancellationRequestedAt: new Date(),
-      statusReason: 'Cancellation requested',
+      cancelRequestedAt: now,
+      cancellationRequestedAt: now,
+      cancelRequestedBy: requestedBy ?? undefined,
+      cancellationReason: reason ?? null,
+      statusReason: reason ? `Cancellation requested: ${reason}` : 'Cancellation requested',
     });
   }
 
-  async markCancelled(testRunId: string, durationMs?: number): Promise<TestRun> {
+  async markCancelled(
+    testRunId: string,
+    durationMs?: number,
+    cleanupError?: string,
+  ): Promise<TestRun> {
     return this.transition(testRunId, TestRunStatus.CANCELLED, {
       finishedAt: new Date(),
       durationMs,
       failureCategory: TestRunFailureCategory.CANCELLED,
       statusReason: 'Test run was cancelled',
       errorMessage: 'Test run was cancelled',
+      cleanupError: cleanupError ?? undefined,
+      ...this.clearedLeaseData(),
     });
   }
 
@@ -175,6 +204,7 @@ export class TestRunStateService {
       errorMessage: null,
       statusReason: null,
       failureCategory: null,
+      ...this.clearedLeaseData(),
       ...stats,
     });
   }
@@ -191,6 +221,7 @@ export class TestRunStateService {
       statusReason: reason,
       errorMessage: reason,
       failureCategory: TestRunFailureCategory.TEST_ASSERTION,
+      ...this.clearedLeaseData(),
       ...stats,
     });
   }
@@ -207,6 +238,7 @@ export class TestRunStateService {
       statusReason: reason,
       errorMessage: reason,
       failureCategory: category,
+      ...this.clearedLeaseData(),
     });
   }
 
@@ -217,7 +249,46 @@ export class TestRunStateService {
       statusReason: reason,
       errorMessage: reason,
       failureCategory: TestRunFailureCategory.TIMEOUT,
+      ...this.clearedLeaseData(),
     });
+  }
+
+  async renewLease(
+    testRunId: string,
+    runnerId: string,
+    leaseDurationMs: number,
+  ): Promise<boolean> {
+    const now = new Date();
+    const updated = await this.prisma.testRun.updateMany({
+      where: {
+        id: testRunId,
+        runnerId,
+        finishedAt: null,
+        status: { in: [...this.activeStatuses] },
+      },
+      data: {
+        heartbeatAt: now,
+        leaseExpiresAt: new Date(now.getTime() + leaseDurationMs),
+      },
+    });
+    return updated.count > 0;
+  }
+
+  async isCancellationRequested(testRunId: string): Promise<boolean> {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: {
+        cancelRequestedAt: true,
+        cancellationRequestedAt: true,
+        status: true,
+      },
+    });
+    return (
+      run?.status === TestRunStatus.CANCEL_REQUESTED ||
+      run?.status === TestRunStatus.CANCELLED ||
+      Boolean(run?.cancelRequestedAt) ||
+      Boolean(run?.cancellationRequestedAt)
+    );
   }
 
   private async transition(
@@ -296,6 +367,15 @@ export class TestRunStateService {
     return {
       ...existing,
       [targetStatus]: existing[targetStatus] ?? now.toISOString(),
+    };
+  }
+
+  private clearedLeaseData(): Prisma.TestRunUpdateInput {
+    return {
+      runnerId: null,
+      leaseAcquiredAt: null,
+      leaseExpiresAt: null,
+      heartbeatAt: null,
     };
   }
 }

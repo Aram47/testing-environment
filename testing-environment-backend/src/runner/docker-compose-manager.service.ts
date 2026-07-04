@@ -32,8 +32,12 @@ export class DockerComposeManagerService {
     }
   }
 
-  up(workspace: string): Promise<string> {
-    return this.run(['compose', '-f', 'docker-compose.test.yml', 'up', '-d', '--build'], workspace);
+  up(workspace: string, signal?: AbortSignal): Promise<string> {
+    return this.run(
+      ['compose', '-f', 'docker-compose.test.yml', 'up', '-d', '--build'],
+      workspace,
+      signal,
+    );
   }
 
   logs(workspace: string): Promise<string> {
@@ -44,14 +48,32 @@ export class DockerComposeManagerService {
     return this.run(['compose', '-f', 'docker-compose.test.yml', 'down', '-v'], workspace);
   }
 
-  private run(args: string[], cwd: string): Promise<string> {
+  private run(args: string[], cwd: string, signal?: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn('docker', args, { cwd });
       let output = '';
+      let forceKillTimer: NodeJS.Timeout | undefined;
+      const abortChild = () => {
+        child.kill('SIGTERM');
+        forceKillTimer = setTimeout(() => child.kill('SIGKILL'), 5000);
+      };
+      if (signal?.aborted) {
+        abortChild();
+      } else {
+        signal?.addEventListener('abort', abortChild, { once: true });
+      }
       child.stdout.on('data', (chunk) => (output += chunk.toString()));
       child.stderr.on('data', (chunk) => (output += chunk.toString()));
       child.on('error', reject);
       child.on('close', (code) => {
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+        }
+        signal?.removeEventListener('abort', abortChild);
+        if (signal?.aborted) {
+          reject(signal.reason instanceof Error ? signal.reason : new Error('Docker aborted'));
+          return;
+        }
         if (code === 0) {
           resolve(output);
           return;
