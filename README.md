@@ -2,7 +2,7 @@
 
 Backend Test Runner is a local web platform for configuring an isolated Docker Compose test environment, creating API test flows, running them, and reviewing results from the browser.
 
-The main idea is simple: users work with forms and visual flows in the UI, while the backend generates the runtime YAML files needed by the runner.
+The main idea is simple: users work with forms, visual flows, or raw YAML in the UI, while the backend compiles an immutable execution plan for the runner.
 
 ## What The Platform Does
 
@@ -10,7 +10,7 @@ The main idea is simple: users work with forms and visual flows in the UI, while
 - Stores project environment configuration.
 - Generates `docker-compose.test.yml` and `backend-test.yml` from configurable UI fields.
 - Lets users create API test suites as visual request flows.
-- Generates executable test suite YAML from the visual flow.
+- Generates canonical execution plans and YAML exports from visual flows.
 - Starts an isolated Docker Compose environment for every test run.
 - Waits for the configured healthcheck.
 - Executes API calls in order.
@@ -231,8 +231,8 @@ In `Flow` mode:
 
 - Each node is one API request.
 - Edges define execution order.
-- The backend compiles the flow into suite YAML.
-- The runner executes generated YAML.
+- The backend compiles the flow into a canonical execution plan and YAML export.
+- The runner executes the canonical execution plan.
 
 ### Example Test Suite
 
@@ -339,7 +339,7 @@ Click the action to start a new run. The backend will:
 
 1. Create an isolated workspace.
 2. Write generated environment YAML files.
-3. Write generated test suite YAML files.
+3. Load canonical test suite execution plans.
 4. Start Docker Compose.
 5. Wait for the healthcheck.
 6. Execute test suites.
@@ -509,4 +509,4 @@ If your platform runs differently on Linux, use a reachable Docker network addre
 - Environment Config UI supports common Docker Compose fields, not the full Compose specification.
 - Flow Builder supports dependency ordering, not conditional branches, loops, or parallel execution.
 - JSON path support for saved variables is intentionally simple.
-- Backend-generated YAML is the source of truth for runtime execution.
+- Test suite `ExecutionPlan` is the source of truth for runtime execution; YAML is kept as import/export format and legacy fallback.

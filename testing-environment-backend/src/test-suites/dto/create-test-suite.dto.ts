@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import { TestSuiteSourceMode } from '../types/execution-plan.types';
 import { FlowSuiteDefinition } from '../types/flow-suite.types';
 
 export class CreateTestSuiteDto {
@@ -12,6 +13,11 @@ export class CreateTestSuiteDto {
   @IsOptional()
   @IsString()
   yamlContent?: string;
+
+  @ApiProperty({ enum: ['VISUAL', 'RAW_YAML'], required: false })
+  @IsOptional()
+  @IsIn(['VISUAL', 'RAW_YAML'])
+  sourceMode?: TestSuiteSourceMode;
 
   @ApiProperty({ required: false })
   @IsOptional()

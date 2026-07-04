@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { YamlEditor } from '../../editors/YamlEditor';
 import { testSuiteExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
-import type { FlowSuiteDefinition, TestSuite, TestSuiteRevision } from '../../types';
+import type { FlowSuiteDefinition, TestSuite, TestSuiteRevision, TestSuiteSourceMode } from '../../types';
 import { FlowSuiteEditor } from './FlowSuiteEditor';
 
 interface TestSuiteEditorProps {
@@ -16,7 +16,7 @@ interface TestSuiteEditorProps {
   isSaving: boolean;
   isPublishing?: boolean;
   isComparing?: boolean;
-  onSave: (value: { name: string; yamlContent?: string; visualFlow?: FlowSuiteDefinition }) => void;
+  onSave: (value: { name: string; sourceMode: TestSuiteSourceMode; yamlContent?: string; visualFlow?: FlowSuiteDefinition }) => void;
   onPublish?: (revisionId: string) => void;
   onCompare?: (from: string, to: string) => void;
   onDelete?: () => void;
@@ -112,7 +112,7 @@ export function TestSuiteEditor({
           onMessage={onMessage}
           onSave={(nextFlow) => {
             setVisualFlow(nextFlow);
-            onSave({ name, visualFlow: nextFlow });
+            onSave({ name, sourceMode: 'VISUAL', visualFlow: nextFlow });
           }}
         />
       ) : (
@@ -140,7 +140,7 @@ export function TestSuiteEditor({
               disabled={isSaving}
               onClick={() => {
                 if (validate()) {
-                  onSave({ name, yamlContent: yaml });
+                  onSave({ name, sourceMode: 'RAW_YAML', yamlContent: yaml });
                 }
               }}
             >
@@ -266,16 +266,21 @@ function formatDate(value?: string) {
 
 function createInitialFlow(suiteName: string): FlowSuiteDefinition {
   return {
-    version: '1.0',
+    version: '1.1',
     suiteName,
     nodes: [
       {
         id: `api-${Date.now()}`,
+        type: 'apiRequest',
+        version: 'apiRequest/v1',
         position: { x: 120, y: 120 },
         name: 'Health check',
         method: 'GET',
         path: '/health',
         expectStatus: 200,
+        timeoutMs: 30000,
+        retryPolicy: { maxAttempts: 1, backoffMs: 0 },
+        continueOnFailure: false,
       },
     ],
     edges: [],

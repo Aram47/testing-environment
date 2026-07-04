@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TestSuitesModule } from '../test-suites/test-suites.module';
 import { TestRunStateModule } from '../test-runs/test-run-state.module';
 import { RealtimeCoreModule } from '../websocket/realtime-core.module';
 import { AssertionEngineService } from './assertion-engine.service';
@@ -10,7 +11,7 @@ import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
 
 @Module({
-  imports: [RealtimeCoreModule, TestRunStateModule],
+  imports: [RealtimeCoreModule, TestRunStateModule, TestSuitesModule],
   providers: [
     AssertionEngineService,
     DockerComposeManagerService,

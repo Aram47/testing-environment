@@ -2,8 +2,10 @@ import { BadRequestException, ConflictException, ForbiddenException } from '@nes
 import { Prisma, RevisionStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { FlowSuiteCompilerService } from './flow-suite-compiler.service';
+import { ExecutionPlanCompilerService } from './execution-plan-compiler.service';
 import { TestSuitesService } from './test-suites.service';
+import { VisualDslMigratorService } from './visual-dsl-migrator.service';
+import { YamlSuiteAdapterService } from './yaml-suite-adapter.service';
 
 describe('TestSuitesService', () => {
   const projectId = 'project-1';
@@ -74,10 +76,11 @@ describe('TestSuitesService', () => {
     projectAccess = {
       getProjectOrThrow: jest.fn(() => Promise.resolve({ id: projectId })),
     };
+    const yamlAdapter = new YamlSuiteAdapterService();
     service = new TestSuitesService(
       prisma as unknown as PrismaService,
       projectAccess as unknown as ProjectAccessService,
-      new FlowSuiteCompilerService(),
+      new ExecutionPlanCompilerService(new VisualDslMigratorService(), yamlAdapter),
     );
   });
 
@@ -88,17 +91,22 @@ describe('TestSuitesService', () => {
     });
 
     expect(prisma.testSuiteRevision.create).toHaveBeenCalledWith({
-      data: {
+      data: expect.objectContaining({
+        id: expect.any(String),
         testSuiteId: 'suite-1',
         revisionNumber: 2,
         status: RevisionStatus.DRAFT,
         schemaVersion: 1,
-        sourceMode: 'YAML',
-        compiledYaml: 'suite: Suite\ntests: []\n',
+        sourceMode: 'RAW_YAML',
+        compiledYaml: expect.stringContaining('suite: Suite'),
         visualFlow: Prisma.JsonNull,
-        executionPlan: { schemaVersion: 1, sourceMode: 'YAML', suiteName: 'Suite' },
+        executionPlan: expect.objectContaining({
+          schemaVersion: 'execution-plan/v1',
+          suiteName: 'Suite',
+          suiteRevisionId: expect.any(String),
+        }),
         createdById: userId,
-      },
+      }),
     });
   });
 
@@ -114,11 +122,12 @@ describe('TestSuitesService', () => {
 
     await service.update(projectId, 'suite-1', companyId, userId, { visualFlow });
     const call = prisma.testSuiteRevision.create.mock.calls[0][0] as {
-      data: { compiledYaml: string; visualFlow: unknown };
+      data: { compiledYaml: string; visualFlow: unknown; executionPlan: { schemaVersion: string } };
     };
 
     expect(call.data.compiledYaml).toContain('name: Health');
     expect(call.data.visualFlow).toEqual(visualFlow);
+    expect(call.data.executionPlan.schemaVersion).toBe('execution-plan/v1');
   });
 
   it('keeps name-only updates as logical metadata changes', async () => {

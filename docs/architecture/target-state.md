@@ -147,7 +147,7 @@ Current implementation notes:
 
 ## Canonical Execution Plan
 
-Before enqueueing execution, the control plane should build a canonical execution plan.
+The control plane now builds a canonical test-suite execution plan when a suite revision is saved. The runner executes this plan and uses YAML only as an import/export adapter or legacy fallback.
 
 The execution plan should include:
 
@@ -156,7 +156,7 @@ The execution plan should include:
 - Environment revision ID.
 - Suite revision IDs.
 - Ordered step list with stable step IDs.
-- Step type: `apiRequest`, `wait`, `pollUntil`.
+- Step type: `sequence`, `apiRequest`, `wait`, `pollUntil`, `setVariable`, `assert`.
 - Request details after validation but before runtime variable interpolation.
 - Expected assertions.
 - Save-variable definitions.
@@ -165,7 +165,7 @@ The execution plan should include:
 
 Benefits:
 
-- Runner executes one canonical shape instead of re-parsing mutable project state.
+- Runner executes one canonical shape instead of re-parsing mutable project state or frontend graph data.
 - Reports can explain exactly what was executed.
 - Future customer-hosted agents receive a stable contract.
 

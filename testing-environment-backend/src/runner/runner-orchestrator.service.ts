@@ -10,19 +10,22 @@ import { mkdir, rm, writeFile } from 'fs/promises';
 import { hostname } from 'os';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExecutionPlanCompilerService } from '../test-suites/execution-plan-compiler.service';
+import {
+  ApiRequestStepConfig,
+  AssertExecutionStep,
+  ExecutionPlan,
+  ExecutionStep,
+  PollUntilExecutionStep,
+  WaitExecutionStep,
+} from '../test-suites/types/execution-plan.types';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
 import { HttpTestExecutorService } from './http-test-executor.service';
-import {
-  HttpExecutionResult,
-  YamlPollStep,
-  YamlRequest,
-  YamlTestCase,
-  YamlWaitStep,
-} from './types/yaml-test.types';
+import { HttpExecutionResult } from './types/yaml-test.types';
 import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
 
@@ -61,6 +64,7 @@ export class RunnerOrchestratorService {
     private readonly docker: DockerComposeManagerService,
     private readonly healthcheck: HealthcheckService,
     private readonly parser: YamlTestParserService,
+    private readonly executionPlanCompiler: ExecutionPlanCompilerService,
     private readonly http: HttpTestExecutorService,
     private readonly assertions: AssertionEngineService,
     private readonly variables: VariableStoreService,
@@ -133,6 +137,7 @@ export class RunnerOrchestratorService {
         id: suiteRevision.testSuiteRevisionId,
         name: suiteRevision.suiteName,
         yamlContent: suiteRevision.testSuiteRevision.compiledYaml,
+        executionPlan: suiteRevision.testSuiteRevision.executionPlan,
       }));
       await this.state.enterPhase(testRunId, TestRunStatus.VALIDATING_ENVIRONMENT);
       this.docker.validateCompose(environmentConfig.compiledComposeYaml);
@@ -242,7 +247,7 @@ export class RunnerOrchestratorService {
   private async executeSuites(
     testRunId: string,
     baseUrl: string,
-    suites: { name: string; yamlContent: string }[],
+    suites: { id: string; name: string; yamlContent: string; executionPlan: unknown }[],
     context: RunExecutionContext,
   ): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
     const store = this.variables.create();
@@ -251,13 +256,13 @@ export class RunnerOrchestratorService {
     let failedTests = 0;
 
     for (const suiteRecord of suites) {
-      const suite = this.parser.parseSuite(suiteRecord.yamlContent);
-      for (const test of suite.tests) {
+      const plan = this.resolveExecutionPlan(suiteRecord);
+      for (const test of plan.steps.filter((step) => step.type !== 'sequence')) {
         await this.ensureNotCancelled(testRunId, context);
         totalTests += 1;
         const stepMeta = this.getStepMeta(test);
         this.emit('test.started', testRunId, {
-          suiteName: suite.suite,
+          suiteName: plan.suiteName,
           testName: test.name,
           ...stepMeta,
         });
@@ -270,7 +275,7 @@ export class RunnerOrchestratorService {
             testRunId,
             stepId: stepMeta.stepId,
             stepType: stepMeta.stepType,
-            suiteName: suite.suite,
+            suiteName: plan.suiteName,
             testName: test.name,
             status: result.status,
             method: stepMeta.method,
@@ -285,7 +290,7 @@ export class RunnerOrchestratorService {
           },
         });
         this.emit(passed ? 'test.passed' : 'test.failed', testRunId, {
-          suiteName: suite.suite,
+          suiteName: plan.suiteName,
           testName: test.name,
           ...stepMeta,
           attempts: result.attempts,
@@ -296,29 +301,74 @@ export class RunnerOrchestratorService {
     return { totalTests, passedTests, failedTests };
   }
 
+  private resolveExecutionPlan(suite: {
+    id: string;
+    name: string;
+    yamlContent: string;
+    executionPlan: unknown;
+  }): ExecutionPlan {
+    if (this.isExecutionPlan(suite.executionPlan)) {
+      return suite.executionPlan;
+    }
+    return this.executionPlanCompiler.compileRawYaml(suite.yamlContent, {
+      suiteRevisionId: suite.id,
+    }).executionPlan;
+  }
+
+  private isExecutionPlan(value: unknown): value is ExecutionPlan {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+    const plan = value as Partial<ExecutionPlan>;
+    return (
+      plan.schemaVersion === 'execution-plan/v1' &&
+      typeof plan.suiteName === 'string' &&
+      Array.isArray(plan.steps) &&
+      !!plan.dependencies &&
+      typeof plan.dependencies === 'object'
+    );
+  }
+
   private async executeStep(
     testRunId: string,
     baseUrl: string,
-    test: YamlTestCase,
+    test: ExecutionStep,
     store: Map<string, string>,
     context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
-    if (this.isWaitStep(test)) {
+    if (test.type === 'sequence') {
+      return {
+        status: TestResultStatus.PASSED,
+        durationMs: 0,
+        attempts: 1,
+        responseBody: { stepIds: test.config.stepIds },
+      };
+    }
+
+    if (test.type === 'wait') {
       return this.executeWait(testRunId, test, context);
     }
 
-    if (this.isPollStep(test)) {
+    if (test.type === 'pollUntil') {
       return this.executePoll(testRunId, baseUrl, test, store, context);
     }
 
-    return this.executeRequest(testRunId, baseUrl, test.name, test.request, store, context);
+    if (test.type === 'setVariable') {
+      return this.executeSetVariable(test, store);
+    }
+
+    if (test.type === 'assert') {
+      return this.executeAssert(test, store);
+    }
+
+    return this.executeRequest(testRunId, baseUrl, test.name, test.config, store, context);
   }
 
   private async executeRequest(
     testRunId: string,
     baseUrl: string,
     name: string,
-    requestDefinition: YamlRequest,
+    requestDefinition: ApiRequestStepConfig,
     store: Map<string, string>,
     context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
@@ -331,20 +381,20 @@ export class RunnerOrchestratorService {
   private async executePoll(
     testRunId: string,
     baseUrl: string,
-    test: YamlPollStep,
+    test: PollUntilExecutionStep,
     store: Map<string, string>,
     context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     const started = Date.now();
-    const timeoutMs = test.poll.timeout_seconds * 1000;
-    const intervalMs = test.poll.interval_seconds * 1000;
+    const timeoutMs = test.config.timeoutMs;
+    const intervalMs = test.config.intervalMs;
     let attempts = 0;
     let lastResult: StepExecutionResult | undefined;
 
     while (Date.now() - started <= timeoutMs) {
       await this.ensureNotCancelled(testRunId, context);
       attempts += 1;
-      const request = this.variables.interpolate(test.poll.request, store);
+      const request = this.variables.interpolate(test.config.request, store);
       const httpResult = await this.http.execute(
         baseUrl,
         { name: test.name, request },
@@ -369,40 +419,79 @@ export class RunnerOrchestratorService {
       attempts,
       durationMs: Date.now() - started,
       errorMessage:
-        test.poll.failure_message ?? `Poll timed out after ${test.poll.timeout_seconds} seconds`,
+        test.config.failureMessage ??
+        `Poll timed out after ${Math.round(timeoutMs / 1000)} seconds`,
     };
   }
 
   private async executeWait(
     testRunId: string,
-    test: YamlWaitStep,
+    test: WaitExecutionStep,
     context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     const started = Date.now();
-    await this.sleep(test.wait.duration_ms, testRunId, context);
+    await this.sleep(test.config.durationMs, testRunId, context);
     return {
       status: TestResultStatus.PASSED,
       durationMs: Date.now() - started,
       attempts: 1,
-      responseBody: { waitedMs: test.wait.duration_ms },
+      responseBody: { waitedMs: test.config.durationMs },
+    };
+  }
+
+  private executeSetVariable(
+    test: Extract<ExecutionStep, { type: 'setVariable' }>,
+    store: Map<string, string>,
+  ): StepExecutionResult {
+    const value = test.config.value ?? '';
+    store.set(test.config.name, value);
+    return {
+      status: TestResultStatus.PASSED,
+      durationMs: 0,
+      attempts: 1,
+      responseBody: { name: test.config.name, value },
+    };
+  }
+
+  private executeAssert(
+    test: AssertExecutionStep,
+    store: Map<string, string>,
+  ): StepExecutionResult {
+    const actual = store.get(test.config.fieldPath.replace(/^\$\./, ''));
+    const expected = test.config.expectedValue ?? '';
+    const passed =
+      test.config.operator === 'exists'
+        ? actual !== undefined
+        : test.config.operator === 'contains'
+          ? (actual ?? '').includes(expected)
+          : actual === expected;
+    return {
+      status: passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
+      durationMs: 0,
+      attempts: 1,
+      responseBody: { actual },
+      errorMessage: passed
+        ? undefined
+        : `Assertion ${test.config.fieldPath} ${test.config.operator} failed`,
     };
   }
 
   private evaluateRequestResult(
     result: HttpExecutionResult,
-    request: YamlRequest,
+    request: ApiRequestStepConfig,
     store: Map<string, string>,
     attempts: number,
   ): StepExecutionResult {
     const expectedStatus = request.expect?.status ?? 200;
     const statusMatches = result.actualStatus === expectedStatus;
-    const bodyMatches = this.assertions.contains(
-      result.responseBody,
-      request.expect?.json_contains,
-    );
+    const bodyMatches = this.assertions.contains(result.responseBody, request.expect?.jsonContains);
     const assertionResult = this.assertions.evaluateAssertions(
       result.responseBody,
-      request.expect?.assertions,
+      request.expect?.assertions?.map((assertion) => ({
+        field_path: assertion.fieldPath,
+        operator: assertion.operator,
+        expected_value: assertion.expectedValue,
+      })),
     );
     const passed = !result.errorMessage && statusMatches && bodyMatches && assertionResult.passed;
     if (passed && request.save) {
@@ -427,45 +516,70 @@ export class RunnerOrchestratorService {
     };
   }
 
-  private getStepMeta(test: YamlTestCase) {
-    if (this.isWaitStep(test)) {
+  private getStepMeta(test: ExecutionStep) {
+    if (test.type === 'sequence') {
       return {
         stepId: test.id,
-        stepType: 'wait',
-        method: 'WAIT',
-        path: 'delay',
+        stepType: test.type,
+        method: 'SEQUENCE',
+        path: test.id,
         expectedStatus: 0,
-        requestBody: { durationMs: test.wait.duration_ms },
+        requestBody: test.config,
       };
     }
 
-    if (this.isPollStep(test)) {
+    if (test.type === 'wait') {
       return {
         stepId: test.id,
-        stepType: 'pollUntil',
-        method: test.poll.request.method.toUpperCase(),
-        path: test.poll.request.path,
-        expectedStatus: test.poll.request.expect?.status ?? 200,
-        requestBody: test.poll.request.json,
+        stepType: test.type,
+        method: 'WAIT',
+        path: 'delay',
+        expectedStatus: 0,
+        requestBody: { durationMs: test.config.durationMs },
+      };
+    }
+
+    if (test.type === 'pollUntil') {
+      return {
+        stepId: test.id,
+        stepType: test.type,
+        method: test.config.request.method.toUpperCase(),
+        path: test.config.request.path,
+        expectedStatus: test.config.request.expect?.status ?? 200,
+        requestBody: test.config.request.json,
+      };
+    }
+
+    if (test.type === 'setVariable') {
+      return {
+        stepId: test.id,
+        stepType: test.type,
+        method: 'SET',
+        path: test.config.name,
+        expectedStatus: 0,
+        requestBody: test.config,
+      };
+    }
+
+    if (test.type === 'assert') {
+      return {
+        stepId: test.id,
+        stepType: test.type,
+        method: 'ASSERT',
+        path: test.config.fieldPath,
+        expectedStatus: 0,
+        requestBody: test.config,
       };
     }
 
     return {
       stepId: test.id,
-      stepType: 'apiRequest',
-      method: test.request.method.toUpperCase(),
-      path: test.request.path,
-      expectedStatus: test.request.expect?.status ?? 200,
-      requestBody: test.request.json,
+      stepType: test.type,
+      method: test.config.method.toUpperCase(),
+      path: test.config.path,
+      expectedStatus: test.config.expect?.status ?? 200,
+      requestBody: test.config.json,
     };
-  }
-
-  private isWaitStep(test: YamlTestCase): test is YamlWaitStep {
-    return 'wait' in test;
-  }
-
-  private isPollStep(test: YamlTestCase): test is YamlPollStep {
-    return 'poll' in test;
   }
 
   private async sleep(

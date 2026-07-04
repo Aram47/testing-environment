@@ -14,7 +14,7 @@
 - видеть прогресс запуска в реальном времени;
 - хранить результаты, логи и отчеты.
 
-Главная продуктовая идея: пользователь работает с визуальными формами и flow builder в UI, а backend компилирует эти структуры в YAML-файлы, которые затем использует runner.
+Главная продуктовая идея: пользователь работает с визуальными формами, flow builder или raw YAML в UI, а backend компилирует test suites в immutable `ExecutionPlan`; YAML остается форматом import/export и legacy compatibility.
 
 ### Основные пользователи
 
@@ -44,11 +44,11 @@
 5. Пользователь создает test suite:
    - через visual flow builder;
    - или вручную через YAML.
-6. Backend компилирует visual test flow в executable YAML.
+6. Backend компилирует visual test flow или raw YAML в canonical execution plan и YAML export.
 7. Пользователь запускает test run.
 8. Backend:
    - создает изолированный workspace;
-   - записывает runtime YAML-файлы;
+   - записывает runtime YAML-файлы окружения;
    - поднимает Docker Compose окружение;
    - ждет healthcheck;
    - выполняет test suites;
@@ -733,9 +733,9 @@ Endpoints:
 Назначение:
 
 - CRUD для test suites;
-- хранение YAML suite;
+- хранение RAW YAML suite;
 - хранение visual flow;
-- компиляция visual flow в executable YAML.
+- компиляция visual flow в canonical execution plan и YAML export.
 
 #### FlowSuiteCompilerService
 
@@ -1849,4 +1849,4 @@ Root `docker-compose.yml` defines:
 
 Это full-stack локальная платформа для конфигурации Docker Compose test environment, визуального создания API test flows и запуска их как backend test runs. Backend построен как NestJS modular monolith с Prisma/PostgreSQL, JWT auth, subscription limits, environment/test-suite compilers, Docker Compose runner и Socket.IO realtime events. Frontend построен как React/Vite SPA с React Query, React Router, Tailwind, feature-based structure, visual environment editor, React Flow based suite editor, run progress/timeline/logs/results UI.
 
-Главная архитектурная идея: UI хранит structured visual config, backend компилирует его в YAML, runner создает isolated workspace, поднимает Docker Compose, выполняет HTTP/wait/poll steps, сохраняет results/logs и сообщает progress через realtime. Система сейчас хорошо подходит для MVP/локального self-hosted usage, но для production/multi-tenant эксплуатации нужно усилить runner isolation, queue-based execution, security вокруг Docker socket, token lifecycle, RBAC, observability и retention.
+Главная архитектурная идея: UI хранит structured visual config или RAW YAML, backend компилирует test suites в canonical execution plan, runner создает isolated workspace, поднимает Docker Compose, выполняет HTTP/wait/poll/setVariable/assert steps, сохраняет results/logs и сообщает progress через realtime. Система сейчас хорошо подходит для MVP/локального self-hosted usage, но для production/multi-tenant эксплуатации нужно усилить runner isolation, queue-based execution, security вокруг Docker socket, token lifecycle, RBAC, observability и retention.

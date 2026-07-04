@@ -30,6 +30,7 @@ export type TestResultStatus = 'PASSED' | 'FAILED';
 export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 export type UserRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER';
 export type RevisionStatus = 'DRAFT' | 'PUBLISHED';
+export type TestSuiteSourceMode = 'VISUAL' | 'RAW_YAML';
 
 export interface User {
   id: string;
@@ -193,7 +194,7 @@ export interface TestSuiteRevision {
   testSuiteId: string;
   revisionNumber: number;
   status: RevisionStatus;
-  sourceMode: string;
+  sourceMode: TestSuiteSourceMode;
   visualFlow?: FlowSuiteDefinition;
   compiledYaml: string;
   executionPlan?: unknown;
@@ -206,7 +207,7 @@ export interface TestSuiteRevision {
 }
 
 export interface FlowSuiteDefinition {
-  version: '1.0';
+  version: '1.0' | '1.1';
   suiteName: string;
   nodes: FlowNode[];
   edges: FlowEdge[];
@@ -217,9 +218,14 @@ export interface FlowPosition {
   y: number;
 }
 
-export type FlowNode = FlowApiNode | FlowWaitNode | FlowPollUntilNode;
+export type FlowNode =
+  | FlowApiNode
+  | FlowWaitNode
+  | FlowPollUntilNode
+  | FlowSetVariableNode
+  | FlowAssertNode;
 
-export type FlowNodeType = 'apiRequest' | 'wait' | 'pollUntil';
+export type FlowNodeType = 'apiRequest' | 'wait' | 'pollUntil' | 'setVariable' | 'assert';
 
 export type FlowAssertionOperator = 'equals' | 'contains' | 'exists';
 
@@ -230,11 +236,20 @@ export interface FlowAssertion {
   expectedValue?: string;
 }
 
+export interface FlowRetryPolicy {
+  maxAttempts: number;
+  backoffMs: number;
+}
+
 export interface FlowBaseNode {
   id: string;
   position: FlowPosition;
   name: string;
   type?: FlowNodeType;
+  version?: string;
+  timeoutMs?: number;
+  retryPolicy?: FlowRetryPolicy;
+  continueOnFailure?: boolean;
 }
 
 export interface FlowApiNode extends FlowBaseNode {
@@ -269,6 +284,22 @@ export interface FlowPollUntilNode extends FlowBaseNode {
   timeoutSeconds: number;
   intervalSeconds: number;
   failureMessage?: string;
+}
+
+export interface FlowSetVariableNode extends FlowBaseNode {
+  type: 'setVariable';
+  variableName: string;
+  value?: string;
+  fromStepId?: string;
+  path?: string;
+}
+
+export interface FlowAssertNode extends FlowBaseNode {
+  type: 'assert';
+  sourceStepId?: string;
+  fieldPath: string;
+  operator: FlowAssertionOperator;
+  expectedValue?: string;
 }
 
 export interface FlowEdge {

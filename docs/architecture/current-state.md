@@ -29,9 +29,9 @@ Current modules:
 - `ProjectsModule`: project CRUD and project ownership.
 - `EnvironmentConfigsModule`: Docker Compose environment storage and visual config compiler.
 - `SecretsModule`: project secret storage and encryption.
-- `TestSuitesModule`: YAML/visual suite storage and visual flow compiler.
+- `TestSuitesModule`: RAW YAML/visual suite storage, source-mode handling, visual DSL migration, YAML adapter, and canonical execution plan compiler.
 - `TestRunsModule`: REST API for creating, listing, reading, and cancelling runs.
-- `RunnerModule`: in-process runner orchestration, Docker Compose management, healthchecks, HTTP step execution, assertions, variables, YAML parsing.
+- `RunnerModule`: in-process runner orchestration, Docker Compose management, healthchecks, HTTP step execution, assertions, variables, and execution-plan execution with YAML fallback for legacy revisions.
 - `ReportsModule`: JSON report and runner log reads.
 - `RealtimeModule`: Socket.IO gateway and event emission.
 - `DashboardModule`: dashboard summary.
@@ -82,7 +82,8 @@ Important gaps:
 
 - Environment and suite revisions now exist and are immutable after creation.
 - `TestRun` now references a published environment revision and ordered published suite revisions at create time.
-- Execution plans are still minimal metadata snapshots; deeper canonical step plans remain future work.
+- `TestSuiteRevision.executionPlan` now stores a canonical `execution-plan/v1` step plan for new revisions.
+- Older revisions with legacy placeholder plans remain compatible through on-the-fly YAML-to-plan fallback.
 - Cancellation and queue state are not durable.
 - Large response bodies and logs can still pressure PostgreSQL despite Docker logs being truncated before insertion.
 
@@ -173,10 +174,10 @@ Current lifecycle:
 6. The runner loads the run with project health settings and immutable revision snapshots.
 7. It creates a local workspace.
 8. It advances through durable phase statuses.
-9. It writes Docker Compose, backend-test YAML, and suite YAML files from the snapshotted revisions.
+9. It writes Docker Compose and backend-test YAML files from the snapshotted environment revision.
 10. It validates and starts Docker Compose.
 11. It waits for healthcheck.
-12. It executes suites and steps.
+12. It executes suite revision `executionPlan` snapshots, falling back to compiling legacy suite YAML when needed.
 13. It stores `TestResult` rows.
 14. It stores truncated Docker logs in `RunnerLog`.
 15. It marks the run `PASSED`, `TEST_FAILED`, `INFRA_FAILED`, `TIMED_OUT`, or `CANCELLED`.
@@ -198,11 +199,11 @@ Responsibilities:
 - Load run, project, environment config, and suites.
 - Create workspace under `RUNNER_WORKSPACE_ROOT` or `/tmp/backend-test-runner`.
 - Persist lifecycle transitions.
-- Write runtime YAML files.
+- Write environment runtime YAML files.
 - Delegate Docker Compose commands.
 - Wait for healthcheck.
-- Parse test suite YAML.
-- Execute `apiRequest`, `wait`, and `pollUntil` steps.
+- Resolve canonical suite execution plans.
+- Execute `apiRequest`, `wait`, `pollUntil`, `setVariable`, and `assert` steps.
 - Interpolate variables.
 - Evaluate status, JSON contains, and assertions.
 - Save extracted response values into an in-memory variable store.
@@ -306,14 +307,12 @@ Environment configuration:
 Test suites:
 
 - Stored as mutable `TestSuite` rows.
-- Supports manual YAML mode via `yamlContent`.
-- Supports visual mode via `visualFlow`, compiled by backend into `yamlContent`.
+- Supports `RAW_YAML` mode via `yamlContent`.
+- Supports `VISUAL` mode via `visualFlow`, compiled by backend into canonical `ExecutionPlan` plus YAML export.
 
 Gaps:
 
-- Both are mutable.
-- Test runs do not capture immutable revisions.
-- There is no canonical execution plan table or artifact.
+- Older legacy revisions may still rely on YAML fallback until republished.
 
 ## Visual-To-YAML Compilers
 
@@ -329,13 +328,13 @@ Gaps:
 
 `FlowSuiteCompilerService`:
 
-- Validates flow version `1.0`.
+- Validates and migrates visual flow versions `1.0` and `1.1`.
 - Validates suite name, nodes, edges, request fields, assertions, wait duration, poll timeout and interval.
 - Supports legacy API nodes without `type`.
 - Topologically sorts nodes by edges.
 - Rejects cycles and edges to missing nodes.
 - Emits warnings for duplicate saved variable names.
-- Compiles `apiRequest`, `wait`, and `pollUntil` nodes to suite YAML.
+- Compiles `apiRequest`, `wait`, `pollUntil`, `setVariable`, and `assert` nodes to `ExecutionPlan`; YAML is an import/export adapter.
 
 The compiler tests are among the stronger areas of the current test suite.
 
@@ -412,9 +411,9 @@ Compatibility detail: existing YAML-only configs open in YAML mode, and users ca
 `FlowSuiteEditor`:
 
 - Uses `@xyflow/react`.
-- Supports API, wait, and poll nodes.
-- Maintains nodes, edges, selected node, YAML preview, warnings, validation errors, and compile state.
-- Calls backend compile endpoint for validation and YAML generation.
+- Supports API, wait, poll, set-variable, and assert nodes.
+- Maintains nodes, edges, selected node, YAML export preview, warnings, validation errors, and compile state.
+- Calls backend compile endpoint for validation, execution-plan generation, and YAML export.
 - Provides node inspector forms, assertions, variable picker, save variables, and auto layout.
 
 Potential frontend concerns:

@@ -5,8 +5,10 @@ import {
   FlowAssertion,
   FlowCompileResult,
   FlowEdge,
+  FlowAssertNode,
   FlowNode,
   FlowPollUntilNode,
+  FlowSetVariableNode,
   FlowSuiteDefinition,
   FlowWaitNode,
 } from './types/flow-suite.types';
@@ -31,7 +33,12 @@ interface CompiledAssertion {
   expected_value?: string;
 }
 
-type CompiledTestCase = CompiledRequestTestCase | CompiledWaitTestCase | CompiledPollTestCase;
+type CompiledTestCase =
+  | CompiledRequestTestCase
+  | CompiledWaitTestCase
+  | CompiledPollTestCase
+  | CompiledSetVariableTestCase
+  | CompiledAssertTestCase;
 
 interface CompiledRequestTestCase {
   id: string;
@@ -58,6 +65,30 @@ interface CompiledPollTestCase {
     timeout_seconds: number;
     interval_seconds: number;
     failure_message?: string;
+  };
+}
+
+interface CompiledSetVariableTestCase {
+  id: string;
+  type: 'setVariable';
+  name: string;
+  set_variable: {
+    name: string;
+    value?: string;
+    from_step_id?: string;
+    path?: string;
+  };
+}
+
+interface CompiledAssertTestCase {
+  id: string;
+  type: 'assert';
+  name: string;
+  assert: {
+    source_step_id?: string;
+    field_path: string;
+    operator: string;
+    expected_value?: string;
   };
 }
 
@@ -140,6 +171,20 @@ export class FlowSuiteCompilerService {
         continue;
       }
 
+      if (this.isSetVariableNode(node)) {
+        if (!node.variableName?.trim()) {
+          throw new BadRequestException(`Set variable step "${node.name}" needs a variable name`);
+        }
+        continue;
+      }
+
+      if (this.isAssertNode(node)) {
+        if (!node.fieldPath?.trim()) {
+          throw new BadRequestException(`Assert step "${node.name}" needs a response field path`);
+        }
+        continue;
+      }
+
       this.validateRequestNode(node);
     }
   }
@@ -208,7 +253,17 @@ export class FlowSuiteCompilerService {
     const savedBy = new Map<string, string>();
 
     for (const node of nodes) {
-      if (this.isWaitNode(node)) {
+      if (this.isWaitNode(node) || this.isAssertNode(node)) {
+        continue;
+      }
+      if (this.isSetVariableNode(node)) {
+        const owner = savedBy.get(node.variableName);
+        if (owner) {
+          warnings.push(
+            `Variable "${node.variableName}" is saved by both "${owner}" and "${node.name}".`,
+          );
+        }
+        savedBy.set(node.variableName, node.name);
         continue;
       }
       for (const key of Object.keys(node.save ?? {}).filter(Boolean)) {
@@ -243,6 +298,36 @@ export class FlowSuiteCompilerService {
           timeout_seconds: node.timeoutSeconds,
           interval_seconds: node.intervalSeconds,
           ...(node.failureMessage?.trim() ? { failure_message: node.failureMessage.trim() } : {}),
+        },
+      };
+    }
+
+    if (this.isSetVariableNode(node)) {
+      return {
+        id: node.id,
+        type: 'setVariable',
+        name: node.name,
+        set_variable: {
+          name: node.variableName,
+          ...(node.value !== undefined ? { value: node.value } : {}),
+          ...(node.fromStepId?.trim() ? { from_step_id: node.fromStepId.trim() } : {}),
+          ...(node.path?.trim() ? { path: node.path.trim() } : {}),
+        },
+      };
+    }
+
+    if (this.isAssertNode(node)) {
+      return {
+        id: node.id,
+        type: 'assert',
+        name: node.name,
+        assert: {
+          ...(node.sourceStepId?.trim() ? { source_step_id: node.sourceStepId.trim() } : {}),
+          field_path: node.fieldPath,
+          operator: node.operator,
+          ...(node.expectedValue !== undefined && node.expectedValue !== ''
+            ? { expected_value: node.expectedValue }
+            : {}),
         },
       };
     }
@@ -302,6 +387,14 @@ export class FlowSuiteCompilerService {
 
   private isPollNode(node: FlowNode): node is FlowPollUntilNode {
     return node.type === 'pollUntil';
+  }
+
+  private isSetVariableNode(node: FlowNode): node is FlowSetVariableNode {
+    return node.type === 'setVariable';
+  }
+
+  private isAssertNode(node: FlowNode): node is FlowAssertNode {
+    return node.type === 'assert';
   }
 
   private assignIfPresent<T extends object, K extends keyof T>(

@@ -1,9 +1,16 @@
 import { apiClient } from './client';
-import type { FlowSuiteDefinition, RevisionLineDiff, TestSuite, TestSuiteRevision } from '../types';
+import type {
+  FlowSuiteDefinition,
+  RevisionLineDiff,
+  TestSuite,
+  TestSuiteRevision,
+  TestSuiteSourceMode,
+} from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 
 export interface TestSuiteInput {
   name: string;
+  sourceMode?: TestSuiteSourceMode;
   yamlContent?: string;
   visualFlow?: FlowSuiteDefinition;
 }
@@ -17,6 +24,7 @@ export interface FlowCompileResult {
   yamlContent: string;
   testsCount: number;
   warnings: string[];
+  executionPlan?: unknown;
 }
 
 export interface TestSuiteRevisionCompareResult {

@@ -14,15 +14,18 @@ import {
   type NodeChange,
   type NodeProps,
 } from '@xyflow/react';
-import { CheckCircle2, Clock3, Copy, FileCode2, Plus, SearchCheck, Trash2, Wand2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Copy, FileCode2, Plus, SearchCheck, Trash2, Variable, Wand2 } from 'lucide-react';
 import { testSuitesApi } from '../../api/test-suites.api';
 import { Button } from '../../components/ui/Button';
 import type {
   FlowApiNode,
+  FlowAssertNode,
   FlowAssertion,
   FlowAssertionOperator,
   FlowNode,
   FlowPollUntilNode,
+  FlowRetryPolicy,
+  FlowSetVariableNode,
   FlowSuiteDefinition,
   FlowWaitNode,
 } from '../../types';
@@ -37,6 +40,7 @@ type RequestFieldChanges = Partial<Pick<FlowApiNode, 'method' | 'path' | 'header
 
 const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 const assertionOperators: FlowAssertionOperator[] = ['equals', 'contains', 'exists'];
+const defaultRetryPolicy: FlowRetryPolicy = { maxAttempts: 1, backoffMs: 0 };
 
 interface FlowSuiteEditorProps {
   projectId: string;
@@ -60,7 +64,7 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
   const variables = useMemo(() => collectVariables(nodes), [nodes]);
 
   const buildFlow = (): FlowSuiteDefinition => ({
-    version: '1.0',
+    version: '1.1',
     suiteName,
     nodes: nodes.map((node) => ({
       ...node.data.flowNode,
@@ -72,6 +76,8 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
   const addApiNode = () => addNode(createApiNode(nodes.length + 1));
   const addWaitNode = () => addNode(createWaitNode(nodes.length + 1));
   const addPollNode = () => addNode(createPollNode(nodes.length + 1));
+  const addSetVariableNode = () => addNode(createSetVariableNode(nodes.length + 1));
+  const addAssertNode = () => addNode(createAssertNode(nodes.length + 1));
 
   const addNode = (flowNode: FlowNode) => {
     setNodes((current) => [...current, toReactNode(flowNode)]);
@@ -134,6 +140,12 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
             </Button>
             <Button type="button" variant="secondary" className="w-full justify-start" onClick={addPollNode}>
               <SearchCheck size={16} /> Add Poll
+            </Button>
+            <Button type="button" variant="secondary" className="w-full justify-start" onClick={addSetVariableNode}>
+              <Variable size={16} /> Set Variable
+            </Button>
+            <Button type="button" variant="secondary" className="w-full justify-start" onClick={addAssertNode}>
+              <CheckCircle2 size={16} /> Add Assert
             </Button>
             <Button type="button" variant="secondary" className="w-full justify-start" onClick={() => setNodes(autoLayout(nodes, edges))}>
               <Wand2 size={16} /> Auto layout
@@ -199,7 +211,7 @@ export function FlowSuiteEditor({ projectId, suiteName, initialFlow, initialYaml
 
       <section className="rounded-lg border border-border bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-ink">Generated YAML preview</h2>
+          <h2 className="text-sm font-semibold text-ink">YAML export preview</h2>
           <Button type="button" variant="secondary" disabled={isCompiling} onClick={compileFlow}>
             <FileCode2 size={16} /> Refresh preview
           </Button>
@@ -257,6 +269,10 @@ function NodeInspector({ node, variables, errors, onChange }: NodeInspectorProps
         <WaitInspector node={node} onChange={onChange} />
       ) : isPollNode(node) ? (
         <PollInspector node={node} variables={variables} onChange={onChange} />
+      ) : isSetVariableNode(node) ? (
+        <SetVariableInspector node={node} variables={variables} onChange={onChange} />
+      ) : isAssertNode(node) ? (
+        <AssertInspector node={node} variables={variables} onChange={onChange} />
       ) : (
         <ApiInspector node={node} variables={variables} onChange={onChange} />
       )}
@@ -270,6 +286,7 @@ function ApiInspector({ node, variables, onChange }: { node: FlowApiNode; variab
   return (
     <>
       <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <ExecutionFields node={node} onChange={update} />
       <RequestFields node={node} variables={variables} onChange={update} />
     </>
   );
@@ -281,6 +298,7 @@ function PollInspector({ node, variables, onChange }: { node: FlowPollUntilNode;
   return (
     <>
       <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <ExecutionFields node={node} onChange={update} />
       <RequestFields node={node} variables={variables} onChange={update} />
       <div className="grid gap-3 sm:grid-cols-2">
         <NumberField label="Timeout seconds" value={node.timeoutSeconds} onChange={(timeoutSeconds) => update({ timeoutSeconds })} />
@@ -297,8 +315,104 @@ function WaitInspector({ node, onChange }: { node: FlowWaitNode; onChange: (node
   return (
     <>
       <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <ExecutionFields node={node} onChange={update} />
       <NumberField label="Duration milliseconds" value={node.durationMs} onChange={(durationMs) => update({ durationMs })} />
     </>
+  );
+}
+
+function SetVariableInspector({
+  node,
+  variables,
+  onChange,
+}: {
+  node: FlowSetVariableNode;
+  variables: string[];
+  onChange: (node: FlowNode) => void;
+}) {
+  const update = (changes: Partial<FlowSetVariableNode>) => onChange({ ...node, ...changes });
+
+  return (
+    <>
+      <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <ExecutionFields node={node} onChange={update} />
+      <TextField label="Variable name" value={node.variableName} onChange={(variableName) => update({ variableName })} />
+      <TextField label="Value" value={node.value ?? ''} onChange={(value) => update({ value })} />
+      <VariablePicker variables={variables} />
+      <TextField label="Source step ID" value={node.fromStepId ?? ''} onChange={(fromStepId) => update({ fromStepId })} />
+      <TextField label="JSON path" value={node.path ?? ''} onChange={(path) => update({ path })} />
+    </>
+  );
+}
+
+function AssertInspector({
+  node,
+  variables,
+  onChange,
+}: {
+  node: FlowAssertNode;
+  variables: string[];
+  onChange: (node: FlowNode) => void;
+}) {
+  const update = (changes: Partial<FlowAssertNode>) => onChange({ ...node, ...changes });
+
+  return (
+    <>
+      <TextField label="Name" value={node.name} onChange={(name) => update({ name })} />
+      <ExecutionFields node={node} onChange={update} />
+      <VariablePicker variables={variables} />
+      <TextField label="Source step ID" value={node.sourceStepId ?? ''} onChange={(sourceStepId) => update({ sourceStepId })} />
+      <TextField label="Field path" value={node.fieldPath} onChange={(fieldPath) => update({ fieldPath })} />
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-ink">Operator</span>
+        <select className="input" value={node.operator} onChange={(event) => update({ operator: event.target.value as FlowAssertionOperator })}>
+          {assertionOperators.map((operator) => (
+            <option key={operator} value={operator}>
+              {operator}
+            </option>
+          ))}
+        </select>
+      </label>
+      {node.operator !== 'exists' ? (
+        <TextField label="Expected value" value={node.expectedValue ?? ''} onChange={(expectedValue) => update({ expectedValue })} />
+      ) : null}
+    </>
+  );
+}
+
+function ExecutionFields<TNode extends FlowNode>({
+  node,
+  onChange,
+}: {
+  node: TNode;
+  onChange: (changes: Partial<TNode>) => void;
+}) {
+  const retryPolicy = node.retryPolicy ?? defaultRetryPolicy;
+
+  return (
+    <section className="space-y-3 rounded-md border border-border bg-slate-50 p-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberField label="Step timeout ms" value={node.timeoutMs ?? 30000} onChange={(timeoutMs) => onChange({ timeoutMs } as Partial<TNode>)} />
+        <NumberField
+          label="Retry attempts"
+          value={retryPolicy.maxAttempts}
+          onChange={(maxAttempts) => onChange({ retryPolicy: { ...retryPolicy, maxAttempts } } as Partial<TNode>)}
+        />
+      </div>
+      <NumberField
+        label="Retry backoff ms"
+        value={retryPolicy.backoffMs}
+        onChange={(backoffMs) => onChange({ retryPolicy: { ...retryPolicy, backoffMs } } as Partial<TNode>)}
+      />
+      <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
+        <input
+          type="checkbox"
+          checked={node.continueOnFailure === true}
+          onChange={(event) => onChange({ continueOnFailure: event.target.checked } as Partial<TNode>)}
+        />
+        Continue on failure
+      </label>
+    </section>
   );
 }
 
@@ -607,11 +721,15 @@ function createApiNode(index: number): FlowApiNode {
   return {
     id,
     type: 'apiRequest',
+    version: 'apiRequest/v1',
     position: { x: 120 + index * 48, y: 80 + index * 32 },
     name: `API call ${index}`,
     method: 'GET',
     path: '/',
     expectStatus: 200,
+    timeoutMs: 30000,
+    retryPolicy: defaultRetryPolicy,
+    continueOnFailure: false,
   };
 }
 
@@ -620,9 +738,13 @@ function createWaitNode(index: number): FlowWaitNode {
   return {
     id,
     type: 'wait',
+    version: 'wait/v1',
     position: { x: 120 + index * 48, y: 80 + index * 32 },
     name: `Wait ${index}`,
     durationMs: 1000,
+    timeoutMs: 60000,
+    retryPolicy: defaultRetryPolicy,
+    continueOnFailure: false,
   };
 }
 
@@ -631,6 +753,7 @@ function createPollNode(index: number): FlowPollUntilNode {
   return {
     id,
     type: 'pollUntil',
+    version: 'pollUntil/v1',
     position: { x: 120 + index * 48, y: 80 + index * 32 },
     name: `Poll ${index}`,
     method: 'GET',
@@ -638,11 +761,54 @@ function createPollNode(index: number): FlowPollUntilNode {
     expectStatus: 200,
     timeoutSeconds: 30,
     intervalSeconds: 2,
+    timeoutMs: 30000,
+    retryPolicy: defaultRetryPolicy,
+    continueOnFailure: false,
+  };
+}
+
+function createSetVariableNode(index: number): FlowSetVariableNode {
+  const id = `set-variable-${Date.now()}`;
+  return {
+    id,
+    type: 'setVariable',
+    version: 'setVariable/v1',
+    position: { x: 120 + index * 48, y: 80 + index * 32 },
+    name: `Set variable ${index}`,
+    variableName: `variable_${index}`,
+    value: '',
+    timeoutMs: 30000,
+    retryPolicy: defaultRetryPolicy,
+    continueOnFailure: false,
+  };
+}
+
+function createAssertNode(index: number): FlowAssertNode {
+  const id = `assert-${Date.now()}`;
+  return {
+    id,
+    type: 'assert',
+    version: 'assert/v1',
+    position: { x: 120 + index * 48, y: 80 + index * 32 },
+    name: `Assert ${index}`,
+    fieldPath: '$.',
+    operator: 'exists',
+    timeoutMs: 30000,
+    retryPolicy: defaultRetryPolicy,
+    continueOnFailure: false,
   };
 }
 
 function normalizeNode(node: FlowNode): FlowNode {
-  return node.type ? node : { ...node, type: 'apiRequest' };
+  const type = node.type ?? 'apiRequest';
+  return {
+    ...node,
+    type,
+    version: node.version ?? `${type}/v1`,
+    timeoutMs: node.timeoutMs ?? 30000,
+    retryPolicy: node.retryPolicy ?? defaultRetryPolicy,
+    continueOnFailure: node.continueOnFailure === true,
+  } as FlowNode;
 }
 
 function validateFlow(flow: FlowSuiteDefinition): string[] {
@@ -654,6 +820,18 @@ function validateFlow(flow: FlowSuiteDefinition): string[] {
     if (isWaitNode(node)) {
       if (!Number.isFinite(node.durationMs) || node.durationMs <= 0) {
         errors.push(`Wait step "${node.name}" needs a duration greater than 0 ms.`);
+      }
+      continue;
+    }
+    if (isSetVariableNode(node)) {
+      if (!node.variableName.trim()) {
+        errors.push(`Set variable step "${node.name}" needs a variable name.`);
+      }
+      continue;
+    }
+    if (isAssertNode(node)) {
+      if (!node.fieldPath.trim()) {
+        errors.push(`Assert step "${node.name}" needs a response field path.`);
       }
       continue;
     }
@@ -686,7 +864,16 @@ function validateFlow(flow: FlowSuiteDefinition): string[] {
 }
 
 function collectVariables(nodes: FlowEditorNode[]): string[] {
-  const variables = nodes.flatMap((node) => (isWaitNode(node.data.flowNode) ? [] : Object.keys(node.data.flowNode.save ?? {})));
+  const variables = nodes.flatMap((node) => {
+    const flowNode = node.data.flowNode;
+    if (isWaitNode(flowNode) || isAssertNode(flowNode)) {
+      return [];
+    }
+    if (isSetVariableNode(flowNode)) {
+      return [flowNode.variableName];
+    }
+    return Object.keys(flowNode.save ?? {});
+  });
   return [...new Set(variables.filter(Boolean))];
 }
 
@@ -696,6 +883,12 @@ function stepTypeLabel(node: FlowNode): string {
   }
   if (isPollNode(node)) {
     return 'Poll until';
+  }
+  if (isSetVariableNode(node)) {
+    return 'Set variable';
+  }
+  if (isAssertNode(node)) {
+    return 'Assert';
   }
   return node.method;
 }
@@ -707,6 +900,12 @@ function stepSummary(node: FlowNode): string {
   if (isPollNode(node)) {
     return `${node.method} ${node.path} for ${node.timeoutSeconds}s`;
   }
+  if (isSetVariableNode(node)) {
+    return node.variableName;
+  }
+  if (isAssertNode(node)) {
+    return `${node.fieldPath} ${node.operator}`;
+  }
   return node.path;
 }
 
@@ -716,6 +915,14 @@ function isWaitNode(node: FlowNode): node is FlowWaitNode {
 
 function isPollNode(node: FlowNode): node is FlowPollUntilNode {
   return node.type === 'pollUntil';
+}
+
+function isSetVariableNode(node: FlowNode): node is FlowSetVariableNode {
+  return node.type === 'setVariable';
+}
+
+function isAssertNode(node: FlowNode): node is FlowAssertNode {
+  return node.type === 'assert';
 }
 
 function replaceRow<T>(rows: T[], index: number, row: T): T[] {

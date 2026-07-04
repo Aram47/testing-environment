@@ -5,21 +5,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, RevisionStatus, TestSuite, TestSuiteRevision } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../common/interfaces/paginated-result.interface';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTestSuiteDto } from './dto/create-test-suite.dto';
+import { ExecutionPlanCompilerService } from './execution-plan-compiler.service';
 import { UpdateTestSuiteDto } from './dto/update-test-suite.dto';
-import { FlowSuiteCompilerService } from './flow-suite-compiler.service';
-import { FlowCompileResult, FlowSuiteDefinition } from './types/flow-suite.types';
+import { ExecutionPlanCompileResult, TestSuiteSourceMode } from './types/execution-plan.types';
+import { FlowSuiteDefinition } from './types/flow-suite.types';
 
 @Injectable()
 export class TestSuitesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectAccess: ProjectAccessService,
-    private readonly flowCompiler: FlowSuiteCompilerService,
+    private readonly executionPlanCompiler: ExecutionPlanCompilerService,
   ) {}
 
   async create(projectId: string, companyId: string, userId: string, dto: CreateTestSuiteDto) {
@@ -114,18 +116,20 @@ export class TestSuitesService {
     projectId: string,
     companyId: string,
     flow: FlowSuiteDefinition,
-  ): Promise<FlowCompileResult> {
+  ): Promise<ExecutionPlanCompileResult> {
     return this.projectAccess
       .getProjectOrThrow(projectId, companyId)
-      .then(() => this.flowCompiler.compile(flow));
+      .then(() => this.executionPlanCompiler.compileVisual(flow));
   }
 
   async listRevisions(projectId: string, suiteId: string, companyId: string) {
     await this.getSuiteForProject(projectId, suiteId, companyId);
-    return this.prisma.testSuiteRevision.findMany({
-      where: { testSuiteId: suiteId },
-      orderBy: { revisionNumber: 'desc' },
-    });
+    return this.prisma.testSuiteRevision
+      .findMany({
+        where: { testSuiteId: suiteId },
+        orderBy: { revisionNumber: 'desc' },
+      })
+      .then((revisions) => revisions.map((revision) => this.normalizeRevisionSourceMode(revision)));
   }
 
   async publishRevision(
@@ -175,8 +179,8 @@ export class TestSuitesService {
       throw new NotFoundException('Test suite revision not found');
     }
     return {
-      from,
-      to,
+      from: this.normalizeRevisionSourceMode(from),
+      to: this.normalizeRevisionSourceMode(to),
       diffs: {
         compiledYaml: this.diffLines(from.compiledYaml, to.compiledYaml),
       },
@@ -204,9 +208,11 @@ export class TestSuitesService {
       where: { testSuiteId },
       _max: { revisionNumber: true },
     });
+    const revisionId = randomUUID();
     return prisma.testSuiteRevision.create({
       data: {
-        ...this.toRevisionData(dto),
+        id: revisionId,
+        ...this.toRevisionData(dto, revisionId),
         testSuiteId,
         revisionNumber: (latest._max.revisionNumber ?? 0) + 1,
         status: RevisionStatus.DRAFT,
@@ -237,30 +243,50 @@ export class TestSuitesService {
 
   private toRevisionData(
     dto: CreateTestSuiteDto | UpdateTestSuiteDto,
+    suiteRevisionId: string,
   ): Pick<
     Prisma.TestSuiteRevisionUncheckedCreateInput,
     'sourceMode' | 'compiledYaml' | 'visualFlow' | 'executionPlan'
   > {
-    if (dto.visualFlow) {
-      const compiled = this.flowCompiler.compile(dto.visualFlow);
+    const sourceMode = this.resolveSourceMode(dto);
+    if (sourceMode === 'VISUAL') {
+      if (!dto.visualFlow) {
+        throw new BadRequestException('Visual flow is required for VISUAL source mode');
+      }
+      const compiled = this.executionPlanCompiler.compileVisual(dto.visualFlow, {
+        suiteRevisionId,
+      });
       return {
         sourceMode: 'VISUAL',
         compiledYaml: compiled.yamlContent,
         visualFlow: dto.visualFlow as unknown as Prisma.InputJsonValue,
-        executionPlan: this.toExecutionPlan(dto.name ?? dto.visualFlow.suiteName, 'VISUAL'),
+        executionPlan: compiled.executionPlan as unknown as Prisma.InputJsonValue,
       };
     }
 
     if (!dto.yamlContent?.trim()) {
       throw new BadRequestException('YAML content or visual flow is required');
     }
+    const compiled = this.executionPlanCompiler.compileRawYaml(dto.yamlContent, {
+      suiteRevisionId,
+    });
 
     return {
-      sourceMode: 'YAML',
-      compiledYaml: dto.yamlContent,
+      sourceMode: 'RAW_YAML',
+      compiledYaml: compiled.yamlContent,
       visualFlow: Prisma.JsonNull,
-      executionPlan: this.toExecutionPlan(dto.name, 'YAML'),
+      executionPlan: compiled.executionPlan as unknown as Prisma.InputJsonValue,
     };
+  }
+
+  private resolveSourceMode(dto: CreateTestSuiteDto | UpdateTestSuiteDto): TestSuiteSourceMode {
+    if (dto.visualFlow && dto.yamlContent !== undefined) {
+      throw new BadRequestException('Use either visual flow or raw YAML as canonical source');
+    }
+    if (dto.sourceMode) {
+      return dto.sourceMode;
+    }
+    return dto.visualFlow ? 'VISUAL' : 'RAW_YAML';
   }
 
   private toResponse(suite: TestSuite & { revisions: TestSuiteRevision[] }) {
@@ -275,20 +301,18 @@ export class TestSuitesService {
       ...suite,
       yamlContent: currentRevision.compiledYaml,
       visualFlow: currentRevision.visualFlow,
-      currentRevision,
-      publishedRevision,
+      currentRevision: this.normalizeRevisionSourceMode(currentRevision),
+      publishedRevision: publishedRevision
+        ? this.normalizeRevisionSourceMode(publishedRevision)
+        : publishedRevision,
       revisions: undefined,
     };
   }
 
-  private toExecutionPlan(
-    suiteName: string | undefined,
-    sourceMode: string,
-  ): Prisma.InputJsonValue {
+  private normalizeRevisionSourceMode(revision: TestSuiteRevision): TestSuiteRevision {
     return {
-      schemaVersion: 1,
-      sourceMode,
-      suiteName: suiteName ?? 'Unnamed suite',
+      ...revision,
+      sourceMode: revision.sourceMode === 'VISUAL' ? 'VISUAL' : 'RAW_YAML',
     };
   }
 
