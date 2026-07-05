@@ -391,6 +391,9 @@ export interface TestResult {
   durationMs?: number;
   requestBody?: unknown;
   responseBody?: unknown;
+  responsePreview?: unknown;
+  responsePreviewTruncated?: boolean;
+  responseArtifactId?: string;
   requestHeaders?: Record<string, string>;
   responseHeaders?: Record<string, string>;
   errorMessage?: string;
@@ -401,6 +404,9 @@ export interface RunnerLog {
   timestamp: string;
   level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
+  artifactId?: string;
+  byteSize?: number;
+  truncated?: boolean;
 }
 
 export interface DashboardSummary {

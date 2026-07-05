@@ -1,10 +1,19 @@
 import type { TestResult } from '../../types';
 import { Button } from '../../components/ui/Button';
 
-export function TestResultDetailsDrawer({ result, onClose }: { result: TestResult | null; onClose: () => void }) {
+export function TestResultDetailsDrawer({
+  result,
+  onClose,
+  onDownloadResponse,
+}: {
+  result: TestResult | null;
+  onClose: () => void;
+  onDownloadResponse: (artifactId: string) => void;
+}) {
   if (!result) {
     return null;
   }
+  const responsePreview = result.responsePreview ?? result.responseBody;
 
   return (
     <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-xl overflow-y-auto border-l border-border bg-white p-6 shadow-soft">
@@ -14,10 +23,20 @@ export function TestResultDetailsDrawer({ result, onClose }: { result: TestResul
           <p className="text-sm text-muted">{result.method} {result.path}</p>
           <p className="mt-1 text-xs text-muted">Type: {result.stepType ?? 'apiRequest'} · Attempts: {result.attempts ?? 1}</p>
         </div>
-        <Button variant="secondary" onClick={onClose}>Close</Button>
+        <div className="flex flex-wrap gap-2">
+          {result.responseArtifactId ? (
+            <Button variant="secondary" onClick={() => onDownloadResponse(result.responseArtifactId ?? '')}>
+              Download body
+            </Button>
+          ) : null}
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </div>
       </div>
       <Detail title="Request body" value={result.requestBody} />
-      <Detail title="Response body" value={result.responseBody} />
+      <Detail title={result.responsePreviewTruncated ? 'Response body preview' : 'Response body'} value={responsePreview} />
+      {result.responsePreviewTruncated ? (
+        <p className="mt-2 text-xs text-muted">Full response body is stored as a downloadable artifact.</p>
+      ) : null}
       <Detail title="Request headers" value={result.requestHeaders} />
       <Detail title="Response headers" value={result.responseHeaders} />
       {result.errorMessage ? (

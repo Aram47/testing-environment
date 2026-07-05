@@ -6,6 +6,9 @@ interface RunnerLogResponse {
   source: 'SYSTEM' | 'DOCKER' | 'TEST' | 'ERROR';
   message: string;
   createdAt: string;
+  artifactId?: string;
+  byteSize?: number;
+  truncated?: boolean;
 }
 
 class ReportsApi {
@@ -16,6 +19,21 @@ class ReportsApi {
     return data;
   }
 
+  async junit(projectId: string, runId: string): Promise<Blob> {
+    const { data } = await apiClient.get<Blob>(`/projects/${projectId}/test-runs/${runId}/report/junit`, {
+      responseType: 'blob',
+    });
+    return data;
+  }
+
+  async artifact(projectId: string, runId: string, artifactId: string): Promise<Blob> {
+    const { data } = await apiClient.get<Blob>(
+      `/projects/${projectId}/test-runs/${runId}/artifacts/${artifactId}/download`,
+      { responseType: 'blob' },
+    );
+    return data;
+  }
+
   async logs(projectId: string, runId: string): Promise<RunnerLog[]> {
     const { data } = await apiClient.get<RunnerLogResponse[]>(`/projects/${projectId}/test-runs/${runId}/logs`);
     return data.map((log) => ({
@@ -23,6 +41,9 @@ class ReportsApi {
       timestamp: log.createdAt,
       level: this.toLevel(log.source),
       message: log.message,
+      artifactId: log.artifactId,
+      byteSize: log.byteSize,
+      truncated: log.truncated,
     }));
   }
 

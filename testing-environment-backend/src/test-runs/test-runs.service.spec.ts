@@ -148,7 +148,7 @@ describe('TestRunsService', () => {
         queueJobId: expect.stringMatching(/^test-run:/),
         environmentConfigRevisionId: 'environment-revision-1',
         runnerVersion: 'local',
-        reportSchemaVersion: 1,
+        reportSchemaVersion: 2,
         suiteRevisions: {
           create: [
             {

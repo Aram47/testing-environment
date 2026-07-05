@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ArtifactCompression,
+  ArtifactType,
   RunnerLogSource,
   TestResultStatus,
   TestRunFailureCategory,
@@ -9,6 +11,10 @@ import {
 import { mkdir, rm, writeFile } from 'fs/promises';
 import { hostname } from 'os';
 import { join } from 'path';
+import { ArtifactLogWriterService } from '../artifacts/artifact-log-writer.service';
+import { previewJson, sanitizeArtifactKeySegment, toJsonBuffer } from '../artifacts/artifact-utils';
+import { ArtifactsService } from '../artifacts/artifacts.service';
+import { ReportArtifactService } from '../artifacts/report-artifact.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   SecretExecutionContext,
@@ -77,6 +83,9 @@ export class RunnerOrchestratorService {
     private readonly state: TestRunStateService,
     private readonly secrets: SecretReferenceResolverService,
     private readonly masking: SecretMaskingService,
+    private readonly artifacts: ArtifactsService,
+    private readonly logs: ArtifactLogWriterService,
+    private readonly reports: ReportArtifactService,
   ) {
     this.runnerId = this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
   }
@@ -107,6 +116,7 @@ export class RunnerOrchestratorService {
       if (await this.isCancellationRequested(testRunId)) {
         await this.state.requestCancel(testRunId).catch(() => undefined);
         await this.state.markCancelled(testRunId, Date.now() - started);
+        await this.generateReport(testRunId);
         return;
       }
       if (run.status !== TestRunStatus.QUEUED) {
@@ -210,7 +220,7 @@ export class RunnerOrchestratorService {
       await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
       const dockerLogs = await this.safeDockerLogs(workspace);
       if (dockerLogs) {
-        await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs.slice(-20000), secretContext);
+        await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs, secretContext);
         this.emit('logs.updated', testRunId);
       }
 
@@ -233,6 +243,7 @@ export class RunnerOrchestratorService {
       } else {
         await this.state.markPassed(testRunId, stats, Date.now() - started);
       }
+      await this.generateReport(testRunId);
     } catch (error) {
       const message = this.masking.maskString(
         error instanceof Error ? error.message : 'Runner failed',
@@ -272,6 +283,7 @@ export class RunnerOrchestratorService {
             .catch(() => undefined);
         }
       }
+      await this.generateReport(testRunId);
     } finally {
       context?.stop();
       if (workspace) {
@@ -326,6 +338,13 @@ export class RunnerOrchestratorService {
         const passed = result.status === TestResultStatus.PASSED;
         passedTests += passed ? 1 : 0;
         failedTests += passed ? 0 : 1;
+        const maskedResponse = this.masking.maskValue(result.responseBody, secretContext.masking);
+        const responseArtifact = await this.persistResponseArtifact(
+          testRunId,
+          stepMeta.stepId,
+          maskedResponse,
+        );
+        const responsePreview = previewJson(maskedResponse, this.artifacts.previewLimitBytes());
         await this.prisma.testResult.create({
           data: {
             testRunId,
@@ -343,9 +362,9 @@ export class RunnerOrchestratorService {
             requestBody: this.toJsonValue(
               this.masking.maskValue(stepMeta.requestBody, secretContext.masking),
             ),
-            responseBody: this.toJsonValue(
-              this.masking.maskValue(result.responseBody, secretContext.masking),
-            ),
+            responsePreview: this.toJsonValue(responsePreview.preview),
+            responsePreviewTruncated: responsePreview.truncated,
+            responseArtifactId: responseArtifact?.id,
             errorMessage: result.errorMessage
               ? this.masking.maskString(result.errorMessage, secretContext.masking)
               : undefined,
@@ -699,13 +718,10 @@ export class RunnerOrchestratorService {
     message: string,
     secretContext?: SecretExecutionContext,
   ): Promise<void> {
-    await this.prisma.runnerLog.create({
-      data: {
-        testRunId,
-        source,
-        message: secretContext ? this.masking.maskString(message, secretContext.masking) : message,
-      },
-    });
+    const masked = secretContext
+      ? this.masking.maskString(message, secretContext.masking)
+      : message;
+    await this.logs.append(testRunId, source, masked);
   }
 
   private async safeDockerLogs(workspace: string): Promise<string> {
@@ -857,6 +873,37 @@ export class RunnerOrchestratorService {
 
   private emit(type: string, testRunId: string, payload?: Record<string, unknown>): void {
     this.realtime.emitRunEvent({ type, testRunId, payload });
+  }
+
+  private async persistResponseArtifact(
+    testRunId: string,
+    stepId: string | undefined,
+    responseBody: unknown,
+  ) {
+    if (responseBody === undefined) {
+      return null;
+    }
+    const objectStepId = sanitizeArtifactKeySegment(stepId, 'unknown-step');
+    return this.artifacts.putOrReplace({
+      testRunId,
+      stepId,
+      type: ArtifactType.RESPONSE_BODY,
+      objectKey: `runs/${testRunId}/responses/${objectStepId}.json.gz`,
+      mimeType: 'application/json',
+      data: toJsonBuffer(responseBody),
+      compression: ArtifactCompression.GZIP,
+      retentionUntil: this.artifacts.retentionUntil(),
+    });
+  }
+
+  private async generateReport(testRunId: string): Promise<void> {
+    await this.reports.generateForRun(testRunId).catch((error) => {
+      this.logger.warn(
+        `Failed to generate report artifacts for test run ${testRunId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
   }
 
   private toJsonValue(value: unknown) {

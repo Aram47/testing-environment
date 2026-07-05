@@ -89,6 +89,30 @@ export function TestRunDetailPage() {
     },
     onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
   });
+  const junitDownloadMutation = useMutation({
+    mutationFn: () => reportsApi.junit(projectId, runId),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `test-run-${runId}.xml`;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
+  });
+  const artifactDownloadMutation = useMutation({
+    mutationFn: (artifactId: string) => reportsApi.artifact(projectId, runId, artifactId),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `test-run-${runId}-response.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    },
+    onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
+  });
 
   if (runQuery.isLoading) {
     return <LoadingState label="Loading run" />;
@@ -121,6 +145,9 @@ export function TestRunDetailPage() {
             ) : null}
             <Button variant="secondary" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>
               <Download size={18} /> Download JSON
+            </Button>
+            <Button variant="secondary" onClick={() => junitDownloadMutation.mutate()} disabled={junitDownloadMutation.isPending}>
+              <Download size={18} /> JUnit XML
             </Button>
           </div>
         }
@@ -160,7 +187,11 @@ export function TestRunDetailPage() {
           <section className="rounded-lg border border-border bg-white p-6 text-sm text-muted">No test results yet.</section>
         )}
       </div>
-      <TestResultDetailsDrawer result={selectedResult} onClose={() => setSelectedResult(null)} />
+      <TestResultDetailsDrawer
+        result={selectedResult}
+        onClose={() => setSelectedResult(null)}
+        onDownloadResponse={(artifactId) => artifactDownloadMutation.mutate(artifactId)}
+      />
     </>
   );
 }

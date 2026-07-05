@@ -121,7 +121,23 @@ Readiness endpoints:
 - `GET /projects/:projectId/test-runs/:runId`
 - `POST /projects/:projectId/test-runs/:runId/cancel`
 - `GET /projects/:projectId/test-runs/:runId/report`
+- `GET /projects/:projectId/test-runs/:runId/report/junit`
 - `GET /projects/:projectId/test-runs/:runId/logs`
+- `GET /projects/:projectId/test-runs/:runId/artifacts/:artifactId/download`
+
+## Artifacts And Reports
+
+Large run outputs are stored behind the artifact storage abstraction. Local development uses the filesystem adapter by default.
+
+```text
+ARTIFACT_STORAGE_DRIVER=filesystem
+ARTIFACT_STORAGE_ROOT=/tmp/testing-environment-artifacts
+ARTIFACT_PREVIEW_LIMIT_BYTES=16384
+ARTIFACT_TOTAL_LOG_LIMIT_BYTES=10485760
+ARTIFACT_RETENTION_DAYS=30
+```
+
+PostgreSQL stores artifact metadata, result previews, and log chunk previews. Full response bodies, compressed logs, JSON reports, and JUnit XML are stored under `runs/{runId}/...` object keys. Report schema v2 includes immutable revision IDs and runner version. Legacy runs without artifacts still fall back to database-backed report/log assembly.
 
 ## WebSocket
 

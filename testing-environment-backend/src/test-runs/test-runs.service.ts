@@ -73,7 +73,7 @@ export class TestRunsService {
           queueJobId,
           environmentConfigRevisionId: environmentRevision.id,
           runnerVersion: process.env.TEST_RUN_RUNNER_VERSION ?? 'local',
-          reportSchemaVersion: 1,
+          reportSchemaVersion: 2,
           suiteRevisions: {
             create: suites.map((suite, position) => ({
               testSuiteId: suite.id,

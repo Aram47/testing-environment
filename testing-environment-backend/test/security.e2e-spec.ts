@@ -32,7 +32,12 @@ describe('Security enforcement (e2e)', () => {
     update: jest.fn(),
     remove: jest.fn(),
   };
-  const reportsService = { report: jest.fn(), logs: jest.fn() };
+  const reportsService = {
+    report: jest.fn(),
+    logs: jest.fn(),
+    junit: jest.fn(),
+    downloadArtifact: jest.fn(),
+  };
   const testRunsService = {
     create: jest.fn().mockResolvedValue({ id: 'run-1' }),
     list: jest.fn(),
@@ -214,8 +219,18 @@ describe('Security enforcement (e2e)', () => {
       .get('/projects/project-b/test-runs/run-b/logs')
       .set('Authorization', 'Bearer owner-token')
       .expect(403);
+    await request(app.getHttpServer())
+      .get('/projects/project-b/test-runs/run-b/report/junit')
+      .set('Authorization', 'Bearer owner-token')
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/projects/project-b/test-runs/run-b/artifacts/artifact-b/download')
+      .set('Authorization', 'Bearer owner-token')
+      .expect(403);
     expect(reportsService.report).not.toHaveBeenCalled();
     expect(reportsService.logs).not.toHaveBeenCalled();
+    expect(reportsService.junit).not.toHaveBeenCalled();
+    expect(reportsService.downloadArtifact).not.toHaveBeenCalled();
   });
 
   it('viewer cannot start tests', async () => {

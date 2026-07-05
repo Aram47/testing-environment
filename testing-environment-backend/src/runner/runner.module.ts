@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ArtifactsModule } from '../artifacts/artifacts.module';
 import { ExecutionPlanCompilerModule } from '../test-suites/execution-plan-compiler.module';
 import { SecretsCoreModule } from '../secrets/secrets-core.module';
 import { TestRunStateModule } from '../test-runs/test-run-state.module';
@@ -12,7 +13,13 @@ import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
 
 @Module({
-  imports: [RealtimeCoreModule, TestRunStateModule, ExecutionPlanCompilerModule, SecretsCoreModule],
+  imports: [
+    RealtimeCoreModule,
+    TestRunStateModule,
+    ExecutionPlanCompilerModule,
+    SecretsCoreModule,
+    ArtifactsModule,
+  ],
   providers: [
     AssertionEngineService,
     DockerComposeManagerService,

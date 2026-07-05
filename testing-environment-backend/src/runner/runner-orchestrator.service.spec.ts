@@ -5,6 +5,9 @@ import { SecretReferenceResolverService } from '../secrets/secret-reference-reso
 import { ExecutionPlanCompilerService } from '../test-suites/execution-plan-compiler.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
+import { ArtifactLogWriterService } from '../artifacts/artifact-log-writer.service';
+import { ArtifactsService } from '../artifacts/artifacts.service';
+import { ReportArtifactService } from '../artifacts/report-artifact.service';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
@@ -61,6 +64,13 @@ describe('RunnerOrchestratorService', () => {
         maskString: jest.fn((value: string) => value),
         maskValue: jest.fn((value: unknown) => value),
       } as unknown as SecretMaskingService,
+      {
+        putOrReplace: jest.fn(),
+        previewLimitBytes: jest.fn(() => 16 * 1024),
+        retentionUntil: jest.fn(() => new Date('2026-08-01T00:00:00.000Z')),
+      } as unknown as ArtifactsService,
+      { append: jest.fn() } as unknown as ArtifactLogWriterService,
+      { generateForRun: jest.fn() } as unknown as ReportArtifactService,
     );
 
   it('uses stored execution plans before legacy YAML fallback', () => {
@@ -163,6 +173,13 @@ describe('RunnerOrchestratorService', () => {
         maskString: jest.fn((value: string) => value),
         maskValue: jest.fn((value: unknown) => value),
       } as unknown as SecretMaskingService,
+      {
+        putOrReplace: jest.fn(),
+        previewLimitBytes: jest.fn(() => 16 * 1024),
+        retentionUntil: jest.fn(() => new Date('2026-08-01T00:00:00.000Z')),
+      } as unknown as ArtifactsService,
+      { append: jest.fn() } as unknown as ArtifactLogWriterService,
+      { generateForRun: jest.fn() } as unknown as ReportArtifactService,
     );
 
     await service.execute('run-1');

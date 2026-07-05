@@ -346,22 +346,24 @@ The compiler tests are among the stronger areas of the current test suite.
 
 Reports:
 
-- `ReportsService.report()` returns the run with project and ordered results.
-- Frontend downloads this as JSON.
+- `ReportsService.report()` reads schema v2 JSON report artifacts when present.
+- Legacy runs without report artifacts fall back to database-backed report assembly.
+- `GET /report/junit` returns JUnit XML from artifact storage or legacy assembly.
 - Report reads verify project ownership by checking the parent project and then reading a run scoped by `projectId`.
 
 Logs:
 
-- `ReportsService.logs()` returns ordered `RunnerLog` rows.
-- Docker logs are truncated to the last `20000` characters before insertion.
+- `ReportsService.logs()` returns ordered `RunnerLogChunk` previews for artifact-backed runs.
+- Legacy runs still read ordered `RunnerLog` rows.
+- Full system/docker logs are stored as gzip artifacts with a configurable total log limit.
 - Log reads also verify the parent project before returning logs for the run.
 
-Gaps:
+Artifacts:
 
-- Logs and response bodies remain in PostgreSQL.
-- No object storage abstraction exists.
-- No artifact retention or pruning policy is implemented in code.
-- No size limit exists for individual response bodies before storing JSON.
+- `ArtifactsModule` defines the storage interface and local filesystem adapter.
+- `Artifact` metadata stores type, object key, mime type, byte size, checksum, compression, retention, run, and optional step.
+- Response bodies are stored as gzip artifacts; `TestResult` keeps metadata and truncated previews.
+- A BullMQ retention cleanup job deletes expired artifact objects and metadata.
 
 ## Frontend API Layer
 

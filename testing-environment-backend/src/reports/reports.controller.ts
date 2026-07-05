@@ -1,5 +1,6 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Param, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -32,5 +33,36 @@ export class ReportsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.logs(projectId, runId, user.companyId);
+  }
+
+  @Get('report/junit')
+  @Header('content-type', 'application/xml')
+  @RequirePermission('run:read', 'run')
+  junit(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.junit(projectId, runId, user.companyId);
+  }
+
+  @Get('artifacts/:artifactId/download')
+  @RequirePermission('run:read', 'run')
+  async downloadArtifact(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @Param('artifactId') artifactId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const artifact = await this.service.downloadArtifact(
+      projectId,
+      runId,
+      artifactId,
+      user.companyId,
+    );
+    response.setHeader('content-type', artifact.mimeType);
+    response.setHeader('content-disposition', `attachment; filename="${artifact.fileName}"`);
+    return new StreamableFile(artifact.buffer);
   }
 }

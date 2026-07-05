@@ -178,7 +178,8 @@ The visual environment editor supports three value modes:
 
 Runner execution resolves only the secrets referenced by the selected immutable environment and suite
 revisions. Logs, response bodies, reports, errors, and realtime events are masked before persistence or
-publication.
+publication. Large run outputs are stored as artifacts through the local filesystem adapter by default;
+PostgreSQL keeps metadata, checksums, retention timestamps, result previews, and log chunk previews.
 
 Secret encryption keys are versioned with:
 

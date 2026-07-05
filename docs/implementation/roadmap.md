@@ -336,9 +336,10 @@ Rollback strategy:
 
 Scope:
 
-- Introduce artifact storage service with local filesystem implementation.
-- Store large Docker logs and response bodies as artifacts.
-- Keep PostgreSQL metadata and small summaries.
+- Status: implemented for local filesystem storage.
+- Introduced artifact storage service with local filesystem implementation.
+- Large Docker logs, response bodies, JSON reports, and JUnit XML are stored as artifacts.
+- PostgreSQL keeps metadata, checksums, retention timestamps, log chunk previews, and result previews.
 
 Dependencies:
 
@@ -346,14 +347,15 @@ Dependencies:
 
 Database changes:
 
-- Add `Artifact` table.
-- Add optional artifact references from logs/results/reports.
-- Include company/project/run ownership columns or relations needed for authorization checks.
+- Added `Artifact` table.
+- Added `RunnerLogChunk` table.
+- Added optional response artifact reference and preview metadata to `TestResult`.
+- Authorization is enforced through the parent project/run path.
 
 API changes:
 
 - Existing report/log endpoints remain compatible for normal UI use.
-- Add artifact download endpoint if needed.
+- Added JUnit XML and artifact download endpoints.
 - Artifact download endpoint must authorize through the parent project/run, not by artifact ID alone.
 
 Frontend changes:

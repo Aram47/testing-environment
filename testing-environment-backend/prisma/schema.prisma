@@ -86,6 +86,19 @@ enum RunnerLogSource {
   ERROR
 }
 
+enum ArtifactType {
+  SYSTEM_LOG
+  DOCKER_LOG
+  RESPONSE_BODY
+  REPORT_JSON
+  JUNIT_XML
+}
+
+enum ArtifactCompression {
+  NONE
+  GZIP
+}
+
 enum RevisionStatus {
   DRAFT
   PUBLISHED
@@ -459,6 +472,8 @@ model TestRun {
   errorMessage                String?
   results                     TestResult[]
   logs                        RunnerLog[]
+  artifacts                   Artifact[]
+  logChunks                   RunnerLogChunk[]
   createdAt                   DateTime                   @default(now())
   updatedAt                   DateTime                   @updatedAt
 
@@ -506,11 +521,16 @@ model TestResult {
   durationMs     Int
   requestBody    Json?
   responseBody   Json?
+  responsePreview Json?
+  responsePreviewTruncated Boolean @default(false)
+  responseArtifactId String?
+  responseArtifact Artifact? @relation("TestResultResponseArtifact", fields: [responseArtifactId], references: [id], onDelete: SetNull)
   errorMessage   String?
   createdAt      DateTime         @default(now())
 
   @@index([testRunId])
   @@index([stepId])
+  @@index([responseArtifactId])
 }
 
 model RunnerLog {
@@ -522,4 +542,44 @@ model RunnerLog {
   createdAt DateTime        @default(now())
 
   @@index([testRunId])
+}
+
+model Artifact {
+  id             String              @id @default(uuid())
+  testRunId      String
+  testRun        TestRun             @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  responseResults TestResult[]       @relation("TestResultResponseArtifact")
+  logChunks      RunnerLogChunk[]
+  stepId         String?
+  type           ArtifactType
+  objectKey      String              @unique
+  mimeType       String
+  byteSize       Int
+  checksum       String
+  compression    ArtifactCompression @default(NONE)
+  retentionUntil DateTime
+  createdAt      DateTime            @default(now())
+
+  @@index([testRunId])
+  @@index([stepId])
+  @@index([type])
+  @@index([retentionUntil])
+}
+
+model RunnerLogChunk {
+  id        String          @id @default(uuid())
+  testRunId String
+  testRun   TestRun         @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  artifactId String?
+  artifact Artifact?        @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+  source    RunnerLogSource
+  sequence  Int
+  preview   String
+  byteSize  Int
+  truncated Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  @@unique([testRunId, source, sequence])
+  @@index([testRunId])
+  @@index([artifactId])
 }

@@ -2,6 +2,9 @@ import { Test } from '@nestjs/testing';
 import { TestResultStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { ArtifactLogWriterService } from '../src/artifacts/artifact-log-writer.service';
+import { ArtifactsService } from '../src/artifacts/artifacts.service';
+import { ReportArtifactService } from '../src/artifacts/report-artifact.service';
 import { AssertionEngineService } from '../src/runner/assertion-engine.service';
 import { DockerComposeManagerService } from '../src/runner/docker-compose-manager.service';
 import { HealthcheckService } from '../src/runner/healthcheck.service';
@@ -351,6 +354,19 @@ async function createFixture(options: FixtureOptions = {}) {
           maskString: jest.fn((value: string) => value),
           maskValue: jest.fn((value: unknown) => value),
         },
+      },
+      {
+        provide: ArtifactsService,
+        useValue: {
+          putOrReplace: jest.fn(() => Promise.resolve({ id: 'response-artifact-1' })),
+          previewLimitBytes: jest.fn(() => 16 * 1024),
+          retentionUntil: jest.fn(() => new Date('2026-08-01T00:00:00.000Z')),
+        },
+      },
+      { provide: ArtifactLogWriterService, useValue: { append: jest.fn() } },
+      {
+        provide: ReportArtifactService,
+        useValue: { generateForRun: jest.fn(() => Promise.resolve()) },
       },
     ],
   }).compile();
