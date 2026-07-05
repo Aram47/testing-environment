@@ -9,6 +9,8 @@ import { HttpTestExecutorService } from '../src/runner/http-test-executor.servic
 import { RunnerOrchestratorService } from '../src/runner/runner-orchestrator.service';
 import { VariableStoreService } from '../src/runner/variable-store.service';
 import { YamlTestParserService } from '../src/runner/yaml-test-parser.service';
+import { ExecutionPlanCompilerService } from '../src/test-suites/execution-plan-compiler.service';
+import { ExecutionPlan, ExecutionStep } from '../src/test-suites/types/execution-plan.types';
 import { TestRunStateService } from '../src/test-runs/test-run-state.service';
 import { RealtimeService } from '../src/websocket/realtime.service';
 
@@ -165,6 +167,14 @@ interface FixtureOptions {
 
 async function createFixture(options: FixtureOptions = {}) {
   const statusHistory: TestRunStatus[] = [];
+  const tests = options.tests ?? [
+    {
+      id: 'step-1',
+      name: 'GET /health',
+      request: { method: 'GET', path: '/health', expect: { status: 200 } },
+    },
+  ];
+  const executionPlan = toExecutionPlan(tests);
   const run = {
     id: 'run-1',
     projectId: 'project-1',
@@ -200,7 +210,10 @@ async function createFixture(options: FixtureOptions = {}) {
       {
         testSuiteRevisionId: 'suite-revision-1',
         suiteName: 'Suite',
-        testSuiteRevision: { compiledYaml: 'suite: Suite\n' },
+        testSuiteRevision: {
+          compiledYaml: 'suite: Suite\n',
+          executionPlan: options.requestCancellationWhenParsing ? null : executionPlan,
+        },
       },
     ],
   };
@@ -261,14 +274,16 @@ async function createFixture(options: FixtureOptions = {}) {
       }
       return {
         suite: 'Suite',
-        tests: options.tests ?? [
-          {
-            id: 'step-1',
-            name: 'GET /health',
-            request: { method: 'GET', path: '/health', expect: { status: 200 } },
-          },
-        ],
+        tests,
       };
+    }),
+  };
+  const executionPlanCompiler = {
+    compileRawYaml: jest.fn(() => {
+      if (options.requestCancellationWhenParsing) {
+        run.cancellationRequestedAt = new Date();
+      }
+      return { executionPlan };
     }),
   };
 
@@ -284,6 +299,7 @@ async function createFixture(options: FixtureOptions = {}) {
       { provide: DockerComposeManagerService, useValue: docker },
       { provide: HealthcheckService, useValue: healthcheck },
       { provide: YamlTestParserService, useValue: parser },
+      { provide: ExecutionPlanCompilerService, useValue: executionPlanCompiler },
       {
         provide: HttpTestExecutorService,
         useValue: {
@@ -325,5 +341,82 @@ async function createFixture(options: FixtureOptions = {}) {
     prisma,
     run,
     statusHistory,
+  };
+}
+
+function toExecutionPlan(rawTests: Record<string, unknown>[]): ExecutionPlan {
+  const steps = rawTests.map((test, index) => toExecutionStep(test, index));
+  return {
+    schemaVersion: 'execution-plan/v1',
+    suiteRevisionId: 'suite-revision-1',
+    suiteName: 'Suite',
+    steps,
+    dependencies: Object.fromEntries(
+      steps.map((step, index) => [step.id, index === 0 ? [] : [steps[index - 1].id]]),
+    ),
+    variables: [],
+    timeoutMs: 300000,
+  };
+}
+
+function toExecutionStep(test: Record<string, unknown>, index: number): ExecutionStep {
+  const id = String(test.id ?? `step-${index + 1}`);
+  const name = String(test.name ?? id);
+  if ('wait' in test) {
+    const wait = test.wait as { duration_ms: number };
+    return {
+      id,
+      type: 'wait',
+      version: 'wait/v1',
+      name,
+      config: { durationMs: wait.duration_ms },
+      timeoutMs: 60000,
+      retryPolicy: { maxAttempts: 1, backoffMs: 0 },
+      continueOnFailure: false,
+    };
+  }
+  if ('poll' in test) {
+    const poll = test.poll as {
+      timeout_seconds: number;
+      interval_seconds: number;
+      request: { method: string; path: string; expect?: { status?: number } };
+    };
+    return {
+      id,
+      type: 'pollUntil',
+      version: 'pollUntil/v1',
+      name,
+      config: {
+        timeoutMs: poll.timeout_seconds * 1000,
+        intervalMs: poll.interval_seconds * 1000,
+        request: {
+          method: poll.request.method,
+          path: poll.request.path,
+          expect: { status: poll.request.expect?.status ?? 200 },
+        },
+      },
+      timeoutMs: poll.timeout_seconds * 1000,
+      retryPolicy: { maxAttempts: 1, backoffMs: 0 },
+      continueOnFailure: false,
+    };
+  }
+  const request = test.request as {
+    method: string;
+    path: string;
+    expect?: { status?: number };
+  };
+  return {
+    id,
+    type: 'apiRequest',
+    version: 'apiRequest/v1',
+    name,
+    config: {
+      method: request.method,
+      path: request.path,
+      expect: { status: request.expect?.status ?? 200 },
+    },
+    timeoutMs: 30000,
+    retryPolicy: { maxAttempts: 1, backoffMs: 0 },
+    continueOnFailure: false,
   };
 }

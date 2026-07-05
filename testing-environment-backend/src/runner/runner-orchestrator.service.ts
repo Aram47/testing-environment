@@ -251,6 +251,7 @@ export class RunnerOrchestratorService {
     context: RunExecutionContext,
   ): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
     const store = this.variables.create();
+    const responseStore = new Map<string, unknown>();
     let totalTests = 0;
     let passedTests = 0;
     let failedTests = 0;
@@ -266,7 +267,17 @@ export class RunnerOrchestratorService {
           testName: test.name,
           ...stepMeta,
         });
-        const result = await this.executeStep(testRunId, baseUrl, test, store, context);
+        const result = await this.executeStep(
+          testRunId,
+          baseUrl,
+          test,
+          store,
+          responseStore,
+          context,
+        );
+        if (result.responseBody !== undefined) {
+          responseStore.set(test.id, result.responseBody);
+        }
         const passed = result.status === TestResultStatus.PASSED;
         passedTests += passed ? 1 : 0;
         failedTests += passed ? 0 : 1;
@@ -334,6 +345,7 @@ export class RunnerOrchestratorService {
     baseUrl: string,
     test: ExecutionStep,
     store: Map<string, string>,
+    responseStore: Map<string, unknown>,
     context: RunExecutionContext,
   ): Promise<StepExecutionResult> {
     if (test.type === 'sequence') {
@@ -358,7 +370,7 @@ export class RunnerOrchestratorService {
     }
 
     if (test.type === 'assert') {
-      return this.executeAssert(test, store);
+      return this.executeAssert(test, responseStore);
     }
 
     return this.executeRequest(testRunId, baseUrl, test.name, test.config, store, context);
@@ -455,25 +467,34 @@ export class RunnerOrchestratorService {
 
   private executeAssert(
     test: AssertExecutionStep,
-    store: Map<string, string>,
+    responseStore: Map<string, unknown>,
   ): StepExecutionResult {
-    const actual = store.get(test.config.fieldPath.replace(/^\$\./, ''));
-    const expected = test.config.expectedValue ?? '';
-    const passed =
-      test.config.operator === 'exists'
-        ? actual !== undefined
-        : test.config.operator === 'contains'
-          ? (actual ?? '').includes(expected)
-          : actual === expected;
+    const payload = this.resolveAssertPayload(test, responseStore);
+    const assertionResult = this.assertions.evaluateAssertions(payload, [
+      {
+        field_path: test.config.fieldPath,
+        operator: test.config.operator,
+        expected_value: test.config.expectedValue,
+      },
+    ]);
     return {
-      status: passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
+      status: assertionResult.passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
       durationMs: 0,
       attempts: 1,
-      responseBody: { actual },
-      errorMessage: passed
-        ? undefined
-        : `Assertion ${test.config.fieldPath} ${test.config.operator} failed`,
+      responseBody: payload,
+      errorMessage: assertionResult.message,
     };
+  }
+
+  private resolveAssertPayload(
+    test: AssertExecutionStep,
+    responseStore: Map<string, unknown>,
+  ): unknown {
+    if (test.config.sourceStepId) {
+      return responseStore.get(test.config.sourceStepId);
+    }
+    const responses = [...responseStore.values()];
+    return responses[responses.length - 1];
   }
 
   private evaluateRequestResult(
