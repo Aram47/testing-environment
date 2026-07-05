@@ -32,65 +32,67 @@ export class TestRunsService {
       this.executionContext.merge({ runId });
       const queueJobId = this.queue.getJobId(runId);
       const run = await this.prisma.$transaction(async (tx) => {
-      const environmentConfig = await tx.environmentConfig.findUnique({
-        where: { projectId },
-        include: {
-          revisions: {
-            where: { status: RevisionStatus.PUBLISHED },
-            orderBy: { revisionNumber: 'desc' },
-            take: 1,
+        const environmentConfig = await tx.environmentConfig.findUnique({
+          where: { projectId },
+          include: {
+            revisions: {
+              where: { status: RevisionStatus.PUBLISHED },
+              orderBy: { revisionNumber: 'desc' },
+              take: 1,
+            },
           },
-        },
-      });
-      const environmentRevision = environmentConfig?.revisions[0];
-      if (!environmentRevision) {
-        throw new BadRequestException(
-          'Published environment config revision is required before running tests',
-        );
-      }
+        });
+        const environmentRevision = environmentConfig?.revisions[0];
+        if (!environmentRevision) {
+          throw new BadRequestException(
+            'Published environment config revision is required before running tests',
+          );
+        }
 
-      const suites = await tx.testSuite.findMany({
-        where: { projectId, deletedAt: null },
-        orderBy: { createdAt: 'asc' },
-        include: {
-          revisions: {
-            where: { status: RevisionStatus.PUBLISHED },
-            orderBy: { revisionNumber: 'desc' },
-            take: 1,
+        const suites = await tx.testSuite.findMany({
+          where: { projectId, deletedAt: null },
+          orderBy: { createdAt: 'asc' },
+          include: {
+            revisions: {
+              where: { status: RevisionStatus.PUBLISHED },
+              orderBy: { revisionNumber: 'desc' },
+              take: 1,
+            },
           },
-        },
-      });
-      if (suites.length === 0) {
-        throw new BadRequestException(
-          'At least one active test suite is required before running tests',
+        });
+        if (suites.length === 0) {
+          throw new BadRequestException(
+            'At least one active test suite is required before running tests',
+          );
+        }
+        const suitesWithoutPublishedRevision = suites.filter(
+          (suite) => suite.revisions.length === 0,
         );
-      }
-      const suitesWithoutPublishedRevision = suites.filter((suite) => suite.revisions.length === 0);
-      if (suitesWithoutPublishedRevision.length > 0) {
-        throw new BadRequestException(
-          'All active test suites must have a published revision before running tests',
-        );
-      }
+        if (suitesWithoutPublishedRevision.length > 0) {
+          throw new BadRequestException(
+            'All active test suites must have a published revision before running tests',
+          );
+        }
 
-      return tx.testRun.create({
-        data: {
-          id: runId,
-          projectId,
-          status: TestRunStatus.CREATED,
-          queueJobId,
-          environmentConfigRevisionId: environmentRevision.id,
-          runnerVersion: process.env.TEST_RUN_RUNNER_VERSION ?? 'local',
-          reportSchemaVersion: 2,
-          suiteRevisions: {
-            create: suites.map((suite, position) => ({
-              testSuiteId: suite.id,
-              testSuiteRevisionId: suite.revisions[0].id,
-              position,
-              suiteName: suite.name,
-            })),
+        return tx.testRun.create({
+          data: {
+            id: runId,
+            projectId,
+            status: TestRunStatus.CREATED,
+            queueJobId,
+            environmentConfigRevisionId: environmentRevision.id,
+            runnerVersion: process.env.TEST_RUN_RUNNER_VERSION ?? 'local',
+            reportSchemaVersion: 2,
+            suiteRevisions: {
+              create: suites.map((suite, position) => ({
+                testSuiteId: suite.id,
+                testSuiteRevisionId: suite.revisions[0].id,
+                position,
+                suiteName: suite.name,
+              })),
+            },
           },
-        },
-      });
+        });
       });
       try {
         await this.queue.enqueue(run.id);

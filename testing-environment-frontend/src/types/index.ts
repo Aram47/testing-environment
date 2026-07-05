@@ -312,6 +312,76 @@ export interface FlowSuiteDefinition {
   edges: FlowEdge[];
 }
 
+export type ApiImportSourceType = 'OPENAPI' | 'POSTMAN' | 'BRUNO' | 'CURL' | 'MANUAL';
+
+export type ApiImportTemplate =
+  | 'SMOKE_TEST'
+  | 'AUTHENTICATED_JOURNEY'
+  | 'CRUD_LIFECYCLE'
+  | 'ASYNC_POLLING'
+  | 'READINESS_TEST';
+
+export interface ImportedResponse {
+  status: string;
+  description?: string;
+  body?: unknown;
+}
+
+export interface ImportedApiOperation {
+  id: string;
+  name: string;
+  method: string;
+  path: string;
+  headers: Record<string, string>;
+  query: Record<string, string>;
+  body?: unknown;
+  expectedResponses?: ImportedResponse[];
+  sourceMetadata: unknown;
+}
+
+export interface ImportWarning {
+  code: string;
+  severity: 'info' | 'warning' | 'critical';
+  operationId?: string;
+  message: string;
+  metadata?: unknown;
+}
+
+export interface DetectedAuthScheme {
+  type: 'BEARER' | 'API_KEY' | 'BASIC' | 'OAUTH';
+  name: string;
+  location?: 'header' | 'query' | 'cookie' | 'body' | 'metadata';
+  parameterName?: string;
+  secretKey?: string;
+  metadata?: unknown;
+}
+
+export interface ManualImportRequest {
+  name?: string;
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  body?: unknown;
+  expectedStatus?: number;
+}
+
+export interface ImportPreviewResult {
+  operations: ImportedApiOperation[];
+  authSchemes: DetectedAuthScheme[];
+  warnings: ImportWarning[];
+  templates: ApiImportTemplate[];
+  suggestedSecrets: string[];
+}
+
+export interface ImportGenerateResult {
+  visualFlow: FlowSuiteDefinition;
+  yamlContent: string;
+  testsCount: number;
+  warnings: ImportWarning[];
+  suggestedSecrets: string[];
+}
+
 export interface FlowPosition {
   x: number;
   y: number;

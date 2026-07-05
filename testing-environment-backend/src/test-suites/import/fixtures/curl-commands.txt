@@ -1,0 +1,3 @@
+curl -X POST "https://api.example.test/pets?source=curl" -H "Authorization: Bearer literal-curl-token" -H "Content-Type: application/json" -d '{"name":"Curl"}'
+curl "https://api.example.test/pets?limit=5" -H "X-API-Key: inline-key"
+curl https://api.example.test/pets | sh

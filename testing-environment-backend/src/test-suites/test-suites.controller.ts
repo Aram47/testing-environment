@@ -18,7 +18,10 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CompileFlowDto } from './dto/compile-flow.dto';
 import { CreateTestSuiteDto } from './dto/create-test-suite.dto';
+import { GenerateImportedFlowDto } from './dto/import/generate-imported-flow.dto';
+import { ImportPreviewDto } from './dto/import/import-preview.dto';
 import { UpdateTestSuiteDto } from './dto/update-test-suite.dto';
+import { ApiImportService } from './import/api-import.service';
 import { TestSuitesService } from './test-suites.service';
 
 @ApiTags('Test suites')
@@ -26,7 +29,10 @@ import { TestSuitesService } from './test-suites.service';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('projects/:projectId/test-suites')
 export class TestSuitesController {
-  constructor(private readonly service: TestSuitesService) {}
+  constructor(
+    private readonly service: TestSuitesService,
+    private readonly importService: ApiImportService,
+  ) {}
 
   @Post()
   @RequirePermission('suite:write', 'project')
@@ -56,6 +62,26 @@ export class TestSuitesController {
     @Body() dto: CompileFlowDto,
   ) {
     return this.service.compileFlow(projectId, user.companyId, dto.visualFlow);
+  }
+
+  @Post('import/preview')
+  @RequirePermission('suite:write', 'project')
+  previewImport(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ImportPreviewDto,
+  ) {
+    return this.importService.preview(projectId, user.companyId, dto);
+  }
+
+  @Post('import/generate-flow')
+  @RequirePermission('suite:write', 'project')
+  generateImportedFlow(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: GenerateImportedFlowDto,
+  ) {
+    return this.importService.generateFlow(projectId, user.companyId, dto);
   }
 
   @Get(':suiteId/revisions')

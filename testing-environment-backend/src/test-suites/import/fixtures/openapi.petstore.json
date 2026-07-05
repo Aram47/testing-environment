@@ -1,0 +1,38 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Pet JSON API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pets": {
+      "post": {
+        "operationId": "createPetJson",
+        "summary": "Create pet JSON",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "Mika",
+                "type": "dog"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

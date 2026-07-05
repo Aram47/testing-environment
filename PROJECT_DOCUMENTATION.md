@@ -757,6 +757,8 @@ Endpoints:
 - `POST /projects/:projectId/test-suites`;
 - `GET /projects/:projectId/test-suites`;
 - `POST /projects/:projectId/test-suites/compile-flow`;
+- `POST /projects/:projectId/test-suites/import/preview`;
+- `POST /projects/:projectId/test-suites/import/generate-flow`;
 - `GET /projects/:projectId/test-suites/:suiteId`;
 - `PATCH /projects/:projectId/test-suites/:suiteId`;
 - `DELETE /projects/:projectId/test-suites/:suiteId`.
@@ -767,6 +769,9 @@ Endpoints:
 - хранение RAW YAML suite;
 - хранение visual flow;
 - компиляция visual flow в canonical execution plan и YAML export.
+- stateless API import preview/generate pipeline для OpenAPI, Postman, Bruno, cURL и manual requests.
+
+API import не сохраняет и не публикует suite автоматически. Preview endpoint нормализует импортированные requests в `ImportedApiOperation`, показывает warnings, detected auth schemes и suggested secret references. Generate endpoint принимает выбранные operations и template, создаёт draft `FlowSuiteDefinition` и YAML preview через существующий compiler. Literal credentials заменяются на `{{ secret.KEY }}`, Bruno/Postman scripts/hooks не исполняются, external OpenAPI refs не загружаются по сети, destructive methods требуют explicit acknowledgement.
 
 #### FlowSuiteCompilerService
 
@@ -1531,6 +1536,7 @@ Feature:
 
 - `src/features/test-suites/FlowSuiteEditor.tsx`;
 - `src/features/test-suites/TestSuiteEditor.tsx`.
+- `src/features/test-suites/ApiImportWizard.tsx`.
 
 Modes:
 
@@ -1543,6 +1549,8 @@ Flow mode uses React Flow:
 - central canvas;
 - right node inspector;
 - generated YAML preview;
+
+Import wizard lets users paste/upload supported API sources, preview normalized operations, review warnings and suggested secrets, choose operations/templates, confirm destructive requests, and generate a local draft flow. Saving still happens through the existing suite save action.
 - validation warnings/errors.
 
 Supported node types:

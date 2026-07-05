@@ -1,0 +1,43 @@
+{
+  "info": {
+    "name": "Pet API Postman",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "literal-postman-token", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Pets",
+      "item": [
+        {
+          "name": "List pets",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "https://api.example.test/pets?limit=5",
+              "query": [{ "key": "limit", "value": "5" }]
+            },
+            "header": [{ "key": "Accept", "value": "application/json" }]
+          },
+          "response": [{ "name": "OK", "code": 200, "body": "{\"data\":[]}" }]
+        },
+        {
+          "name": "Create pet",
+          "request": {
+            "method": "POST",
+            "url": "https://api.example.test/pets",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Nori\"}"
+            }
+          },
+          "response": [{ "name": "Created", "code": 201 }]
+        }
+      ]
+    }
+  ]
+}

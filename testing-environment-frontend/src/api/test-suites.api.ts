@@ -1,6 +1,12 @@
 import { apiClient } from './client';
 import type {
+  ApiImportSourceType,
+  ApiImportTemplate,
   FlowSuiteDefinition,
+  ImportGenerateResult,
+  ImportPreviewResult,
+  ImportedApiOperation,
+  ManualImportRequest,
   RevisionLineDiff,
   TestSuite,
   TestSuiteRevision,
@@ -25,6 +31,20 @@ export interface FlowCompileResult {
   testsCount: number;
   warnings: string[];
   executionPlan?: unknown;
+}
+
+export interface ImportPreviewInput {
+  sourceType: ApiImportSourceType;
+  content?: string;
+  files?: Record<string, string>;
+  manualRequest?: ManualImportRequest;
+}
+
+export interface GenerateImportedFlowInput {
+  suiteName: string;
+  template: ApiImportTemplate;
+  operations: ImportedApiOperation[];
+  acknowledgeDestructive?: boolean;
 }
 
 export interface TestSuiteRevisionCompareResult {
@@ -58,6 +78,16 @@ class TestSuitesApi {
 
   async compileFlow(projectId: string, visualFlow: FlowSuiteDefinition): Promise<FlowCompileResult> {
     const { data } = await apiClient.post<FlowCompileResult>(`/projects/${projectId}/test-suites/compile-flow`, { visualFlow });
+    return data;
+  }
+
+  async previewImport(projectId: string, input: ImportPreviewInput): Promise<ImportPreviewResult> {
+    const { data } = await apiClient.post<ImportPreviewResult>(`/projects/${projectId}/test-suites/import/preview`, input);
+    return data;
+  }
+
+  async generateImportedFlow(projectId: string, input: GenerateImportedFlowInput): Promise<ImportGenerateResult> {
+    const { data } = await apiClient.post<ImportGenerateResult>(`/projects/${projectId}/test-suites/import/generate-flow`, input);
     return data;
   }
 

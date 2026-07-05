@@ -36,7 +36,11 @@ describe('RequestContextMiddleware', () => {
     const response = { setHeader: jest.fn() };
     const middleware = new RequestContextMiddleware(context as unknown as ExecutionContextService);
 
-    middleware.use({ headers: {}, params: {} } as never, response as unknown as Response, jest.fn());
+    middleware.use(
+      { headers: {}, params: {} } as never,
+      response as unknown as Response,
+      jest.fn(),
+    );
 
     expect(response.setHeader).toHaveBeenCalledWith('x-request-id', expect.any(String));
     expect(context.run).toHaveBeenCalledWith(

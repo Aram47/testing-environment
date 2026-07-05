@@ -46,7 +46,9 @@ export class RedactionService {
   }
 
   redactString(value: string): string {
-    return value.replace(BEARER_PATTERN, 'Bearer [REDACTED]').replace(BASIC_PATTERN, 'Basic [REDACTED]');
+    return value
+      .replace(BEARER_PATTERN, 'Bearer [REDACTED]')
+      .replace(BASIC_PATTERN, 'Basic [REDACTED]');
   }
 
   private isSecretKey(key: string): boolean {

@@ -1,0 +1,22 @@
+meta {
+  name: Get pet
+  type: http
+}
+
+get {
+  url: https://api.example.test/pets/123?include=owner
+}
+
+headers {
+  Accept: application/json
+  Authorization: Bearer literal-bruno-token
+  ~X-Debug: disabled
+}
+
+params:query {
+  verbose: true
+}
+
+script:post-response {
+  bru.setVar("token", res.body.token);
+}

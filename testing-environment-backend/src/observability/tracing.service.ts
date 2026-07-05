@@ -28,32 +28,39 @@ export class TracingService implements OnModuleInit, OnModuleDestroy {
     await this.sdk?.shutdown();
   }
 
-  async span<T>(name: string, attributes: Record<string, unknown>, callback: () => Promise<T>): Promise<T> {
+  async span<T>(
+    name: string,
+    attributes: Record<string, unknown>,
+    callback: () => Promise<T>,
+  ): Promise<T> {
     const tracer = trace.getTracer('testing-environment');
     const mergedAttributes = { ...this.executionContext.snapshot(), ...attributes };
-    return tracer.startActiveSpan(name, { attributes: this.attributes(mergedAttributes) }, async (span) => {
-      try {
-        const result = await context.with(trace.setSpan(context.active(), span), callback);
-        span.setStatus({ code: SpanStatusCode.OK });
-        return result;
-      } catch (error) {
-        span.recordException(error as Error);
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : 'span failed',
-        });
-        throw error;
-      } finally {
-        span.end();
-      }
-    });
+    return tracer.startActiveSpan(
+      name,
+      { attributes: this.attributes(mergedAttributes) },
+      async (span) => {
+        try {
+          const result = await context.with(trace.setSpan(context.active(), span), callback);
+          span.setStatus({ code: SpanStatusCode.OK });
+          return result;
+        } catch (error) {
+          span.recordException(error as Error);
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : 'span failed',
+          });
+          throw error;
+        } finally {
+          span.end();
+        }
+      },
+    );
   }
 
   private attributes(input: Record<string, unknown>): Record<string, string | number | boolean> {
     return Object.fromEntries(
-      Object.entries(input).filter(
-        (entry): entry is [string, string | number | boolean] =>
-          ['string', 'number', 'boolean'].includes(typeof entry[1]),
+      Object.entries(input).filter((entry): entry is [string, string | number | boolean] =>
+        ['string', 'number', 'boolean'].includes(typeof entry[1]),
       ),
     );
   }

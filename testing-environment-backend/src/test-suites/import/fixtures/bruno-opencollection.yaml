@@ -1,0 +1,14 @@
+requests:
+  - name: Create pet from Bruno YAML
+    method: POST
+    url: https://api.example.test/pets
+    headers:
+      Content-Type: application/json
+    body:
+      name: Bruno
+      type: cat
+    expectedStatus: 201
+  - name: Readiness from Bruno YAML
+    method: GET
+    path: /ready
+    expectedStatus: 200

@@ -1,0 +1,73 @@
+openapi: 3.0.3
+info:
+  title: Pet API
+  version: 1.0.0
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Readiness check
+      responses:
+        '200':
+          description: Healthy
+  /pets:
+    get:
+      operationId: listPets
+      summary: List pets
+      parameters:
+        - name: limit
+          in: query
+          example: 10
+      responses:
+        '200':
+          description: Pets
+          content:
+            application/json:
+              example:
+                data: []
+    post:
+      operationId: createPet
+      summary: Create pet
+      requestBody:
+        content:
+          application/json:
+            examples:
+              sample:
+                value:
+                  name: Nori
+                  type: cat
+      responses:
+        '201':
+          description: Created
+  /pets/{petId}:
+    delete:
+      operationId: deletePet
+      summary: Delete pet
+      parameters:
+        - name: X-API-Key
+          in: header
+          example: inline-key
+      responses:
+        '204':
+          description: Deleted
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    basicAuth:
+      type: http
+      scheme: basic
+    oauth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://example.test/oauth/token
+          scopes:
+            pets:read: Read pets

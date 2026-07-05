@@ -42,7 +42,8 @@ export class TestRunWorkerProcessor extends WorkerHost {
   async process(job: Job<TestRunJobData>): Promise<void> {
     const context = await this.resolveContext(job);
     const activeJobs = 1;
-    const concurrency = Number.isFinite(workerConcurrency) && workerConcurrency > 0 ? workerConcurrency : 1;
+    const concurrency =
+      Number.isFinite(workerConcurrency) && workerConcurrency > 0 ? workerConcurrency : 1;
     this.metrics.setRunnerSlots(activeJobs, Math.max(0, concurrency - activeJobs));
     try {
       await this.executionContext.run(context, () =>

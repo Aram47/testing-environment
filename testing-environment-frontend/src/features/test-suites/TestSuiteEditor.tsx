@@ -6,6 +6,7 @@ import { YamlEditor } from '../../editors/YamlEditor';
 import { testSuiteExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
 import type { FlowSuiteDefinition, TestSuite, TestSuiteRevision, TestSuiteSourceMode } from '../../types';
+import { ApiImportWizard } from './ApiImportWizard';
 import { FlowSuiteEditor } from './FlowSuiteEditor';
 
 interface TestSuiteEditorProps {
@@ -102,6 +103,20 @@ export function TestSuiteEditor({
           onCompare={onCompare}
         />
       ) : null}
+
+      <ApiImportWizard
+        projectId={projectId}
+        suiteName={name}
+        onMessage={onMessage}
+        onImported={(nextFlow, yamlContent, warnings) => {
+          setVisualFlow(nextFlow);
+          setYaml(yamlContent);
+          setMode('flow');
+          if (warnings.length > 0) {
+            onMessage(`Import generated a flow with ${warnings.length} warning(s)`, 'info');
+          }
+        }}
+      />
 
       {mode === 'flow' && visualFlow ? (
         <FlowSuiteEditor
