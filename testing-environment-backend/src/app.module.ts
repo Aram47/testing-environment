@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { ArtifactsModule } from './artifacts/artifacts.module';
@@ -10,6 +10,8 @@ import { CompaniesModule } from './companies/companies.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EnvironmentConfigsModule } from './environment-configs/environment-configs.module';
 import { HealthModule } from './health/health.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { RequestContextMiddleware } from './observability/request-context.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ReportsModule } from './reports/reports.module';
@@ -25,6 +27,7 @@ import { RealtimeModule } from './websocket/realtime.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    ObservabilityModule,
     AuthorizationModule,
     CommonModule,
     ArtifactsModule,
@@ -46,4 +49,8 @@ import { RealtimeModule } from './websocket/realtime.module';
     HealthModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

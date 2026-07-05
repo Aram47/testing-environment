@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ArtifactsModule } from './artifacts/artifacts.module';
+import { HealthModule } from './health/health.module';
+import { ObservabilityModule } from './observability/observability.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueCoreModule } from './queue/queue-core.module';
 import { RunnerModule } from './runner/runner.module';
@@ -11,6 +13,8 @@ import { TestRunStateModule } from './test-runs/test-run-state.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    ObservabilityModule,
+    HealthModule,
     QueueCoreModule,
     ArtifactsModule,
     RunnerModule,

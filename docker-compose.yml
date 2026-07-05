@@ -43,6 +43,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: development
+      APP_ROLE: api
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/backend_test_runner?schema=public
       JWT_SECRET: your-secret-key-change-this-in-production
@@ -76,6 +77,8 @@ services:
     container_name: testing-env-runner-worker
     environment:
       NODE_ENV: development
+      APP_ROLE: worker
+      WORKER_HEALTH_PORT: 3001
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/backend_test_runner?schema=public
       JWT_SECRET: your-secret-key-change-this-in-production
       JWT_EXPIRES_IN: 15m
@@ -90,6 +93,8 @@ services:
       TEST_RUN_CANCELLATION_POLL_INTERVAL_MS: 1000
       TEST_RUN_JANITOR_INTERVAL_MS: 30000
       TEST_RUN_QUEUE_CONCURRENCY: 1
+    expose:
+      - "3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,6 +108,12 @@ services:
     networks:
       - testing-network
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3001/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # React Frontend (nginx)
   frontend:
@@ -123,6 +134,24 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: testing-env-prometheus
+    profiles:
+      - observability
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      backend-api:
+        condition: service_healthy
+      runner-worker:
+        condition: service_healthy
+    networks:
+      - testing-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:

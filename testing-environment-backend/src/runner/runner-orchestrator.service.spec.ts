@@ -8,6 +8,10 @@ import { RealtimeService } from '../websocket/realtime.service';
 import { ArtifactLogWriterService } from '../artifacts/artifact-log-writer.service';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { ReportArtifactService } from '../artifacts/report-artifact.service';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { MetricsService } from '../observability/metrics.service';
+import { StructuredLoggerService } from '../observability/structured-logger.service';
+import { TracingService } from '../observability/tracing.service';
 import { AssertionEngineService } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
 import { HealthcheckService } from './healthcheck.service';
@@ -71,6 +75,10 @@ describe('RunnerOrchestratorService', () => {
       } as unknown as ArtifactsService,
       { append: jest.fn() } as unknown as ArtifactLogWriterService,
       { generateForRun: jest.fn() } as unknown as ReportArtifactService,
+      { merge: jest.fn() } as unknown as ExecutionContextService,
+      createMetricsMock() as unknown as MetricsService,
+      { event: jest.fn(), eventError: jest.fn() } as unknown as StructuredLoggerService,
+      createTracingMock() as unknown as TracingService,
     );
 
   it('uses stored execution plans before legacy YAML fallback', () => {
@@ -180,6 +188,10 @@ describe('RunnerOrchestratorService', () => {
       } as unknown as ArtifactsService,
       { append: jest.fn() } as unknown as ArtifactLogWriterService,
       { generateForRun: jest.fn() } as unknown as ReportArtifactService,
+      { merge: jest.fn() } as unknown as ExecutionContextService,
+      createMetricsMock() as unknown as MetricsService,
+      { event: jest.fn(), eventError: jest.fn() } as unknown as StructuredLoggerService,
+      createTracingMock() as unknown as TracingService,
     );
 
     await service.execute('run-1');
@@ -190,3 +202,22 @@ describe('RunnerOrchestratorService', () => {
     expect(prisma.testRun.updateMany).not.toHaveBeenCalled();
   });
 });
+
+function createMetricsMock() {
+  return {
+    recordQueueWait: jest.fn(),
+    observeEnvironmentStart: jest.fn(),
+    observeHealthcheck: jest.fn(),
+    observeStep: jest.fn(),
+    recordTestRun: jest.fn(),
+    incrementDockerCleanupFailure: jest.fn(),
+  };
+}
+
+function createTracingMock() {
+  return {
+    span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
+      callback(),
+    ),
+  };
+}

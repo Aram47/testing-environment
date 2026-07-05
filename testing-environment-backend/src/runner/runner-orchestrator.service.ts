@@ -15,6 +15,10 @@ import { ArtifactLogWriterService } from '../artifacts/artifact-log-writer.servi
 import { previewJson, sanitizeArtifactKeySegment, toJsonBuffer } from '../artifacts/artifact-utils';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { ReportArtifactService } from '../artifacts/report-artifact.service';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { MetricsService } from '../observability/metrics.service';
+import { StructuredLoggerService } from '../observability/structured-logger.service';
+import { TracingService } from '../observability/tracing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   SecretExecutionContext,
@@ -86,11 +90,21 @@ export class RunnerOrchestratorService {
     private readonly artifacts: ArtifactsService,
     private readonly logs: ArtifactLogWriterService,
     private readonly reports: ReportArtifactService,
+    private readonly executionContext: ExecutionContextService,
+    private readonly metrics: MetricsService,
+    private readonly structuredLogger: StructuredLoggerService,
+    private readonly tracing: TracingService,
   ) {
     this.runnerId = this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
   }
 
   async execute(testRunId: string): Promise<void> {
+    return this.tracing.span('worker.execute_test_run', { runId: testRunId }, () =>
+      this.executeInternal(testRunId),
+    );
+  }
+
+  private async executeInternal(testRunId: string): Promise<void> {
     const started = Date.now();
     let workspace = '';
     let context: RunExecutionContext | undefined;
@@ -121,6 +135,7 @@ export class RunnerOrchestratorService {
       }
       if (run.status !== TestRunStatus.QUEUED) {
         this.logger.warn(`Skipping test run ${testRunId} because it is ${run.status}`);
+        this.structuredLogger.event('runner.run.skipped', { status: run.status });
         return;
       }
       if (!run.environmentConfigRevision) {
@@ -131,9 +146,20 @@ export class RunnerOrchestratorService {
       }
 
       try {
-        await this.state.claim(testRunId, {
+        const claimed = await this.state.claim(testRunId, {
           runnerId: this.runnerId,
           leaseDurationMs: this.leaseDurationMs(),
+        });
+        this.executionContext.merge({
+          companyId: run.project.companyId,
+          projectId: run.projectId,
+          runId: testRunId,
+          runnerId: this.runnerId,
+        });
+        this.metrics.recordQueueWait(claimed.enqueuedAt, claimed.claimedAt);
+        this.structuredLogger.event('runner.run.claimed', {
+          status: claimed.status,
+          attempt: claimed.attempt,
         });
       } catch (error) {
         if (error instanceof Error && /active execution lease/i.test(error.message)) {
@@ -196,17 +222,25 @@ export class RunnerOrchestratorService {
       await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
       this.emit('environment.starting', testRunId);
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
-      await this.docker.up(workspace, context.signal);
+      await this.tracing.span('worker.environment_startup', { runId: testRunId }, async () => {
+        const environmentStarted = Date.now();
+        await this.docker.up(workspace, context.signal);
+        this.metrics.observeEnvironmentStart(Date.now() - environmentStarted);
+      });
 
       await this.ensureNotCancelled(testRunId, context);
       await this.state.enterPhase(testRunId, TestRunStatus.WAITING_FOR_HEALTHCHECK);
-      await this.healthcheck.waitFor(
-        run.project.baseUrl,
-        run.project.healthcheckPath,
-        run.project.healthcheckExpectedStatus,
-        run.project.healthcheckTimeoutSeconds,
-        context.signal,
-      );
+      await this.tracing.span('worker.healthcheck', { runId: testRunId }, async () => {
+        const healthcheckStarted = Date.now();
+        await this.healthcheck.waitFor(
+          run.project.baseUrl,
+          run.project.healthcheckPath,
+          run.project.healthcheckExpectedStatus,
+          run.project.healthcheckTimeoutSeconds,
+          context.signal,
+        );
+        this.metrics.observeHealthcheck(Date.now() - healthcheckStarted);
+      });
       this.emit('environment.ready', testRunId);
 
       await this.state.enterPhase(testRunId, TestRunStatus.EXECUTING_TESTS);
@@ -218,7 +252,11 @@ export class RunnerOrchestratorService {
         secretContext,
       );
       await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
-      const dockerLogs = await this.safeDockerLogs(workspace);
+      const dockerLogs = await this.tracing.span(
+        'worker.artifact_collection',
+        { runId: testRunId },
+        () => this.safeDockerLogs(workspace),
+      );
       if (dockerLogs) {
         await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs, secretContext);
         this.emit('logs.updated', testRunId);
@@ -232,16 +270,19 @@ export class RunnerOrchestratorService {
       }
 
       if (await this.isCancellationRequested(testRunId)) {
-        await this.state.markCancelled(testRunId, Date.now() - started, cleanupError);
+        const finalRun = await this.state.markCancelled(testRunId, Date.now() - started, cleanupError);
+        this.metrics.recordTestRun(finalRun.status, finalRun.durationMs);
       } else if (stats.failedTests > 0) {
-        await this.state.markTestFailed(
+        const finalRun = await this.state.markTestFailed(
           testRunId,
           stats,
           Date.now() - started,
           `${stats.failedTests} test assertion(s) failed`,
         );
+        this.metrics.recordTestRun(finalRun.status, finalRun.durationMs);
       } else {
-        await this.state.markPassed(testRunId, stats, Date.now() - started);
+        const finalRun = await this.state.markPassed(testRunId, stats, Date.now() - started);
+        this.metrics.recordTestRun(finalRun.status, finalRun.durationMs);
       }
       await this.generateReport(testRunId);
     } catch (error) {
@@ -266,20 +307,24 @@ export class RunnerOrchestratorService {
         workspace = '';
         await this.state
           .markCancelled(testRunId, Date.now() - started, cleanupError)
+          .then((run) => this.metrics.recordTestRun(run.status, run.durationMs))
           .catch(() => undefined);
       } else if (error instanceof TestRunTimeoutError) {
         await this.state
           .markTimedOut(testRunId, message, Date.now() - started)
+          .then((run) => this.metrics.recordTestRun(run.status, run.durationMs))
           .catch(() => undefined);
       } else {
         const failureCategory = await this.failureCategoryFor(testRunId, message);
         if (failureCategory === TestRunFailureCategory.TIMEOUT) {
           await this.state
             .markTimedOut(testRunId, message, Date.now() - started)
+            .then((run) => this.metrics.recordTestRun(run.status, run.durationMs))
             .catch(() => undefined);
         } else {
           await this.state
             .markInfraFailed(testRunId, failureCategory, message, Date.now() - started)
+            .then((run) => this.metrics.recordTestRun(run.status, run.durationMs))
             .catch(() => undefined);
         }
       }
@@ -296,6 +341,7 @@ export class RunnerOrchestratorService {
         await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       }
       this.emit('run.finished', testRunId);
+      this.structuredLogger.event('runner.run.finished');
     }
   }
 
@@ -318,20 +364,27 @@ export class RunnerOrchestratorService {
         await this.ensureNotCancelled(testRunId, context);
         totalTests += 1;
         const stepMeta = this.getStepMeta(test);
+        this.executionContext.merge({ stepId: stepMeta.stepId });
         this.emit('test.started', testRunId, {
           suiteName: plan.suiteName,
           testName: test.name,
           ...this.masking.maskValue(stepMeta, secretContext.masking),
         });
-        const result = await this.executeStep(
-          testRunId,
-          baseUrl,
-          test,
-          store,
-          responseStore,
-          context,
-          secretContext,
+        const result = await this.tracing.span(
+          'worker.test_step',
+          { runId: testRunId, stepId: stepMeta.stepId, type: stepMeta.stepType },
+          () =>
+            this.executeStep(
+              testRunId,
+              baseUrl,
+              test,
+              store,
+              responseStore,
+              context,
+              secretContext,
+            ),
         );
+        this.metrics.observeStep(stepMeta.stepType, result.status, result.durationMs);
         if (result.responseBody !== undefined) {
           responseStore.set(test.id, result.responseBody);
         }
@@ -818,11 +871,13 @@ export class RunnerOrchestratorService {
     let cleanupError: string | undefined;
     await this.docker.down(workspace).catch(async (error) => {
       cleanupError = error instanceof Error ? error.message : String(error);
+      this.metrics.incrementDockerCleanupFailure();
       await this.log(testRunId, RunnerLogSource.ERROR, cleanupError, secretContext).catch(
         () => undefined,
       );
     });
     await rm(workspace, { recursive: true, force: true }).catch((error) => {
+      this.metrics.incrementDockerCleanupFailure();
       cleanupError = this.masking.maskString(
         error instanceof Error ? error.message : String(error),
         secretContext.masking,

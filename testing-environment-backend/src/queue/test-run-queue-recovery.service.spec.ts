@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { TestRunFailureCategory, TestRunStatus } from '@prisma/client';
+import { MetricsService } from '../observability/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { TestRunQueueService } from './test-run-queue.service';
@@ -140,5 +141,6 @@ function createService(
     queue as TestRunQueueService,
     state as TestRunStateService,
     { get: jest.fn((_key: string, fallback: unknown) => fallback) } as unknown as ConfigService,
+    { recordStuckRun: jest.fn() } as unknown as MetricsService,
   );
 }

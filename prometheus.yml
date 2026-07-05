@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: testing-environment-api
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - backend-api:3000
+
+  - job_name: testing-environment-runner-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - runner-worker:3001

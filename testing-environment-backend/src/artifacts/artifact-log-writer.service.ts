@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ArtifactCompression, ArtifactType, RunnerLogSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../observability/metrics.service';
 import { truncateTextByBytes } from './artifact-utils';
 import { ArtifactsService } from './artifacts.service';
 
@@ -9,6 +10,7 @@ export class ArtifactLogWriterService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly artifacts: ArtifactsService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async append(testRunId: string, source: RunnerLogSource, message: string): Promise<void> {
@@ -36,6 +38,7 @@ export class ArtifactLogWriterService {
       truncated,
       Buffer.byteLength(limitedMessage, 'utf8'),
     );
+    this.metrics.incrementLogBytes(source, chunk.byteSize);
     await this.rebuildSourceArtifact(testRunId, source, chunk.artifactId ?? undefined);
   }
 

@@ -7,6 +7,7 @@ export const ARTIFACT_RETENTION_JOB_NAME = 'cleanup-expired-artifacts';
 
 export interface TestRunJobData {
   testRunId: string;
+  context?: Partial<TestRunJobContext>;
 }
 
 export interface SecretRotationJobData {
@@ -22,3 +23,4 @@ export function getTestRunJobId(testRunId: string): string {
 export function getSecretRotationJobId(rotationJobId: string): string {
   return `secret-rotation:${rotationJobId}`;
 }
+import { TestRunJobContext } from '../observability/execution-context.types';

@@ -1,4 +1,6 @@
 import { TestRunStatus } from '@prisma/client';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { TracingService } from '../observability/tracing.service';
 import { TestRunQueueService } from './test-run-queue.service';
 
 describe('TestRunQueueService', () => {
@@ -13,7 +15,7 @@ describe('TestRunQueueService', () => {
         .mockResolvedValueOnce(createQueueState(TestRunStatus.QUEUED, 'test-run:run-1')),
       markQueuedIfCreated: jest.fn(() => Promise.resolve()),
     };
-    const service = new TestRunQueueService(queue as never, state as never);
+    const service = createService(queue, state);
 
     await service.enqueue('run-1');
     await service.enqueue('run-1');
@@ -21,7 +23,10 @@ describe('TestRunQueueService', () => {
     expect(queue.add).toHaveBeenCalledTimes(1);
     expect(queue.add).toHaveBeenCalledWith(
       'execute-test-run',
-      { testRunId: 'run-1' },
+      {
+        testRunId: 'run-1',
+        context: { requestId: 'request-1', runId: 'run-1', jobId: 'test-run:run-1' },
+      },
       { jobId: 'test-run:run-1' },
     );
     expect(state.markQueuedIfCreated).toHaveBeenCalledTimes(1);
@@ -37,7 +42,7 @@ describe('TestRunQueueService', () => {
       ),
       markQueuedIfCreated: jest.fn(),
     };
-    const service = new TestRunQueueService(queue as never, state as never);
+    const service = createService(queue, state);
 
     await expect(service.enqueue('run-1')).resolves.toBe('test-run:run-1');
 
@@ -55,7 +60,7 @@ describe('TestRunQueueService', () => {
       ),
       markQueuedIfCreated: jest.fn(),
     };
-    const service = new TestRunQueueService(queue as never, state as never);
+    const service = createService(queue, state);
 
     await expect(service.enqueue('run-1')).resolves.toBe('test-run:run-1');
 
@@ -73,18 +78,39 @@ describe('TestRunQueueService', () => {
       ),
       markQueuedIfCreated: jest.fn(),
     };
-    const service = new TestRunQueueService(queue as never, state as never);
+    const service = createService(queue, state);
 
     await expect(service.restoreMissingQueuedJob('run-1')).resolves.toBe('test-run:run-1');
 
     expect(queue.add).toHaveBeenCalledWith(
       'execute-test-run',
-      { testRunId: 'run-1' },
+      {
+        testRunId: 'run-1',
+        context: { requestId: 'request-1', runId: 'run-1', jobId: 'test-run:run-1' },
+      },
       { jobId: 'test-run:run-1' },
     );
     expect(state.markQueuedIfCreated).not.toHaveBeenCalled();
   });
 });
+
+function createService(queue: unknown, state: unknown): TestRunQueueService {
+  return new TestRunQueueService(
+    queue as never,
+    state as never,
+    {
+      snapshot: jest.fn((context: Record<string, string>) => ({
+        requestId: 'request-1',
+        ...context,
+      })),
+    } as unknown as ExecutionContextService,
+    {
+      span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
+        callback(),
+      ),
+    } as unknown as TracingService,
+  );
+}
 
 function createQueueState(status: TestRunStatus, queueJobId: string | null = null) {
   return {

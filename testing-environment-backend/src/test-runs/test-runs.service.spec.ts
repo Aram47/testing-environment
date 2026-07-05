@@ -1,5 +1,7 @@
 import { RevisionStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { TracingService } from '../observability/tracing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunQueueService } from '../queue/test-run-queue.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -133,6 +135,12 @@ describe('TestRunsService', () => {
       { assertCanStartRun: jest.fn(() => Promise.resolve()) } as unknown as SubscriptionsService,
       queue as unknown as TestRunQueueService,
       state as unknown as TestRunStateService,
+      { merge: jest.fn() } as unknown as ExecutionContextService,
+      {
+        span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
+          callback(),
+        ),
+      } as unknown as TracingService,
     );
   });
 

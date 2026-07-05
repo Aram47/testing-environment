@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ArtifactCompression, ArtifactType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../observability/metrics.service';
 import { ARTIFACT_STORAGE, ArtifactStorage } from './artifact-storage.interface';
 import { gzipBuffer, gunzipBuffer } from './artifact-utils';
 
@@ -20,13 +21,14 @@ export class ArtifactsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(ARTIFACT_STORAGE) private readonly storage: ArtifactStorage,
+    private readonly metrics: MetricsService,
   ) {}
 
   async create(input: CreateArtifactInput) {
     const payload =
       input.compression === ArtifactCompression.GZIP ? await gzipBuffer(input.data) : input.data;
     const stored = await this.storage.put({ objectKey: input.objectKey, data: payload });
-    return this.prisma.artifact.create({
+    const artifact = await this.prisma.artifact.create({
       data: {
         testRunId: input.testRunId,
         stepId: input.stepId ?? undefined,
@@ -39,13 +41,15 @@ export class ArtifactsService {
         retentionUntil: input.retentionUntil,
       },
     });
+    this.metrics.incrementArtifactBytes(input.type, stored.byteSize);
+    return artifact;
   }
 
   async putOrReplace(input: CreateArtifactInput) {
     const payload =
       input.compression === ArtifactCompression.GZIP ? await gzipBuffer(input.data) : input.data;
     const stored = await this.storage.put({ objectKey: input.objectKey, data: payload });
-    return this.prisma.artifact.upsert({
+    const artifact = await this.prisma.artifact.upsert({
       where: { objectKey: stored.objectKey },
       create: {
         testRunId: input.testRunId,
@@ -68,6 +72,8 @@ export class ArtifactsService {
         retentionUntil: input.retentionUntil,
       },
     });
+    this.metrics.incrementArtifactBytes(input.type, stored.byteSize);
+    return artifact;
   }
 
   async read(artifact: { objectKey: string; compression: ArtifactCompression }): Promise<Buffer> {

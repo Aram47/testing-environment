@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { ConfigService } from '@nestjs/config';
 import { TestRunFailureCategory, TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../observability/metrics.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { TestRunQueueService } from './test-run-queue.service';
 
@@ -15,6 +16,7 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
     private readonly queue: TestRunQueueService,
     private readonly state: TestRunStateService,
     private readonly config: ConfigService,
+    private readonly metrics: MetricsService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -93,6 +95,7 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
             undefined,
             'Worker lease expired before cleanup confirmation',
           );
+          this.metrics.recordStuckRun('expired_lease');
           continue;
         }
 
@@ -101,6 +104,7 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
           TestRunFailureCategory.INTERNAL,
           'Worker execution lease expired; run was not retried automatically',
         );
+        this.metrics.recordStuckRun('expired_lease');
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to recover expired lease';
         this.logger.error(`Failed to recover expired lease for test run ${run.id}: ${message}`);

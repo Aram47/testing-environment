@@ -2,12 +2,14 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { DockerHealthService } from './docker-health.service';
 
 export interface ReadinessResult {
   status: 'ok' | 'error';
   checks: {
     postgres: 'ok' | 'error';
     redis: 'ok' | 'error';
+    docker?: 'ok' | 'error';
   };
 }
 
@@ -18,6 +20,7 @@ export class HealthService implements OnModuleDestroy {
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly docker: DockerHealthService,
   ) {
     this.redis = new Redis(this.config.get<string>('REDIS_URL', 'redis://localhost:6379'), {
       lazyConnect: true,
@@ -31,9 +34,13 @@ export class HealthService implements OnModuleDestroy {
     const checks = {
       postgres: await this.checkPostgres(),
       redis: await this.checkRedis(),
+      ...(this.config.get<string>('APP_ROLE') === 'worker'
+        ? { docker: await this.docker.check() }
+        : {}),
     };
+    const ok = Object.values(checks).every((status) => status === 'ok');
     return {
-      status: checks.postgres === 'ok' && checks.redis === 'ok' ? 'ok' : 'error',
+      status: ok ? 'ok' : 'error',
       checks,
     };
   }

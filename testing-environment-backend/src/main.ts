@@ -4,11 +4,13 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { StructuredLoggerService } from './observability/structured-logger.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
+  app.useLogger(app.get(StructuredLoggerService));
   app.enableCors();
   app.useGlobalPipes(
     new ValidationPipe({

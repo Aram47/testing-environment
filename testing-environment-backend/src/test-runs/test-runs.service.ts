@@ -4,6 +4,8 @@ import { randomUUID } from 'crypto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../common/interfaces/paginated-result.interface';
 import { ProjectAccessService } from '../common/services/project-access.service';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { TracingService } from '../observability/tracing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunQueueService } from '../queue/test-run-queue.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -17,14 +19,19 @@ export class TestRunsService {
     private readonly subscriptions: SubscriptionsService,
     private readonly queue: TestRunQueueService,
     private readonly state: TestRunStateService,
+    private readonly executionContext: ExecutionContextService,
+    private readonly tracing: TracingService,
   ) {}
 
   async create(projectId: string, companyId: string) {
-    await this.projectAccess.getProjectOrThrow(projectId, companyId);
-    await this.subscriptions.assertCanStartRun(projectId, companyId);
-    const runId = randomUUID();
-    const queueJobId = this.queue.getJobId(runId);
-    const run = await this.prisma.$transaction(async (tx) => {
+    return this.tracing.span('http.create_test_run', { companyId, projectId }, async () => {
+      this.executionContext.merge({ companyId, projectId });
+      await this.projectAccess.getProjectOrThrow(projectId, companyId);
+      await this.subscriptions.assertCanStartRun(projectId, companyId);
+      const runId = randomUUID();
+      this.executionContext.merge({ runId });
+      const queueJobId = this.queue.getJobId(runId);
+      const run = await this.prisma.$transaction(async (tx) => {
       const environmentConfig = await tx.environmentConfig.findUnique({
         where: { projectId },
         include: {
@@ -84,18 +91,19 @@ export class TestRunsService {
           },
         },
       });
+      });
+      try {
+        await this.queue.enqueue(run.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to enqueue test run';
+        return this.state.markInfraFailed(
+          run.id,
+          TestRunFailureCategory.INTERNAL,
+          `Failed to enqueue test run: ${message}`,
+        );
+      }
+      return this.find(projectId, run.id, companyId);
     });
-    try {
-      await this.queue.enqueue(run.id);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to enqueue test run';
-      return this.state.markInfraFailed(
-        run.id,
-        TestRunFailureCategory.INTERNAL,
-        `Failed to enqueue test run: ${message}`,
-      );
-    }
-    return this.find(projectId, run.id, companyId);
   }
 
   async list(

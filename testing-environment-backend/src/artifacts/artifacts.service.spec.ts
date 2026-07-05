@@ -1,4 +1,5 @@
 import { ArtifactCompression, ArtifactType } from '@prisma/client';
+import { MetricsService } from '../observability/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactStorage } from './artifact-storage.interface';
 import { ArtifactsService } from './artifacts.service';
@@ -22,6 +23,7 @@ describe('ArtifactsService', () => {
     const service = new ArtifactsService(
       prisma as unknown as PrismaService,
       storage as unknown as ArtifactStorage,
+      { incrementArtifactBytes: jest.fn() } as unknown as MetricsService,
     );
 
     await service.putOrReplace({

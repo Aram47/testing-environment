@@ -1,4 +1,5 @@
 import { RunnerLogSource } from '@prisma/client';
+import { MetricsService } from '../observability/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactLogWriterService } from './artifact-log-writer.service';
 import { ArtifactsService } from './artifacts.service';
@@ -32,6 +33,7 @@ describe('ArtifactLogWriterService', () => {
     const service = new ArtifactLogWriterService(
       prisma as unknown as PrismaService,
       artifacts as unknown as ArtifactsService,
+      { incrementLogBytes: jest.fn() } as unknown as MetricsService,
     );
 
     await service.append('run-1', RunnerLogSource.DOCKER, '1234567890');
@@ -66,6 +68,7 @@ describe('ArtifactLogWriterService', () => {
         totalLogLimitBytes: jest.fn(() => 5),
         previewLimitBytes: jest.fn(() => 100),
       } as unknown as ArtifactsService,
+      { incrementLogBytes: jest.fn() } as unknown as MetricsService,
     );
 
     await service.append('run-1', RunnerLogSource.DOCKER, 'more logs');
@@ -115,6 +118,7 @@ describe('ArtifactLogWriterService', () => {
     const service = new ArtifactLogWriterService(
       prisma as unknown as PrismaService,
       artifacts as unknown as ArtifactsService,
+      { incrementLogBytes: jest.fn() } as unknown as MetricsService,
     );
 
     await service.append('run-1', RunnerLogSource.ERROR, 'failed');
