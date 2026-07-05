@@ -90,7 +90,10 @@ export class TeamService {
     return member;
   }
 
-  private async assertAnotherOwnerExists(companyId: string, excludingUserId: string): Promise<void> {
+  private async assertAnotherOwnerExists(
+    companyId: string,
+    excludingUserId: string,
+  ): Promise<void> {
     const owners = await this.prisma.companyMember.count({
       where: {
         companyId,

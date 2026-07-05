@@ -14,7 +14,9 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { user?: AuthenticatedPrincipal }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: AuthenticatedPrincipal }>();
     const token = this.extractBearerToken(request);
     request.user = await this.authenticate(token);
     return true;

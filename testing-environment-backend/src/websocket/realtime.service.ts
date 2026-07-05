@@ -57,7 +57,15 @@ export class RealtimeService implements OnModuleDestroy {
   }
 
   disconnectUser(userId: string): void {
-    const sockets = this.server?.sockets.adapter.rooms.get(this.userRoom(userId));
+    this.disconnectRoom(this.userRoom(userId));
+  }
+
+  disconnectApiToken(apiTokenId: string): void {
+    this.disconnectRoom(this.apiTokenRoom(apiTokenId));
+  }
+
+  private disconnectRoom(room: string): void {
+    const sockets = this.server?.sockets.adapter.rooms.get(room);
     if (!sockets) {
       return;
     }
@@ -72,6 +80,10 @@ export class RealtimeService implements OnModuleDestroy {
 
   companyRoom(companyId: string): string {
     return `company:${companyId}`;
+  }
+
+  apiTokenRoom(apiTokenId: string): string {
+    return `api-token:${apiTokenId}`;
   }
 
   async onModuleDestroy(): Promise<void> {

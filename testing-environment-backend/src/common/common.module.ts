@@ -18,6 +18,6 @@ import { ProjectAccessService } from './services/project-access.service';
     }),
   ],
   providers: [JwtAuthGuard, ProjectAccessService],
-  exports: [JwtAuthGuard, ProjectAccessService],
+  exports: [JwtModule, JwtAuthGuard, ProjectAccessService],
 })
 export class CommonModule {}

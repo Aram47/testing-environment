@@ -4,6 +4,20 @@ import { AuthenticatedPrincipal } from '../common/types/authenticated-user.type'
 import { PrismaService } from '../prisma/prisma.service';
 import { PermissionAction, ResolvedResource } from './permission.types';
 
+const API_TOKEN_ALLOWED_ACTIONS = new Set<PermissionAction>([
+  'audit:read',
+  'company:read',
+  'environment:read',
+  'environment:write',
+  'project:read',
+  'run:read',
+  'run:write',
+  'secret:read',
+  'secret:write',
+  'suite:read',
+  'suite:write',
+]);
+
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionAction>> = {
   OWNER: new Set<PermissionAction>([
     'audit:read',
@@ -83,6 +97,9 @@ export class PermissionService {
     if (principal.projectId && resource.projectId && principal.projectId !== resource.projectId) {
       throw new ForbiddenException('API token is not allowed for this project');
     }
+    if (principal.projectId && !resource.projectId && action !== 'company:read') {
+      throw new ForbiddenException('Project-scoped API token cannot access company-wide resources');
+    }
 
     const role = await this.resolveEffectiveRole(principal, resource.projectId);
     if (!ROLE_PERMISSIONS[role].has(action)) {
@@ -127,8 +144,11 @@ export class PermissionService {
     if (principal.type !== 'API_TOKEN') {
       return;
     }
+    if (!API_TOKEN_ALLOWED_ACTIONS.has(action)) {
+      throw new ForbiddenException('API token cannot perform this action');
+    }
     const scopes = principal.scopes ?? [];
-    if (scopes.includes('*') || scopes.includes(action)) {
+    if (scopes.includes(action)) {
       return;
     }
     throw new ForbiddenException('API token scope denied');

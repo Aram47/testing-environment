@@ -29,7 +29,7 @@ type CompanyWithPlan = Company & {
   subscriptionPlan: SubscriptionPlan;
   _count: {
     projects: number;
-    users: number;
+    members: number;
   };
 };
 
@@ -61,7 +61,7 @@ export class CompaniesService {
         where: { id: companyId },
         include: {
           subscriptionPlan: true,
-          _count: { select: { projects: true, users: true } },
+          _count: { select: { projects: true, members: { where: { status: 'ACTIVE' } } } },
         },
       }),
       this.prisma.testRun.count({
@@ -102,7 +102,7 @@ export class CompaniesService {
           concurrentRuns,
         },
       },
-      membersCount: company._count.users,
+      membersCount: company._count.members,
     };
   }
 }

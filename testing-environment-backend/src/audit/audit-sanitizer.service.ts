@@ -7,9 +7,10 @@ const SECRET_KEYS = new Set([
   'passwordHash',
   'token',
   'accessToken',
-  'apiToken',
+  'accesstoken',
+  'apitoken',
   'secret',
-  'encryptedValue',
+  'encryptedvalue',
   'value',
 ]);
 

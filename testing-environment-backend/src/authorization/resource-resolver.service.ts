@@ -9,7 +9,10 @@ type RequestWithParams = Request & { params: Record<string, string | undefined> 
 export class ResourceResolverService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async resolve(request: RequestWithParams, permission: RequiredPermission): Promise<ResolvedResource> {
+  async resolve(
+    request: RequestWithParams,
+    permission: RequiredPermission,
+  ): Promise<ResolvedResource> {
     const params = request.params ?? {};
     const resourceType = permission.resourceType;
 
@@ -21,12 +24,20 @@ export class ResourceResolverService {
       if (!run) {
         throw new NotFoundException('Test run not found');
       }
-      return { type: 'run', id: run.id, projectId: run.projectId, companyId: run.project.companyId };
+      return {
+        type: 'run',
+        id: run.id,
+        projectId: run.projectId,
+        companyId: run.project.companyId,
+      };
     }
 
     if (params.secretId) {
       const secret = await this.prisma.secret.findFirst({
-        where: { id: params.secretId, ...(params.projectId ? { projectId: params.projectId } : {}) },
+        where: {
+          id: params.secretId,
+          ...(params.projectId ? { projectId: params.projectId } : {}),
+        },
         select: { id: true, projectId: true, project: { select: { companyId: true } } },
       });
       if (!secret) {
@@ -57,7 +68,12 @@ export class ResourceResolverService {
           companyId: suite.project.companyId,
         };
       }
-      return { type: 'suite', id: suite.id, projectId: suite.projectId, companyId: suite.project.companyId };
+      return {
+        type: 'suite',
+        id: suite.id,
+        projectId: suite.projectId,
+        companyId: suite.project.companyId,
+      };
     }
 
     if (params.revisionId && params.projectId) {

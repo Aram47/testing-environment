@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthorizationModule } from './authorization/authorization.module';
@@ -26,6 +27,7 @@ import { RealtimeModule } from './websocket/realtime.module';
     AuthorizationModule,
     CommonModule,
     AuditModule,
+    ApiTokensModule,
     AuthModule,
     UsersModule,
     CompaniesModule,

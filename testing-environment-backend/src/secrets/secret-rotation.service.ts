@@ -100,9 +100,11 @@ export class SecretRotationService {
             await tx.auditEvent.create({
               data: {
                 type: 'secret.rotated',
+                action: 'secret.rotated',
                 companyId: job.companyId,
                 projectId: secret.projectId,
                 actorUserId: job.actorUserId,
+                resourceType: 'secret',
                 resourceId: secret.id,
                 metadata: {
                   key: secret.key,
