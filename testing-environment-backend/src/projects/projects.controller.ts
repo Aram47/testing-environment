@@ -10,12 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -23,29 +22,31 @@ import { ProjectsService } from './projects.service';
 
 @ApiTags('Projects')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
-  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequirePermission('project:create', 'company')
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateProjectDto) {
     return this.projectsService.create(user.companyId, dto);
   }
 
   @Get()
+  @RequirePermission('project:read', 'company')
   findAll(@CurrentUser() user: AuthenticatedUser, @Query() query: PaginationQueryDto) {
     return this.projectsService.findAll(user.companyId, query);
   }
 
   @Get(':id')
+  @RequirePermission('project:read', 'project')
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.projectsService.findOne(user.companyId, id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequirePermission('project:update', 'project')
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -55,7 +56,7 @@ export class ProjectsController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequirePermission('project:delete', 'project')
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.projectsService.remove(user.companyId, id);
   }

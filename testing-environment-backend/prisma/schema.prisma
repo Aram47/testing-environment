@@ -14,6 +14,23 @@ enum UserRole {
   VIEWER
 }
 
+enum CompanyMemberStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum ProjectRole {
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+enum PrincipalType {
+  USER
+  SERVICE_ACCOUNT
+  API_TOKEN
+}
+
 enum SubscriptionPlanName {
   FREE
   PRO
@@ -95,6 +112,8 @@ model User {
   role                          UserRole                    @default(OWNER)
   companyId                     String
   company                       Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyMemberships            CompanyMember[]
+  projectMemberships            ProjectMember[]
   environmentRevisionsCreated   EnvironmentConfigRevision[] @relation("EnvironmentRevisionCreatedBy")
   environmentRevisionsPublished EnvironmentConfigRevision[] @relation("EnvironmentRevisionPublishedBy")
   suiteRevisionsCreated         TestSuiteRevision[]         @relation("TestSuiteRevisionCreatedBy")
@@ -114,12 +133,104 @@ model Company {
   subscriptionPlanId String
   subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
   users              User[]
+  members            CompanyMember[]
+  invitations        Invitation[]
+  serviceAccounts    ServiceAccount[]
+  apiTokens          ApiToken[]
   projects           Project[]
   secretRotationJobs SecretRotationJob[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
   @@index([subscriptionPlanId])
+}
+
+model CompanyMember {
+  id        String              @id @default(uuid())
+  companyId String
+  company   Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      UserRole
+  status    CompanyMemberStatus @default(ACTIVE)
+  removedAt DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([companyId, userId])
+  @@index([userId, status])
+  @@index([companyId, status, role])
+}
+
+model ProjectMember {
+  id        String      @id @default(uuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId, role])
+}
+
+model Invitation {
+  id             String    @id @default(uuid())
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email          String
+  role           UserRole
+  invitedById    String?
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([email])
+  @@index([acceptedAt, revokedAt])
+}
+
+model ServiceAccount {
+  id          String     @id @default(uuid())
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  apiTokens   ApiToken[]
+  revokedAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([companyId])
+  @@index([revokedAt])
+}
+
+model ApiToken {
+  id               String          @id @default(uuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  serviceAccountId String?
+  serviceAccount   ServiceAccount? @relation(fields: [serviceAccountId], references: [id], onDelete: Cascade)
+  name             String
+  tokenHash        String          @unique
+  scopes           String[]
+  projectId        String?
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdById      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([companyId])
+  @@index([projectId])
+  @@index([serviceAccountId])
+  @@index([revokedAt])
 }
 
 model SubscriptionPlan {
@@ -148,6 +259,7 @@ model Project {
   healthcheckTimeoutSeconds Int                @default(60)
   environmentConfig         EnvironmentConfig?
   secrets                   Secret[]
+  projectMembers            ProjectMember[]
   testSuites                TestSuite[]
   testRuns                  TestRun[]
   createdAt                 DateTime           @default(now())
@@ -213,20 +325,31 @@ model Secret {
 }
 
 model AuditEvent {
-  id          String   @id @default(uuid())
-  type        String
-  companyId   String?
-  projectId   String?
-  actorUserId String?
-  actorUser   User?    @relation("AuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
-  resourceId  String?
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id               String        @id @default(uuid())
+  type             String
+  action           String
+  companyId        String?
+  projectId        String?
+  actorType        PrincipalType @default(USER)
+  actorUserId      String?
+  actorUser        User?         @relation("AuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  serviceAccountId String?
+  apiTokenId       String?
+  resourceType     String?
+  resourceId       String?
+  requestId        String?
+  metadata         Json?
+  createdAt        DateTime      @default(now())
 
   @@index([type])
+  @@index([action])
   @@index([companyId])
   @@index([projectId])
   @@index([actorUserId])
+  @@index([serviceAccountId])
+  @@index([apiTokenId])
+  @@index([resourceType, resourceId])
+  @@index([requestId])
   @@index([resourceId])
   @@index([createdAt])
 }

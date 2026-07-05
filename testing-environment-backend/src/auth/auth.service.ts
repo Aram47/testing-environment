@@ -38,7 +38,7 @@ export class AuthService {
           subscriptionPlanId: freePlan.id,
         },
       });
-      return tx.user.create({
+      const createdUser = await tx.user.create({
         data: {
           email: dto.email.toLowerCase(),
           passwordHash,
@@ -48,6 +48,14 @@ export class AuthService {
           companyId: company.id,
         },
       });
+      await tx.companyMember.create({
+        data: {
+          companyId: company.id,
+          userId: createdUser.id,
+          role: 'OWNER',
+        },
+      });
+      return createdUser;
     });
 
     return { accessToken: this.sign(user), user: this.safeUser(user) };
@@ -57,6 +65,12 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+    const member = await this.prisma.companyMember.findUnique({
+      where: { companyId_userId: { companyId: user.companyId, userId: user.id } },
+    });
+    if (!member || member.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Company membership is inactive');
     }
     return { accessToken: this.sign(user), user: this.safeUser(user) };
   }

@@ -56,6 +56,24 @@ export class RealtimeService implements OnModuleDestroy {
     void this.publish(message);
   }
 
+  disconnectUser(userId: string): void {
+    const sockets = this.server?.sockets.adapter.rooms.get(this.userRoom(userId));
+    if (!sockets) {
+      return;
+    }
+    for (const socketId of sockets) {
+      this.server?.sockets.sockets.get(socketId)?.disconnect(true);
+    }
+  }
+
+  userRoom(userId: string): string {
+    return `user:${userId}`;
+  }
+
+  companyRoom(companyId: string): string {
+    return `company:${companyId}`;
+  }
+
   async onModuleDestroy(): Promise<void> {
     this.publisher.disconnect();
     this.subscriber.disconnect();

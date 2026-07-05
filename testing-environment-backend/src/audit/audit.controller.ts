@@ -1,22 +1,23 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
-import { DashboardService, DashboardSummary } from './dashboard.service';
+import { AuditService } from './audit.service';
+import { AuditEventsQueryDto } from './dto/audit-events-query.dto';
 
-@ApiTags('Dashboard')
+@ApiTags('Audit')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
-@Controller('dashboard')
-export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+@Controller('audit-events')
+export class AuditController {
+  constructor(private readonly audit: AuditService) {}
 
   @Get()
-  @RequirePermission('company:read', 'company')
-  getSummary(@CurrentUser() user: AuthenticatedUser): Promise<DashboardSummary> {
-    return this.dashboardService.getSummary(user.companyId);
+  @RequirePermission('audit:read', 'company')
+  list(@CurrentUser() user: AuthenticatedUser, @Query() query: AuditEventsQueryDto) {
+    return this.audit.list(user.companyId, query);
   }
 }

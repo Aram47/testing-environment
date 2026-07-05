@@ -10,12 +10,11 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CompileFlowDto } from './dto/compile-flow.dto';
 import { CreateTestSuiteDto } from './dto/create-test-suite.dto';
@@ -24,13 +23,13 @@ import { TestSuitesService } from './test-suites.service';
 
 @ApiTags('Test suites')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('projects/:projectId/test-suites')
 export class TestSuitesController {
   constructor(private readonly service: TestSuitesService) {}
 
   @Post()
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  @RequirePermission('suite:write', 'project')
   create(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -40,6 +39,7 @@ export class TestSuitesController {
   }
 
   @Get()
+  @RequirePermission('suite:read', 'project')
   list(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -49,7 +49,7 @@ export class TestSuitesController {
   }
 
   @Post('compile-flow')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  @RequirePermission('suite:write', 'project')
   compileFlow(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -59,6 +59,7 @@ export class TestSuitesController {
   }
 
   @Get(':suiteId/revisions')
+  @RequirePermission('suite:read', 'suite')
   revisions(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,
@@ -68,6 +69,7 @@ export class TestSuitesController {
   }
 
   @Get(':suiteId/revisions/compare')
+  @RequirePermission('suite:read', 'suite')
   compareRevisions(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,
@@ -79,7 +81,7 @@ export class TestSuitesController {
   }
 
   @Post(':suiteId/revisions/:revisionId/publish')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  @RequirePermission('suite:write', 'revision')
   publishRevision(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,
@@ -90,6 +92,7 @@ export class TestSuitesController {
   }
 
   @Get(':suiteId')
+  @RequirePermission('suite:read', 'suite')
   find(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,
@@ -99,7 +102,7 @@ export class TestSuitesController {
   }
 
   @Patch(':suiteId')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  @RequirePermission('suite:write', 'suite')
   update(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,
@@ -110,7 +113,7 @@ export class TestSuitesController {
   }
 
   @Delete(':suiteId')
-  @Roles(UserRole.OWNER, UserRole.ADMIN, UserRole.DEVELOPER)
+  @RequirePermission('suite:write', 'suite')
   delete(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,

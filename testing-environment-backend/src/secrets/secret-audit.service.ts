@@ -19,8 +19,10 @@ export class SecretAuditService {
     await this.prisma.auditEvent.create({
       data: {
         type: input.type,
+        action: input.type,
         companyId: input.companyId,
         projectId: input.projectId,
+        resourceType: 'secret',
         actorUserId: input.actorUserId,
         resourceId: input.resourceId,
         metadata: input.metadata ?? Prisma.JsonNull,

@@ -30,11 +30,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User no longer exists');
     }
+    const member = await this.prisma.companyMember.findUnique({
+      where: { companyId_userId: { companyId: user.companyId, userId: user.id } },
+    });
+    if (!member || member.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Company membership is inactive');
+    }
     return {
+      type: 'USER',
       id: user.id,
+      userId: user.id,
+      memberId: member.id,
       email: user.email,
       companyId: user.companyId,
-      role: user.role,
+      role: member.role,
     };
   }
 }
