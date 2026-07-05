@@ -69,12 +69,24 @@ The API process creates `TestRun` rows and enqueues BullMQ jobs. The worker proc
 - `REDIS_URL`: Redis connection string, default `redis://localhost:6379`.
 - `TEST_RUN_QUEUE_CONCURRENCY`: worker concurrency, default `1`.
 - `TEST_RUN_STALLED_INTERVAL_MS`: BullMQ stalled job check interval, default `30000`.
-- `TEST_RUN_MAX_STALLED_COUNT`: maximum stalled recoveries before failure, default `1`.
+- `TEST_RUN_MAX_STALLED_COUNT`: maximum stalled recoveries before failure, default `0`.
 - `TEST_RUN_RUNNER_ID`: optional stable worker identifier; defaults to hostname and process id.
 - `TEST_RUN_LEASE_DURATION_MS`: execution lease duration, default `60000`.
 - `TEST_RUN_HEARTBEAT_INTERVAL_MS`: worker heartbeat interval, default `15000`.
 - `TEST_RUN_CANCELLATION_POLL_INTERVAL_MS`: persisted cancellation polling interval, default `1000`.
 - `TEST_RUN_JANITOR_INTERVAL_MS`: orphaned run recovery interval, default `30000`.
+
+Test run jobs use fail-fast execution semantics. BullMQ stores a durable job, but the job
+attempt count is `1`: if the worker crashes, loses its lease, or the lease expires, the immutable
+run is finalized as `INFRA_FAILED` instead of being executed again automatically. To retry a run,
+create a new test run so it snapshots the currently published environment and suite revisions.
+
+Recovery rules:
+
+- `CREATED` runs without cancellation are enqueued on API startup.
+- `QUEUED` runs are checked against BullMQ and only get a replacement job when the Redis job is missing.
+- Active runs with expired leases become `INFRA_FAILED`.
+- `CANCEL_REQUESTED` runs with expired leases become `CANCELLED` with cleanup context.
 
 Readiness endpoints:
 

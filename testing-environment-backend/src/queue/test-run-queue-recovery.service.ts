@@ -40,12 +40,19 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
         cancelRequestedAt: null,
         cancellationRequestedAt: null,
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
 
     for (const run of recoverableRuns) {
       try {
-        await this.queue.enqueue(run.id);
+        if (run.status === TestRunStatus.CREATED) {
+          await this.queue.enqueue(run.id);
+          continue;
+        }
+
+        if (!(await this.queue.hasJob(run.id))) {
+          await this.queue.restoreMissingQueuedJob(run.id);
+        }
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Failed to recover queued test run';
@@ -81,7 +88,7 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
     for (const run of orphanedRuns) {
       try {
         if (run.status === TestRunStatus.CANCEL_REQUESTED) {
-          await this.state.markCancelled(
+          await this.state.tryMarkCancelled(
             run.id,
             undefined,
             'Worker lease expired before cleanup confirmation',
@@ -89,7 +96,7 @@ export class TestRunQueueRecoveryService implements OnApplicationBootstrap, OnMo
           continue;
         }
 
-        await this.state.markInfraFailed(
+        await this.state.tryMarkInfraFailed(
           run.id,
           TestRunFailureCategory.INTERNAL,
           'Worker execution lease expired; run was not retried automatically',

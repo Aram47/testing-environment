@@ -84,7 +84,7 @@ Important gaps:
 - `TestRun` now references a published environment revision and ordered published suite revisions at create time.
 - `TestSuiteRevision.executionPlan` now stores a canonical `execution-plan/v1` step plan for new revisions.
 - Older revisions with legacy placeholder plans remain compatible through on-the-fly YAML-to-plan fallback.
-- Cancellation and queue state are not durable.
+- Queue state, cancellation, runner lease, and heartbeat metadata are durable on `TestRun`.
 - Large response bodies and logs can still pressure PostgreSQL despite Docker logs being truncated before insertion.
 
 ## REST API Surface
@@ -185,7 +185,7 @@ Current lifecycle:
 
 Important gaps:
 
-- Worker crash recovery exists for queued jobs, but claimed/in-flight recovery still needs stronger lease handling.
+- Worker crash recovery uses durable queue state and execution leases; expired in-flight leases are finalized fail-fast as `INFRA_FAILED` rather than retried automatically.
 - No idempotency key exists for run creation.
 - Concurrent run creation can still race against subscription/concurrency limits because there is no database lock around active run capacity.
 - Run execution no longer reads mutable project config or mutable test suites at start time.
@@ -219,8 +219,8 @@ This class currently mixes orchestration, state transitions, result persistence,
 Runner start:
 
 - `TestRunsService.create()` creates a durable run and enqueues a BullMQ job.
-- `TestRunQueueService` stores deterministic job IDs and enqueue timestamps.
-- `TestRunQueueRecoveryService` re-enqueues recoverable `CREATED`/`QUEUED` runs.
+- `TestRunQueueService` stores deterministic job IDs and enqueue timestamps without overwriting existing queued metadata.
+- `TestRunQueueRecoveryService` enqueues recoverable `CREATED` runs, repairs missing BullMQ jobs for `QUEUED` runs, and finalizes expired leases.
 
 Cancellation:
 
@@ -229,7 +229,7 @@ Cancellation:
 - Worker polls persisted cancellation state and uses a per-run `AbortController`.
 - HTTP requests, healthchecks, poll steps, waits, and Docker Compose startup observe cancellation.
 - Worker renews an execution lease through heartbeat fields while the run is active.
-- Expired active leases are recovered conservatively without automatically retrying potentially non-idempotent execution.
+- Expired active leases are recovered conservatively as `INFRA_FAILED` without automatically retrying potentially non-idempotent execution.
 
 Gap: Docker cleanup can still fail at the host Docker daemon layer; cleanup errors are stored separately on the run.
 

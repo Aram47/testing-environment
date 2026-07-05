@@ -18,8 +18,7 @@ import { TestRunQueueService } from './test-run-queue.service';
     BullModule.registerQueue({
       name: TEST_RUN_QUEUE,
       defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5000 },
+        attempts: 1,
         removeOnComplete: 1000,
         removeOnFail: false,
       },

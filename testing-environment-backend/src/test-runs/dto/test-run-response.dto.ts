@@ -20,7 +20,9 @@ export class TestRunResponseDto {
   @ApiProperty({ enum: TestRunStatus })
   status!: TestRunStatus;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Human-readable terminal or cancellation reason for the current run state.',
+  })
   statusReason?: string | null;
 
   @ApiPropertyOptional({ enum: TestRunFailureCategory })
@@ -62,13 +64,19 @@ export class TestRunResponseDto {
   @ApiPropertyOptional()
   leaseAcquiredAt?: Date | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Current execution lease expiration; stale leases are failed by recovery.',
+  })
   leaseExpiresAt?: Date | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Last persisted worker heartbeat for the execution lease owner.',
+  })
   heartbeatAt?: Date | null;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Number of worker claims for this immutable run. Jobs are fail-fast by default.',
+  })
   attempt!: number;
 
   @ApiPropertyOptional()

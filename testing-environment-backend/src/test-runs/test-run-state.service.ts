@@ -29,6 +29,11 @@ type TestRunStateRecord = Pick<
   'id' | 'status' | 'phaseTimestamps' | 'startedAt' | 'finishedAt'
 >;
 
+export type TestRunQueueState = Pick<
+  TestRun,
+  'id' | 'status' | 'queueJobId' | 'cancelRequestedAt' | 'cancellationRequestedAt' | 'finishedAt'
+>;
+
 export const TEST_RUN_ALLOWED_TRANSITIONS: Readonly<
   Record<TestRunStatus, readonly TestRunStatus[]>
 > = {
@@ -191,6 +196,51 @@ export class TestRunStateService {
     });
   }
 
+  async getQueueState(testRunId: string): Promise<TestRunQueueState> {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: {
+        id: true,
+        status: true,
+        queueJobId: true,
+        cancelRequestedAt: true,
+        cancellationRequestedAt: true,
+        finishedAt: true,
+      },
+    });
+    if (!run) {
+      throw new NotFoundException('Test run not found');
+    }
+    return run;
+  }
+
+  async markQueuedIfCreated(testRunId: string, queueJobId: string): Promise<TestRun | null> {
+    const now = new Date();
+    const updated = await this.prisma.testRun.updateMany({
+      where: {
+        id: testRunId,
+        status: TestRunStatus.CREATED,
+        finishedAt: null,
+        cancelRequestedAt: null,
+        cancellationRequestedAt: null,
+      },
+      data: {
+        status: TestRunStatus.QUEUED,
+        queueJobId,
+        queuedAt: now,
+        enqueuedAt: now,
+        statusReason: null,
+        failureCategory: null,
+        ...this.clearedLeaseData(),
+      },
+    });
+    if (updated.count === 0) {
+      await this.getQueueState(testRunId);
+      return null;
+    }
+    return this.prisma.testRun.findUniqueOrThrow({ where: { id: testRunId } });
+  }
+
   async enterPhase(testRunId: string, phase: TestRunStatus): Promise<TestRun> {
     if (!isPhaseTestRunStatus(phase)) {
       throw new ConflictException(`${phase} is not an execution phase`);
@@ -272,6 +322,45 @@ export class TestRunStateService {
       failureCategory: category,
       ...this.clearedLeaseData(),
     });
+  }
+
+  async tryMarkInfraFailed(
+    testRunId: string,
+    category: TestRunFailureCategory,
+    reason: string,
+    durationMs?: number,
+  ): Promise<TestRun | null> {
+    if (await this.isTerminalRun(testRunId)) {
+      return null;
+    }
+
+    try {
+      return await this.markInfraFailed(testRunId, category, reason, durationMs);
+    } catch (error) {
+      if (error instanceof ConflictException && (await this.isTerminalRun(testRunId))) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async tryMarkCancelled(
+    testRunId: string,
+    durationMs?: number,
+    cleanupError?: string,
+  ): Promise<TestRun | null> {
+    if (await this.isTerminalRun(testRunId)) {
+      return null;
+    }
+
+    try {
+      return await this.markCancelled(testRunId, durationMs, cleanupError);
+    } catch (error) {
+      if (error instanceof ConflictException && (await this.isTerminalRun(testRunId))) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   async markTimedOut(testRunId: string, reason: string, durationMs?: number): Promise<TestRun> {
@@ -356,6 +445,17 @@ export class TestRunStateService {
     }
 
     return this.prisma.testRun.findUniqueOrThrow({ where: { id: testRunId } });
+  }
+
+  private async isTerminalRun(testRunId: string): Promise<boolean> {
+    const run = await this.prisma.testRun.findUnique({
+      where: { id: testRunId },
+      select: { status: true },
+    });
+    if (!run) {
+      throw new NotFoundException('Test run not found');
+    }
+    return isTerminalTestRunStatus(run.status);
   }
 
   private assertTransitionAllowed(run: TestRunStateRecord, targetStatus: TestRunStatus): void {

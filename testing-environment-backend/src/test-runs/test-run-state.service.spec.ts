@@ -44,6 +44,31 @@ describe('TestRunStateService', () => {
     });
   });
 
+  it('marks only CREATED runs as queued without overwriting existing queued metadata', async () => {
+    const prisma = createPrismaMock(TestRunStatus.QUEUED);
+    prisma.testRun.updateMany.mockResolvedValueOnce({ count: 0 });
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await expect(service.markQueuedIfCreated('run-1', 'test-run:run-1')).resolves.toBeNull();
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'run-1',
+        status: TestRunStatus.CREATED,
+        finishedAt: null,
+        cancelRequestedAt: null,
+        cancellationRequestedAt: null,
+      },
+      data: expect.objectContaining({
+        status: TestRunStatus.QUEUED,
+        queueJobId: 'test-run:run-1',
+        queuedAt: expect.any(Date),
+        enqueuedAt: expect.any(Date),
+      }),
+    });
+    expect(prisma.testRun.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
   it('persists cancellation requester and reason in durable fields', async () => {
     const prisma = createPrismaMock(TestRunStatus.EXECUTING_TESTS);
     const service = new TestRunStateService(prisma as unknown as PrismaService);
@@ -194,6 +219,37 @@ describe('TestRunStateService', () => {
     ).rejects.toThrow(ConflictException);
     expect(prisma.testRun.updateMany).not.toHaveBeenCalled();
   });
+
+  it('ignores safe infrastructure failure finalization for terminal runs', async () => {
+    const prisma = createPrismaMock(TestRunStatus.PASSED);
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await expect(
+      service.tryMarkInfraFailed('run-1', TestRunFailureCategory.INTERNAL, 'late failure'),
+    ).resolves.toBeNull();
+
+    expect(prisma.testRun.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('converts lost lease renewal into a false result without changing state', async () => {
+    const prisma = createPrismaMock(TestRunStatus.EXECUTING_TESTS);
+    prisma.testRun.updateMany.mockResolvedValueOnce({ count: 0 });
+    const service = new TestRunStateService(prisma as unknown as PrismaService);
+
+    await expect(service.renewLease('run-1', 'runner-2', 60000)).resolves.toBe(false);
+
+    expect(prisma.testRun.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: 'run-1',
+        runnerId: 'runner-2',
+        finishedAt: null,
+      }),
+      data: {
+        heartbeatAt: expect.any(Date),
+        leaseExpiresAt: expect.any(Date),
+      },
+    });
+  });
 });
 
 function createPrismaMock(initialStatus: TestRunStatus) {
@@ -206,6 +262,9 @@ function createPrismaMock(initialStatus: TestRunStatus) {
     phaseTimestamps: null,
     startedAt: null,
     finishedAt: null,
+    queueJobId: null,
+    cancelRequestedAt: null,
+    cancellationRequestedAt: null,
   };
 
   return {
