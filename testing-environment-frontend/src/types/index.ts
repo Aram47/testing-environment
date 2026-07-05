@@ -31,6 +31,7 @@ export type SubscriptionTier = 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
 export type UserRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'VIEWER';
 export type RevisionStatus = 'DRAFT' | 'PUBLISHED';
 export type TestSuiteSourceMode = 'VISUAL' | 'RAW_YAML';
+export type EnvironmentConfigType = 'DOCKER_COMPOSE' | 'EXTERNAL_URL';
 
 export interface User {
   id: string;
@@ -105,7 +106,7 @@ export interface CreateProjectInput {
 export interface EnvironmentConfig {
   id?: string;
   projectId: string;
-  type?: 'DOCKER_COMPOSE';
+  type?: EnvironmentConfigType;
   dockerComposeYaml: string;
   backendTestYaml: string;
   visualConfig?: EnvironmentVisualConfig;
@@ -117,6 +118,89 @@ export interface EnvironmentConfig {
   healthcheckTimeoutSeconds: number;
   isValid?: boolean;
   updatedAt?: string;
+}
+
+export type OnboardingStep = 'project' | 'environment' | 'api-import' | 'template' | 'run';
+export type EnvironmentImportSource =
+  | 'UPLOAD'
+  | 'PASTE'
+  | 'TEMPLATE'
+  | 'RUNNING_ENVIRONMENT'
+  | 'GIT_REPOSITORY';
+
+export interface OnboardingSession {
+  id: string;
+  companyId: string;
+  userId: string;
+  projectId?: string | null;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  currentStep: OnboardingStep;
+  draftData: OnboardingDraftData;
+  startedAt: string;
+  completedAt?: string | null;
+  firstSuccessfulRunAt?: string | null;
+  timeToFirstSuccessfulRunMs?: number | null;
+}
+
+export interface OnboardingProjectDraft {
+  name: string;
+  description?: string;
+  baseUrl: string;
+  mainServiceName: string;
+  healthcheckPath: string;
+  healthcheckExpectedStatus: number;
+  healthcheckTimeoutSeconds: number;
+}
+
+export interface OnboardingDraftData {
+  project?: Partial<OnboardingProjectDraft>;
+  environmentType?: EnvironmentConfigType;
+  importSource?: EnvironmentImportSource;
+  composeYaml?: string;
+  backendTestYaml?: string;
+  templateId?: string;
+  analysis?: ComposeAnalysisResult;
+}
+
+export interface OnboardingTemplate {
+  id: string;
+  name: string;
+  description: string;
+  environmentType: EnvironmentConfigType;
+  project: OnboardingProjectDraft;
+  composeYaml?: string;
+  backendTestYaml: string;
+}
+
+export interface ComposeAnalysisResult {
+  source: EnvironmentImportSource;
+  services: ComposeServiceAnalysis[];
+  probableMainService?: {
+    serviceName: string;
+    confidence: number;
+    reasons: string[];
+  };
+  probableBaseUrl?: string;
+  securityWarnings: SecurityWarning[];
+}
+
+export interface ComposeServiceAnalysis {
+  name: string;
+  image?: string;
+  buildContext?: string;
+  buildDockerfile?: string;
+  ports: Array<{ host?: string; container: string; protocol?: string }>;
+  dependencies: string[];
+  environment: Array<{ key: string; value?: string; isSensitive: boolean }>;
+  volumes: Array<{ source?: string; target: string; type: 'bind' | 'volume' | 'unknown' }>;
+  healthcheck?: unknown;
+}
+
+export interface SecurityWarning {
+  code: string;
+  severity: 'info' | 'warning' | 'critical';
+  serviceName?: string;
+  message: string;
 }
 
 export interface EnvironmentConfigRevision {

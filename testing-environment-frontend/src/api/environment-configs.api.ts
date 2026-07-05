@@ -7,7 +7,7 @@ import type {
 } from '../types';
 
 interface EnvironmentConfigPayload {
-  type: 'DOCKER_COMPOSE';
+  type: 'DOCKER_COMPOSE' | 'EXTERNAL_URL';
   composeYaml?: string;
   backendTestYaml?: string;
   visualConfig?: EnvironmentVisualConfig;

@@ -200,6 +200,18 @@ export class EnvironmentConfigsService {
       };
     }
 
+    if (dto.type === 'EXTERNAL_URL') {
+      if (!dto.backendTestYaml?.trim()) {
+        throw new BadRequestException('backend-test YAML is required');
+      }
+      return {
+        sourceMode: 'EXTERNAL_URL',
+        compiledComposeYaml: '',
+        compiledRuntimeYaml: dto.backendTestYaml,
+        visualConfig: Prisma.JsonNull,
+      };
+    }
+
     if (!dto.composeYaml?.trim() || !dto.backendTestYaml?.trim()) {
       throw new BadRequestException('Docker Compose YAML and backend-test YAML are required');
     }

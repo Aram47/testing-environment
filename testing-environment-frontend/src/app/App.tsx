@@ -14,6 +14,7 @@ import { TestRunsPage } from '../pages/TestRunsPage';
 import { TestRunDetailPage } from '../pages/TestRunDetailPage';
 import { CompanySettingsPage } from '../pages/CompanySettingsPage';
 import { SubscriptionPage } from '../pages/SubscriptionPage';
+import { OnboardingPage } from '../pages/OnboardingPage';
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
         <Route element={<DashboardLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/new" element={<CreateProjectPage />} />
           <Route path="/projects/:projectId/edit" element={<EditProjectPage />} />

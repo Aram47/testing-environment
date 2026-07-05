@@ -75,7 +75,7 @@ export function RegisterForm() {
     try {
       await createAccount(values);
       showToast('Workspace created', 'success');
-      navigate('/dashboard');
+      navigate('/onboarding');
     } catch (error) {
       setError('root', { message: ErrorPresenter.message(error) });
     }

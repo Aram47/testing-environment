@@ -11,6 +11,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { EnvironmentConfigsModule } from './environment-configs/environment-configs.module';
 import { HealthModule } from './health/health.module';
 import { ObservabilityModule } from './observability/observability.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { RequestContextMiddleware } from './observability/request-context.middleware';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -28,6 +29,7 @@ import { RealtimeModule } from './websocket/realtime.module';
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     ObservabilityModule,
+    OnboardingModule,
     AuthorizationModule,
     CommonModule,
     ArtifactsModule,

@@ -57,6 +57,35 @@
 9. Пользователь видит прогресс, timeline, logs, results table и details drawer.
 10. Пользователь может скачать JSON report.
 
+### Onboarding и первый успешный запуск
+
+Новый пользователь после регистрации попадает в onboarding wizard. Wizard доступен также из sidebar через `Onboarding`.
+
+Цель onboarding - привести пользователя к первому успешному test run за 10-15 минут:
+
+1. заполнить project settings;
+2. выбрать способ импорта окружения;
+3. загрузить или вставить `docker-compose.yml`, выбрать template или указать уже запущенный API;
+4. увидеть результат auto-detection;
+5. подтвердить найденные services, ports, main service, base URL и security warnings;
+6. сохранить project, environment revision и smoke test suite;
+7. запустить первый run.
+
+Backend анализирует Docker Compose статически через `js-yaml` и не запускает Compose во время import/analysis. Анализ возвращает services, images, build contexts, exposed ports, dependencies, environment variables, volumes, healthchecks, probable main service с confidence, probable base URL и security warnings.
+
+Поддерживаемые templates:
+
+- Node.js API + PostgreSQL;
+- NestJS API + PostgreSQL + Redis;
+- microservices readiness;
+- existing remote API without Compose.
+
+Для уже запущенного API используется `EnvironmentConfigType.EXTERNAL_URL`: runner пропускает Docker Compose lifecycle и выполняет healthcheck/test steps против `Project.baseUrl`.
+
+Git repository import добавлен только как extension point. Git OAuth, repository cloning и полноценный импорт из репозитория не реализованы в этой фазе.
+
+Onboarding progress хранится в PostgreSQL в `OnboardingSession`. Когда onboarding-created project впервые получает `PASSED` test run, backend записывает `timeToFirstSuccessfulRunMs` и экспортирует соответствующие Prometheus metrics.
+
 ### Технологический стек
 
 Backend:
@@ -205,6 +234,8 @@ Root module подключает:
 - `SubscriptionsModule`;
 - `ProjectsModule`;
 - `EnvironmentConfigsModule`;
+- `EnvironmentImportModule`;
+- `OnboardingModule`;
 - `SecretsModule`;
 - `TestSuitesModule`;
 - `TestRunsModule`;

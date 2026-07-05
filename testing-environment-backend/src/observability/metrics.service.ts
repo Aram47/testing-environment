@@ -20,6 +20,8 @@ export class MetricsService {
   private readonly artifactBytes: Counter<string>;
   private readonly stuckRunsCurrent: Gauge<string>;
   private readonly stuckRunsTotal: Counter<string>;
+  private readonly onboardingCompletedTotal: Counter<string>;
+  private readonly timeToFirstSuccessfulRun: Histogram<string>;
 
   constructor(private readonly prisma: PrismaService) {
     collectDefaultMetrics({ register, prefix: 'testing_environment_' });
@@ -66,6 +68,14 @@ export class MetricsService {
     this.stuckRunsTotal = this.counter('stuck_test_runs_total', 'Observed stuck test runs', [
       'reason',
     ]);
+    this.onboardingCompletedTotal = this.counter(
+      'onboarding_first_successful_runs_total',
+      'Onboarding projects with a first successful run',
+    );
+    this.timeToFirstSuccessfulRun = this.histogram(
+      'onboarding_time_to_first_successful_run_seconds',
+      'Time from onboarding start to first successful test run',
+    );
   }
 
   async render(): Promise<string> {
@@ -128,6 +138,11 @@ export class MetricsService {
     this.stuckRunsTotal.inc({ reason });
   }
 
+  recordTimeToFirstSuccessfulRun(durationMs: number): void {
+    this.onboardingCompletedTotal.inc();
+    this.timeToFirstSuccessfulRun.observe(durationMs / 1000);
+  }
+
   private async refreshDatabaseGauges(): Promise<void> {
     await Promise.all([this.refreshHeartbeatAge(), this.refreshStuckRuns()]);
   }
@@ -178,11 +193,7 @@ export class MetricsService {
     return new Gauge({ name, help, labelNames });
   }
 
-  private histogram(
-    name: string,
-    help: string,
-    labelNames: string[] = [],
-  ): Histogram<string> {
+  private histogram(name: string, help: string, labelNames: string[] = []): Histogram<string> {
     return new Histogram({
       name,
       help,

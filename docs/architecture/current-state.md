@@ -28,6 +28,8 @@ Current modules:
 - `SubscriptionsModule`: plan limits, usage, plan changes.
 - `ProjectsModule`: project CRUD and project ownership.
 - `EnvironmentConfigsModule`: Docker Compose environment storage and visual config compiler.
+- `EnvironmentImportModule`: static Docker Compose YAML analysis for onboarding/import flows.
+- `OnboardingModule`: first-run wizard progress, templates, confirmation, demo project setup, and first-success metrics.
 - `SecretsModule`: project secret storage and encryption.
 - `TestSuitesModule`: RAW YAML/visual suite storage, source-mode handling, visual DSL migration, YAML adapter, and canonical execution plan compiler.
 - `TestRunsModule`: REST API for creating, listing, reading, and cancelling runs.
@@ -48,7 +50,8 @@ Current enums:
 
 - `UserRole`: `OWNER`, `ADMIN`, `DEVELOPER`, `VIEWER`.
 - `SubscriptionPlanName`: `FREE`, `PRO`, `BUSINESS`, `ENTERPRISE`.
-- `EnvironmentConfigType`: `DOCKER_COMPOSE`.
+- `EnvironmentConfigType`: `DOCKER_COMPOSE`, `EXTERNAL_URL`.
+- `OnboardingSessionStatus`: `IN_PROGRESS`, `COMPLETED`.
 - `TestRunStatus`: durable run lifecycle from `CREATED` and `QUEUED` through runner phases
   (`PREPARING_WORKSPACE`, `VALIDATING_ENVIRONMENT`, `PULLING_IMAGES`,
   `STARTING_ENVIRONMENT`, `WAITING_FOR_HEALTHCHECK`, `EXECUTING_TESTS`,
@@ -65,6 +68,7 @@ Current core models:
 - `Company`, `User`, `SubscriptionPlan`.
 - `Project`.
 - `EnvironmentConfig`: one logical config per project; immutable content is stored in `EnvironmentConfigRevision`.
+- `OnboardingSession`: persisted wizard progress, selected project, draft data, completion time, and time-to-first-successful-run measurement.
 - `Secret`.
 - `AuditEvent`: append-only audit records for secret lifecycle and usage events.
 - `SecretRotationJob`: durable, resumable secret encryption key rotation progress.
@@ -128,6 +132,15 @@ Current protected resource endpoints are nested under projects where needed:
 - `POST /projects/:projectId/test-runs/:runId/cancel`
 - `GET /projects/:projectId/test-runs/:runId/report`
 - `GET /projects/:projectId/test-runs/:runId/logs`
+- `GET /onboarding/session`
+- `PATCH /onboarding/session`
+- `POST /onboarding/analyze-compose`
+- `POST /onboarding/git-repository`
+- `GET /onboarding/templates`
+- `POST /onboarding/confirm`
+- `POST /onboarding/demo-project`
+
+Onboarding endpoints are authenticated. Compose analysis is static YAML parsing only and does not invoke Docker Compose. Git repository import currently returns a not-implemented response and exists as an extension point without OAuth or repository cloning.
 
 Secret endpoints return metadata only, including `encryptionKeyVersion`, `lastUsedAt`, `createdById`, and `rotatedAt`; plaintext values are accepted only on create/update-style writes and are not returned. Key rotation jobs are scoped to the actor user's company. Swagger response DTOs now document secret metadata and rotation job responses, but response contracts are still not complete for every controller in the application.
 
@@ -179,13 +192,16 @@ Current lifecycle:
 7. It creates a local workspace.
 8. It advances through durable phase statuses.
 9. It writes Docker Compose and backend-test YAML files from the snapshotted environment revision.
-10. It validates and starts Docker Compose.
-11. It waits for healthcheck.
-12. It executes suite revision `executionPlan` snapshots, falling back to compiling legacy suite YAML when needed.
-13. It stores `TestResult` rows.
-14. It stores truncated Docker logs in `RunnerLog`.
-15. It marks the run `PASSED`, `TEST_FAILED`, `INFRA_FAILED`, `TIMED_OUT`, or `CANCELLED`.
-16. It stops Docker Compose and removes the workspace.
+10. For `DOCKER_COMPOSE`, it validates and starts Docker Compose.
+11. For `EXTERNAL_URL`, it skips Docker Compose validation/startup and uses the existing project base URL.
+12. It waits for healthcheck.
+13. It executes suite revision `executionPlan` snapshots, falling back to compiling legacy suite YAML when needed.
+14. It stores `TestResult` rows.
+15. It stores Docker logs for Docker Compose runs.
+16. It marks the run `PASSED`, `TEST_FAILED`, `INFRA_FAILED`, `TIMED_OUT`, or `CANCELLED`.
+17. It stops Docker Compose when used and removes the workspace.
+
+When an onboarding-created project reaches its first `PASSED` run, the platform records `timeToFirstSuccessfulRunMs` on `OnboardingSession` and exports Prometheus metrics for first successful onboarding runs.
 
 Important gaps:
 

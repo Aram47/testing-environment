@@ -19,15 +19,20 @@ describe('MetricsService', () => {
     service.incrementLogBytes('SYSTEM', 42);
     service.incrementArtifactBytes('RESPONSE_BODY', 128);
     service.incrementDockerCleanupFailure();
+    service.recordTimeToFirstSuccessfulRun(90000);
 
     const output = await service.render();
 
     expect(output).toContain('test_runs_total{status="PASSED"} 1');
     expect(output).toContain('runner_queue_wait_seconds_count 1');
-    expect(output).toContain('test_step_duration_seconds_count{type="apiRequest",status="PASSED"} 1');
+    expect(output).toContain(
+      'test_step_duration_seconds_count{type="apiRequest",status="PASSED"} 1',
+    );
     expect(output).toContain('log_bytes_total{source="SYSTEM"} 42');
     expect(output).toContain('artifact_bytes_total{type="RESPONSE_BODY"} 128');
     expect(output).toContain('docker_cleanup_failures_total 1');
+    expect(output).toContain('onboarding_first_successful_runs_total 1');
+    expect(output).toContain('onboarding_time_to_first_successful_run_seconds_count 1');
   });
 
   it('exposes stuck run gauges from existing TestRun fields', async () => {

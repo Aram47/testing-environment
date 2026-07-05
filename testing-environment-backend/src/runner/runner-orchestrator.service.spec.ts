@@ -10,6 +10,7 @@ import { ArtifactsService } from '../artifacts/artifacts.service';
 import { ReportArtifactService } from '../artifacts/report-artifact.service';
 import { ExecutionContextService } from '../observability/execution-context.service';
 import { MetricsService } from '../observability/metrics.service';
+import { OnboardingService } from '../onboarding/onboarding.service';
 import { StructuredLoggerService } from '../observability/structured-logger.service';
 import { TracingService } from '../observability/tracing.service';
 import { AssertionEngineService } from './assertion-engine.service';
@@ -79,6 +80,7 @@ describe('RunnerOrchestratorService', () => {
       createMetricsMock() as unknown as MetricsService,
       { event: jest.fn(), eventError: jest.fn() } as unknown as StructuredLoggerService,
       createTracingMock() as unknown as TracingService,
+      createOnboardingMock() as unknown as OnboardingService,
     );
 
   it('uses stored execution plans before legacy YAML fallback', () => {
@@ -192,6 +194,7 @@ describe('RunnerOrchestratorService', () => {
       createMetricsMock() as unknown as MetricsService,
       { event: jest.fn(), eventError: jest.fn() } as unknown as StructuredLoggerService,
       createTracingMock() as unknown as TracingService,
+      createOnboardingMock() as unknown as OnboardingService,
     );
 
     await service.execute('run-1');
@@ -216,8 +219,12 @@ function createMetricsMock() {
 
 function createTracingMock() {
   return {
-    span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
-      callback(),
-    ),
+    span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) => callback()),
+  };
+}
+
+function createOnboardingMock() {
+  return {
+    recordFirstSuccessfulRun: jest.fn(() => Promise.resolve(null)),
   };
 }

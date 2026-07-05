@@ -7,6 +7,7 @@ import { ArtifactsService } from '../src/artifacts/artifacts.service';
 import { ReportArtifactService } from '../src/artifacts/report-artifact.service';
 import { ExecutionContextService } from '../src/observability/execution-context.service';
 import { MetricsService } from '../src/observability/metrics.service';
+import { OnboardingService } from '../src/onboarding/onboarding.service';
 import { StructuredLoggerService } from '../src/observability/structured-logger.service';
 import { TracingService } from '../src/observability/tracing.service';
 import { AssertionEngineService } from '../src/runner/assertion-engine.service';
@@ -214,6 +215,7 @@ async function createFixture(options: FixtureOptions = {}) {
     environmentConfigRevision: {
       compiledComposeYaml: 'services:\n  app:\n    image: nginx\n',
       compiledRuntimeYaml: 'version: "1.0"\n',
+      environmentConfig: { type: 'DOCKER_COMPOSE' },
     },
     suiteRevisions: [
       {
@@ -385,6 +387,10 @@ async function createFixture(options: FixtureOptions = {}) {
         },
       },
       { provide: StructuredLoggerService, useValue: { event: jest.fn(), eventError: jest.fn() } },
+      {
+        provide: OnboardingService,
+        useValue: { recordFirstSuccessfulRun: jest.fn(() => Promise.resolve(null)) },
+      },
       {
         provide: TracingService,
         useValue: {

@@ -9,6 +9,7 @@ The main idea is simple: users work with forms, visual flows, or raw YAML in the
 - Creates companies, users, and projects.
 - Stores project environment configuration.
 - Generates `docker-compose.test.yml` and `backend-test.yml` from configurable UI fields.
+- Imports Docker Compose through onboarding by upload, paste, templates, or an already running environment.
 - Lets users create API test suites as visual request flows.
 - Generates canonical execution plans and YAML exports from visual flows.
 - Starts an isolated Docker Compose environment for every test run.
@@ -85,9 +86,43 @@ docker compose logs -f runner-worker
 
 1. Open `http://localhost/register`.
 2. Create a user with company name.
-3. After registration, the app opens the protected dashboard.
+3. After registration, the app opens the onboarding wizard.
 
 Password must be at least 8 characters.
+
+## Onboarding And Compose Import
+
+The onboarding wizard is available after registration and from `Onboarding` in the sidebar.
+
+It guides users through:
+
+1. Project settings.
+2. Environment import.
+3. API import or template selection.
+4. Confirmation.
+5. First test run.
+
+Supported import options:
+
+- upload `docker-compose.yml`;
+- paste Docker Compose YAML;
+- start from a built-in template;
+- use an already running API environment.
+
+Git repository import is visible as a future extension point only. OAuth and repository cloning are not implemented in this phase.
+
+Compose import is static analysis only. The backend parses YAML and detects services, images, build contexts, exposed ports, dependencies, environment variables, volumes, existing healthchecks, probable main service with confidence, probable base URL, and security warnings. It does not run Docker Compose during analysis.
+
+Security warnings are shown to the user and are not hidden. Users must confirm the detected result before the project/environment/test suite setup is saved.
+
+Built-in templates:
+
+- Node.js API + PostgreSQL.
+- NestJS API + PostgreSQL + Redis.
+- Microservices readiness.
+- Existing remote API without Compose.
+
+The existing remote API flow stores an `EXTERNAL_URL` environment config. Test runs for this type skip Docker Compose startup and execute healthcheck/tests against the project base URL.
 
 ## Core Workflow
 

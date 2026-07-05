@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ArtifactsModule } from '../artifacts/artifacts.module';
+import { OnboardingModule } from '../onboarding/onboarding.module';
 import { ExecutionPlanCompilerModule } from '../test-suites/execution-plan-compiler.module';
 import { SecretsCoreModule } from '../secrets/secrets-core.module';
 import { TestRunStateModule } from '../test-runs/test-run-state.module';
@@ -19,6 +20,7 @@ import { YamlTestParserService } from './yaml-test-parser.service';
     ExecutionPlanCompilerModule,
     SecretsCoreModule,
     ArtifactsModule,
+    OnboardingModule,
   ],
   providers: [
     AssertionEngineService,

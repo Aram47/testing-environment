@@ -7,6 +7,7 @@ import {
   TestResultStatus,
   TestRunFailureCategory,
   TestRunStatus,
+  EnvironmentConfigType,
 } from '@prisma/client';
 import { mkdir, rm, writeFile } from 'fs/promises';
 import { hostname } from 'os';
@@ -17,6 +18,7 @@ import { ArtifactsService } from '../artifacts/artifacts.service';
 import { ReportArtifactService } from '../artifacts/report-artifact.service';
 import { ExecutionContextService } from '../observability/execution-context.service';
 import { MetricsService } from '../observability/metrics.service';
+import { OnboardingService } from '../onboarding/onboarding.service';
 import { StructuredLoggerService } from '../observability/structured-logger.service';
 import { TracingService } from '../observability/tracing.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -94,6 +96,7 @@ export class RunnerOrchestratorService {
     private readonly metrics: MetricsService,
     private readonly structuredLogger: StructuredLoggerService,
     private readonly tracing: TracingService,
+    private readonly onboarding: OnboardingService,
   ) {
     this.runnerId = this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
   }
@@ -107,6 +110,7 @@ export class RunnerOrchestratorService {
   private async executeInternal(testRunId: string): Promise<void> {
     const started = Date.now();
     let workspace = '';
+    let usesDockerCompose = false;
     let context: RunExecutionContext | undefined;
     let secretContext: SecretExecutionContext = {
       secrets: new Map(),
@@ -117,7 +121,7 @@ export class RunnerOrchestratorService {
         where: { id: testRunId },
         include: {
           project: true,
-          environmentConfigRevision: true,
+          environmentConfigRevision: { include: { environmentConfig: true } },
           suiteRevisions: {
             orderBy: { position: 'asc' },
             include: { testSuiteRevision: true },
@@ -181,6 +185,8 @@ export class RunnerOrchestratorService {
       this.emit('run.started', testRunId);
 
       const environmentConfig = run.environmentConfigRevision;
+      usesDockerCompose =
+        environmentConfig.environmentConfig.type === EnvironmentConfigType.DOCKER_COMPOSE;
       secretContext = await this.secrets.resolveForRun(
         run.projectId,
         run.project.companyId,
@@ -209,8 +215,10 @@ export class RunnerOrchestratorService {
         environmentConfig.compiledRuntimeYaml,
         secretContext.secrets,
       );
-      this.docker.validateCompose(composeYaml);
-      await writeFile(join(workspace, 'docker-compose.test.yml'), composeYaml);
+      if (usesDockerCompose) {
+        this.docker.validateCompose(composeYaml);
+        await writeFile(join(workspace, 'docker-compose.test.yml'), composeYaml);
+      }
       await writeFile(join(workspace, 'backend-test.yml'), runtimeYaml);
       await mkdir(join(workspace, 'tests'), { recursive: true });
       for (const suite of testSuites) {
@@ -218,16 +226,23 @@ export class RunnerOrchestratorService {
       }
 
       await this.ensureNotCancelled(testRunId, context);
-      await this.state.enterPhase(testRunId, TestRunStatus.PULLING_IMAGES);
-      await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing docker images');
-      await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
-      this.emit('environment.starting', testRunId);
-      await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
-      await this.tracing.span('worker.environment_startup', { runId: testRunId }, async () => {
-        const environmentStarted = Date.now();
-        await this.docker.up(workspace, executionContext.signal);
-        this.metrics.observeEnvironmentStart(Date.now() - environmentStarted);
-      });
+      if (usesDockerCompose) {
+        await this.state.enterPhase(testRunId, TestRunStatus.PULLING_IMAGES);
+        await this.log(testRunId, RunnerLogSource.SYSTEM, 'Preparing docker images');
+        await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
+        this.emit('environment.starting', testRunId);
+        await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
+        await this.tracing.span('worker.environment_startup', { runId: testRunId }, async () => {
+          const environmentStarted = Date.now();
+          await this.docker.up(workspace, executionContext.signal);
+          this.metrics.observeEnvironmentStart(Date.now() - environmentStarted);
+        });
+      } else {
+        await this.state.enterPhase(testRunId, TestRunStatus.PULLING_IMAGES);
+        await this.log(testRunId, RunnerLogSource.SYSTEM, 'Skipping docker image preparation');
+        await this.state.enterPhase(testRunId, TestRunStatus.STARTING_ENVIRONMENT);
+        await this.log(testRunId, RunnerLogSource.SYSTEM, 'Using already running environment');
+      }
 
       await this.ensureNotCancelled(testRunId, context);
       await this.state.enterPhase(testRunId, TestRunStatus.WAITING_FOR_HEALTHCHECK);
@@ -253,11 +268,11 @@ export class RunnerOrchestratorService {
         secretContext,
       );
       await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
-      const dockerLogs = await this.tracing.span(
-        'worker.artifact_collection',
-        { runId: testRunId },
-        () => this.safeDockerLogs(workspace),
-      );
+      const dockerLogs = usesDockerCompose
+        ? await this.tracing.span('worker.artifact_collection', { runId: testRunId }, () =>
+            this.safeDockerLogs(workspace),
+          )
+        : '';
       if (dockerLogs) {
         await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs, secretContext);
         this.emit('logs.updated', testRunId);
@@ -271,7 +286,11 @@ export class RunnerOrchestratorService {
       }
 
       if (await this.isCancellationRequested(testRunId)) {
-        const finalRun = await this.state.markCancelled(testRunId, Date.now() - started, cleanupError);
+        const finalRun = await this.state.markCancelled(
+          testRunId,
+          Date.now() - started,
+          cleanupError,
+        );
         this.metrics.recordTestRun(finalRun.status, finalRun.durationMs);
       } else if (stats.failedTests > 0) {
         const finalRun = await this.state.markTestFailed(
@@ -284,6 +303,10 @@ export class RunnerOrchestratorService {
       } else {
         const finalRun = await this.state.markPassed(testRunId, stats, Date.now() - started);
         this.metrics.recordTestRun(finalRun.status, finalRun.durationMs);
+        await this.recordOnboardingFirstSuccess(
+          finalRun.projectId,
+          finalRun.finishedAt ?? new Date(),
+        );
       }
       await this.generateReport(testRunId);
     } catch (error) {
@@ -334,11 +357,13 @@ export class RunnerOrchestratorService {
       context?.stop();
       if (workspace) {
         this.emit('environment.stopping', testRunId);
-        await this.docker
-          .down(workspace)
-          .catch((error) =>
-            this.log(testRunId, RunnerLogSource.ERROR, String(error), secretContext),
-          );
+        if (usesDockerCompose) {
+          await this.docker
+            .down(workspace)
+            .catch((error) =>
+              this.log(testRunId, RunnerLogSource.ERROR, String(error), secretContext),
+            );
+        }
         await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       }
       this.emit('run.finished', testRunId);
@@ -436,6 +461,13 @@ export class RunnerOrchestratorService {
       }
     }
     return { totalTests, passedTests, failedTests };
+  }
+
+  private async recordOnboardingFirstSuccess(projectId: string, finishedAt: Date): Promise<void> {
+    const durationMs = await this.onboarding.recordFirstSuccessfulRun(projectId, finishedAt);
+    if (durationMs !== null) {
+      this.metrics.recordTimeToFirstSuccessfulRun(durationMs);
+    }
   }
 
   private resolveExecutionPlan(suite: {
