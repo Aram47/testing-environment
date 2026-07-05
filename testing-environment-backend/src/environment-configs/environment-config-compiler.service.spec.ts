@@ -59,6 +59,26 @@ describe('EnvironmentConfigCompilerService', () => {
     expect(backendTest.run).toEqual({ timeout_minutes: 10, cleanup: true });
   });
 
+  it('compiles secret and runtime environment value references', () => {
+    const config = createVisualConfig();
+    config.services[0].environment = [
+      { key: 'API_KEY', valueType: 'secret', secretKey: 'API_KEY' },
+      { key: 'BUILD_ID', valueType: 'runtime', variableName: 'BUILD_ID' },
+      { key: 'MODE', valueType: 'literal', value: 'test' },
+    ];
+
+    const result = service.compile(config);
+    const compose = yaml.load(result.composeYaml) as {
+      services: Record<string, { environment: Record<string, string> }>;
+    };
+
+    expect(compose.services.api.environment).toMatchObject({
+      API_KEY: '{{ secret.API_KEY }}',
+      BUILD_ID: '{{ BUILD_ID }}',
+      MODE: 'test',
+    });
+  });
+
   it('rejects duplicate service names', () => {
     const config = createVisualConfig();
     config.services.push({ name: 'api', image: 'another-api:latest' });

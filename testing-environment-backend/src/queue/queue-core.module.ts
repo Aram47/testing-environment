@@ -2,7 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TestRunStateModule } from '../test-runs/test-run-state.module';
-import { TEST_RUN_QUEUE } from './queue.constants';
+import { SECRET_ROTATION_QUEUE, TEST_RUN_QUEUE } from './queue.constants';
 import { TestRunQueueService } from './test-run-queue.service';
 
 @Module({
@@ -20,6 +20,14 @@ import { TestRunQueueService } from './test-run-queue.service';
       defaultJobOptions: {
         attempts: 1,
         removeOnComplete: 1000,
+        removeOnFail: false,
+      },
+    }),
+    BullModule.registerQueue({
+      name: SECRET_ROTATION_QUEUE,
+      defaultJobOptions: {
+        attempts: 1,
+        removeOnComplete: 100,
         removeOnFail: false,
       },
     }),

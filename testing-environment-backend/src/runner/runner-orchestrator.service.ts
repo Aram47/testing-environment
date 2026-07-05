@@ -10,6 +10,11 @@ import { mkdir, rm, writeFile } from 'fs/promises';
 import { hostname } from 'os';
 import { join } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  SecretExecutionContext,
+  SecretReferenceResolverService,
+} from '../secrets/secret-reference-resolver.service';
+import { SecretMaskingService } from '../secrets/secret-masking.service';
 import { ExecutionPlanCompilerService } from '../test-suites/execution-plan-compiler.service';
 import {
   ApiRequestStepConfig,
@@ -70,6 +75,8 @@ export class RunnerOrchestratorService {
     private readonly variables: VariableStoreService,
     private readonly realtime: RealtimeService,
     private readonly state: TestRunStateService,
+    private readonly secrets: SecretReferenceResolverService,
+    private readonly masking: SecretMaskingService,
   ) {
     this.runnerId = this.config.get<string>('TEST_RUN_RUNNER_ID') ?? `${hostname()}-${process.pid}`;
   }
@@ -78,6 +85,10 @@ export class RunnerOrchestratorService {
     const started = Date.now();
     let workspace = '';
     let context: RunExecutionContext | undefined;
+    let secretContext: SecretExecutionContext = {
+      secrets: new Map(),
+      masking: this.masking.emptyContext(),
+    };
     try {
       const run = await this.prisma.testRun.findUnique({
         where: { id: testRunId },
@@ -133,19 +144,37 @@ export class RunnerOrchestratorService {
       this.emit('run.started', testRunId);
 
       const environmentConfig = run.environmentConfigRevision;
+      secretContext = await this.secrets.resolveForRun(
+        run.projectId,
+        run.project.companyId,
+        testRunId,
+        environmentConfig,
+        run.suiteRevisions.map((suiteRevision) => suiteRevision.testSuiteRevision),
+      );
       const testSuites = run.suiteRevisions.map((suiteRevision) => ({
         id: suiteRevision.testSuiteRevisionId,
         name: suiteRevision.suiteName,
-        yamlContent: suiteRevision.testSuiteRevision.compiledYaml,
-        executionPlan: suiteRevision.testSuiteRevision.executionPlan,
+        yamlContent: this.secrets.replaceReferences(
+          suiteRevision.testSuiteRevision.compiledYaml,
+          secretContext.secrets,
+        ),
+        executionPlan: this.secrets.replaceReferences(
+          suiteRevision.testSuiteRevision.executionPlan,
+          secretContext.secrets,
+        ),
       }));
       await this.state.enterPhase(testRunId, TestRunStatus.VALIDATING_ENVIRONMENT);
-      this.docker.validateCompose(environmentConfig.compiledComposeYaml);
-      await writeFile(
-        join(workspace, 'docker-compose.test.yml'),
+      const composeYaml = this.secrets.replaceReferences(
         environmentConfig.compiledComposeYaml,
+        secretContext.secrets,
       );
-      await writeFile(join(workspace, 'backend-test.yml'), environmentConfig.compiledRuntimeYaml);
+      const runtimeYaml = this.secrets.replaceReferences(
+        environmentConfig.compiledRuntimeYaml,
+        secretContext.secrets,
+      );
+      this.docker.validateCompose(composeYaml);
+      await writeFile(join(workspace, 'docker-compose.test.yml'), composeYaml);
+      await writeFile(join(workspace, 'backend-test.yml'), runtimeYaml);
       await mkdir(join(workspace, 'tests'), { recursive: true });
       for (const suite of testSuites) {
         await writeFile(join(workspace, 'tests', `${suite.id}.yml`), suite.yamlContent);
@@ -171,18 +200,24 @@ export class RunnerOrchestratorService {
       this.emit('environment.ready', testRunId);
 
       await this.state.enterPhase(testRunId, TestRunStatus.EXECUTING_TESTS);
-      const stats = await this.executeSuites(testRunId, run.project.baseUrl, testSuites, context);
+      const stats = await this.executeSuites(
+        testRunId,
+        run.project.baseUrl,
+        testSuites,
+        context,
+        secretContext,
+      );
       await this.state.enterPhase(testRunId, TestRunStatus.COLLECTING_ARTIFACTS);
       const dockerLogs = await this.safeDockerLogs(workspace);
       if (dockerLogs) {
-        await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs.slice(-20000));
+        await this.log(testRunId, RunnerLogSource.DOCKER, dockerLogs.slice(-20000), secretContext);
         this.emit('logs.updated', testRunId);
       }
 
       await this.state.enterPhase(testRunId, TestRunStatus.CLEANING_UP);
       let cleanupError: string | undefined;
       if (workspace) {
-        cleanupError = await this.cleanupWorkspace(testRunId, workspace);
+        cleanupError = await this.cleanupWorkspace(testRunId, workspace, secretContext);
         workspace = '';
       }
 
@@ -199,16 +234,22 @@ export class RunnerOrchestratorService {
         await this.state.markPassed(testRunId, stats, Date.now() - started);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Runner failed';
-      await this.log(testRunId, RunnerLogSource.ERROR, message).catch(() => undefined);
+      const message = this.masking.maskString(
+        error instanceof Error ? error.message : 'Runner failed',
+        secretContext.masking,
+      );
+      await this.log(testRunId, RunnerLogSource.ERROR, message, secretContext).catch(
+        () => undefined,
+      );
       if (
         error instanceof TestRunCancellationError ||
         (await this.isCancellationRequested(testRunId))
       ) {
         await this.state.requestCancel(testRunId).catch(() => undefined);
         const cleanupError = workspace
-          ? await this.cleanupWorkspace(testRunId, workspace).catch((cleanupFailure) =>
-              String(cleanupFailure),
+          ? await this.cleanupWorkspace(testRunId, workspace, secretContext).catch(
+              (cleanupFailure) =>
+                this.masking.maskString(String(cleanupFailure), secretContext.masking),
             )
           : undefined;
         workspace = '';
@@ -237,7 +278,9 @@ export class RunnerOrchestratorService {
         this.emit('environment.stopping', testRunId);
         await this.docker
           .down(workspace)
-          .catch((error) => this.log(testRunId, RunnerLogSource.ERROR, String(error)));
+          .catch((error) =>
+            this.log(testRunId, RunnerLogSource.ERROR, String(error), secretContext),
+          );
         await rm(workspace, { recursive: true, force: true }).catch(() => undefined);
       }
       this.emit('run.finished', testRunId);
@@ -249,6 +292,7 @@ export class RunnerOrchestratorService {
     baseUrl: string,
     suites: { id: string; name: string; yamlContent: string; executionPlan: unknown }[],
     context: RunExecutionContext,
+    secretContext: SecretExecutionContext,
   ): Promise<{ totalTests: number; passedTests: number; failedTests: number }> {
     const store = this.variables.create();
     const responseStore = new Map<string, unknown>();
@@ -265,7 +309,7 @@ export class RunnerOrchestratorService {
         this.emit('test.started', testRunId, {
           suiteName: plan.suiteName,
           testName: test.name,
-          ...stepMeta,
+          ...this.masking.maskValue(stepMeta, secretContext.masking),
         });
         const result = await this.executeStep(
           testRunId,
@@ -274,6 +318,7 @@ export class RunnerOrchestratorService {
           store,
           responseStore,
           context,
+          secretContext,
         );
         if (result.responseBody !== undefined) {
           responseStore.set(test.id, result.responseBody);
@@ -295,17 +340,25 @@ export class RunnerOrchestratorService {
             actualStatus: result.actualStatus,
             attempts: result.attempts,
             durationMs: result.durationMs,
-            requestBody: this.toJsonValue(stepMeta.requestBody),
-            responseBody: this.toJsonValue(result.responseBody),
-            errorMessage: result.errorMessage,
+            requestBody: this.toJsonValue(
+              this.masking.maskValue(stepMeta.requestBody, secretContext.masking),
+            ),
+            responseBody: this.toJsonValue(
+              this.masking.maskValue(result.responseBody, secretContext.masking),
+            ),
+            errorMessage: result.errorMessage
+              ? this.masking.maskString(result.errorMessage, secretContext.masking)
+              : undefined,
           },
         });
         this.emit(passed ? 'test.passed' : 'test.failed', testRunId, {
           suiteName: plan.suiteName,
           testName: test.name,
-          ...stepMeta,
+          ...this.masking.maskValue(stepMeta, secretContext.masking),
           attempts: result.attempts,
-          errorMessage: result.errorMessage,
+          errorMessage: result.errorMessage
+            ? this.masking.maskString(result.errorMessage, secretContext.masking)
+            : undefined,
         });
       }
     }
@@ -347,6 +400,7 @@ export class RunnerOrchestratorService {
     store: Map<string, string>,
     responseStore: Map<string, unknown>,
     context: RunExecutionContext,
+    secretContext: SecretExecutionContext,
   ): Promise<StepExecutionResult> {
     if (test.type === 'sequence') {
       return {
@@ -362,7 +416,7 @@ export class RunnerOrchestratorService {
     }
 
     if (test.type === 'pollUntil') {
-      return this.executePoll(testRunId, baseUrl, test, store, context);
+      return this.executePoll(testRunId, baseUrl, test, store, context, secretContext);
     }
 
     if (test.type === 'setVariable') {
@@ -373,7 +427,15 @@ export class RunnerOrchestratorService {
       return this.executeAssert(test, responseStore);
     }
 
-    return this.executeRequest(testRunId, baseUrl, test.name, test.config, store, context);
+    return this.executeRequest(
+      testRunId,
+      baseUrl,
+      test.name,
+      test.config,
+      store,
+      context,
+      secretContext,
+    );
   }
 
   private async executeRequest(
@@ -383,9 +445,16 @@ export class RunnerOrchestratorService {
     requestDefinition: ApiRequestStepConfig,
     store: Map<string, string>,
     context: RunExecutionContext,
+    secretContext: SecretExecutionContext,
   ): Promise<StepExecutionResult> {
-    const request = this.variables.interpolate(requestDefinition, store);
-    const result = await this.http.execute(baseUrl, { name, request }, store, context.signal);
+    const request = this.variables.interpolate(requestDefinition, store, secretContext.secrets);
+    const result = await this.http.execute(
+      baseUrl,
+      { name, request },
+      store,
+      secretContext.secrets,
+      context.signal,
+    );
     await this.ensureNotCancelled(testRunId, context);
     return this.evaluateRequestResult(result, request, store, 1);
   }
@@ -396,6 +465,7 @@ export class RunnerOrchestratorService {
     test: PollUntilExecutionStep,
     store: Map<string, string>,
     context: RunExecutionContext,
+    secretContext: SecretExecutionContext,
   ): Promise<StepExecutionResult> {
     const started = Date.now();
     const timeoutMs = test.config.timeoutMs;
@@ -406,11 +476,12 @@ export class RunnerOrchestratorService {
     while (Date.now() - started <= timeoutMs) {
       await this.ensureNotCancelled(testRunId, context);
       attempts += 1;
-      const request = this.variables.interpolate(test.config.request, store);
+      const request = this.variables.interpolate(test.config.request, store, secretContext.secrets);
       const httpResult = await this.http.execute(
         baseUrl,
         { name: test.name, request },
         store,
+        secretContext.secrets,
         context.signal,
       );
       await this.ensureNotCancelled(testRunId, context);
@@ -622,8 +693,19 @@ export class RunnerOrchestratorService {
     return workspace;
   }
 
-  private async log(testRunId: string, source: RunnerLogSource, message: string): Promise<void> {
-    await this.prisma.runnerLog.create({ data: { testRunId, source, message } });
+  private async log(
+    testRunId: string,
+    source: RunnerLogSource,
+    message: string,
+    secretContext?: SecretExecutionContext,
+  ): Promise<void> {
+    await this.prisma.runnerLog.create({
+      data: {
+        testRunId,
+        source,
+        message: secretContext ? this.masking.maskString(message, secretContext.masking) : message,
+      },
+    });
   }
 
   private async safeDockerLogs(workspace: string): Promise<string> {
@@ -714,15 +796,21 @@ export class RunnerOrchestratorService {
   private async cleanupWorkspace(
     testRunId: string,
     workspace: string,
+    secretContext: SecretExecutionContext,
   ): Promise<string | undefined> {
     this.emit('environment.stopping', testRunId);
     let cleanupError: string | undefined;
     await this.docker.down(workspace).catch(async (error) => {
       cleanupError = error instanceof Error ? error.message : String(error);
-      await this.log(testRunId, RunnerLogSource.ERROR, cleanupError).catch(() => undefined);
+      await this.log(testRunId, RunnerLogSource.ERROR, cleanupError, secretContext).catch(
+        () => undefined,
+      );
     });
     await rm(workspace, { recursive: true, force: true }).catch((error) => {
-      cleanupError = error instanceof Error ? error.message : String(error);
+      cleanupError = this.masking.maskString(
+        error instanceof Error ? error.message : String(error),
+        secretContext.masking,
+      );
     });
     return cleanupError;
   }

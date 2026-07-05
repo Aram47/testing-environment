@@ -79,6 +79,13 @@ enum TestSuiteSourceMode {
   RAW_YAML
 }
 
+enum SecretRotationJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id                            String                      @id @default(uuid())
   email                         String                      @unique
@@ -92,6 +99,9 @@ model User {
   environmentRevisionsPublished EnvironmentConfigRevision[] @relation("EnvironmentRevisionPublishedBy")
   suiteRevisionsCreated         TestSuiteRevision[]         @relation("TestSuiteRevisionCreatedBy")
   suiteRevisionsPublished       TestSuiteRevision[]         @relation("TestSuiteRevisionPublishedBy")
+  secretsCreated                Secret[]                    @relation("SecretCreatedBy")
+  auditEvents                   AuditEvent[]                @relation("AuditEventActor")
+  secretRotationJobs            SecretRotationJob[]         @relation("SecretRotationJobActor")
   createdAt                     DateTime                    @default(now())
   updatedAt                     DateTime                    @updatedAt
 
@@ -105,6 +115,7 @@ model Company {
   subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
   users              User[]
   projects           Project[]
+  secretRotationJobs SecretRotationJob[]
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -182,16 +193,67 @@ model EnvironmentConfigRevision {
 }
 
 model Secret {
-  id             String   @id @default(uuid())
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  key            String
-  encryptedValue String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                   String    @id @default(uuid())
+  projectId            String
+  project              Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key                  String
+  encryptedValue       String
+  encryptionKeyVersion String    @default("v1")
+  lastUsedAt           DateTime?
+  createdById          String?
+  createdBy            User?     @relation("SecretCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  rotatedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@unique([projectId, key])
   @@index([projectId])
+  @@index([createdById])
+  @@index([encryptionKeyVersion])
+}
+
+model AuditEvent {
+  id          String   @id @default(uuid())
+  type        String
+  companyId   String?
+  projectId   String?
+  actorUserId String?
+  actorUser   User?    @relation("AuditEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  resourceId  String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([companyId])
+  @@index([projectId])
+  @@index([actorUserId])
+  @@index([resourceId])
+  @@index([createdAt])
+}
+
+model SecretRotationJob {
+  id                    String                  @id @default(uuid())
+  status                SecretRotationJobStatus @default(PENDING)
+  companyId             String
+  company               Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fromKeyVersion        String
+  toKeyVersion          String
+  totalSecrets          Int                     @default(0)
+  processedSecrets      Int                     @default(0)
+  lastProcessedSecretId String?
+  errorMessage          String?
+  actorUserId           String?
+  actorUser             User?                   @relation("SecretRotationJobActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  startedAt             DateTime?
+  finishedAt            DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  @@index([status])
+  @@index([companyId])
+  @@index([fromKeyVersion, toKeyVersion])
+  @@index([actorUserId])
+  @@index([createdAt])
 }
 
 model TestSuite {

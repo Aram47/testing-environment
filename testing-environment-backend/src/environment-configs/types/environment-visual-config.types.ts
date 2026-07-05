@@ -23,7 +23,10 @@ export interface EnvironmentPortMapping {
 
 export interface EnvironmentVariable {
   key: string;
-  value: string;
+  value?: string;
+  valueType?: 'literal' | 'secret' | 'runtime';
+  secretKey?: string;
+  variableName?: string;
 }
 
 export interface EnvironmentAppConfig {

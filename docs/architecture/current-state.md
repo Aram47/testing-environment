@@ -58,6 +58,7 @@ Current enums:
   `CONTAINER_START`, `HEALTHCHECK`, `NETWORK`, `TIMEOUT`, `CANCELLED`, `INTERNAL`.
 - `TestResultStatus`: `PASSED`, `FAILED`.
 - `RunnerLogSource`: `SYSTEM`, `DOCKER`, `TEST`, `ERROR`.
+- `SecretRotationJobStatus`: `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`.
 
 Current core models:
 
@@ -65,6 +66,8 @@ Current core models:
 - `Project`.
 - `EnvironmentConfig`: one logical config per project; immutable content is stored in `EnvironmentConfigRevision`.
 - `Secret`.
+- `AuditEvent`: append-only audit records for secret lifecycle and usage events.
+- `SecretRotationJob`: durable, resumable secret encryption key rotation progress.
 - `TestSuite`: logical suite rows with soft-delete; immutable content is stored in `TestSuiteRevision`.
 - `TestRun`: run status, counters, timing, error message, runner/report schema metadata, and snapshot links to exact environment/suite revisions.
 - `TestRunSuiteRevision`: ordered suite revision snapshot rows used by a run.
@@ -112,6 +115,7 @@ Current protected resource endpoints are nested under projects where needed:
 - `POST /projects/:projectId/secrets`
 - `GET /projects/:projectId/secrets`
 - `DELETE /projects/:projectId/secrets/:secretId`
+- `POST /secrets/key-rotations`
 - `POST /projects/:projectId/test-suites`
 - `GET /projects/:projectId/test-suites`
 - `POST /projects/:projectId/test-suites/compile-flow`
@@ -125,7 +129,7 @@ Current protected resource endpoints are nested under projects where needed:
 - `GET /projects/:projectId/test-runs/:runId/report`
 - `GET /projects/:projectId/test-runs/:runId/logs`
 
-Swagger decorators are present at controller/tag level, but DTO response contracts are not a complete typed OpenAPI contract for all returned shapes.
+Secret endpoints return metadata only, including `encryptionKeyVersion`, `lastUsedAt`, `createdById`, and `rotatedAt`; plaintext values are accepted only on create/update-style writes and are not returned. Key rotation jobs are scoped to the actor user's company. Swagger response DTOs now document secret metadata and rotation job responses, but response contracts are still not complete for every controller in the application.
 
 ## Authentication And Authorization
 

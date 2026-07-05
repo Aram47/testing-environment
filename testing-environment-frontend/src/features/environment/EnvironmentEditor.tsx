@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, FileCode2, GitCompare, History, Plus, Rocket, Trash2 } from 'lucide-react';
 import type { EnvironmentRevisionCompareResult } from '../../api/environment-configs.api';
 import { environmentConfigsApi } from '../../api/environment-configs.api';
+import { secretsApi } from '../../api/secrets.api';
 import { Button } from '../../components/ui/Button';
 import { YamlEditor } from '../../editors/YamlEditor';
 import { backendTestExample, dockerComposeExample } from '../../lib/examples';
@@ -13,6 +15,7 @@ import type {
   EnvironmentServiceConfig,
   EnvironmentVariable,
   EnvironmentVisualConfig,
+  SecretMetadata,
 } from '../../types';
 
 interface EnvironmentEditorProps {
@@ -50,6 +53,10 @@ export function EnvironmentEditor({
   const [visualConfig, setVisualConfig] = useState<EnvironmentVisualConfig>(() => value?.visualConfig ?? createDefaultVisualConfig());
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
+  const secretsQuery = useQuery({
+    queryKey: ['project-secrets', projectId],
+    queryFn: () => secretsApi.list(projectId),
+  });
 
   const validateYaml = () => {
     const compose = YamlValidator.validate(dockerComposeYaml);
@@ -163,7 +170,11 @@ export function EnvironmentEditor({
 
       {mode === 'config' ? (
         <>
-          <ConfigForm value={visualConfig} onChange={setVisualConfig} />
+          <ConfigForm
+            value={visualConfig}
+            secrets={secretsQuery.data ?? []}
+            onChange={setVisualConfig}
+          />
           {warnings.length > 0 ? (
             <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               {warnings.map((warning) => (
@@ -318,10 +329,11 @@ function formatDate(value?: string) {
 
 interface ConfigFormProps {
   value: EnvironmentVisualConfig;
+  secrets: SecretMetadata[];
   onChange: (value: EnvironmentVisualConfig) => void;
 }
 
-function ConfigForm({ value, onChange }: ConfigFormProps) {
+function ConfigForm({ value, secrets, onChange }: ConfigFormProps) {
   const updateApp = (app: Partial<EnvironmentVisualConfig['app']>) => onChange({ ...value, app: { ...value.app, ...app } });
   const updateRun = (run: Partial<EnvironmentVisualConfig['run']>) => onChange({ ...value, run: { ...value.run, ...run } });
   const updateService = (index: number, service: EnvironmentServiceConfig) => {
@@ -361,6 +373,7 @@ function ConfigForm({ value, onChange }: ConfigFormProps) {
           <ServiceCard
             key={`${service.name}-${index}`}
             service={service}
+            secrets={secrets}
             allServices={value.services}
             onChange={(nextService) => updateService(index, nextService)}
             onRemove={() => removeService(index)}
@@ -405,12 +418,13 @@ function ConfigForm({ value, onChange }: ConfigFormProps) {
 
 interface ServiceCardProps {
   service: EnvironmentServiceConfig;
+  secrets: SecretMetadata[];
   allServices: EnvironmentServiceConfig[];
   onChange: (service: EnvironmentServiceConfig) => void;
   onRemove: () => void;
 }
 
-function ServiceCard({ service, allServices, onChange, onRemove }: ServiceCardProps) {
+function ServiceCard({ service, secrets, allServices, onChange, onRemove }: ServiceCardProps) {
   const update = (changes: Partial<EnvironmentServiceConfig>) => onChange({ ...service, ...changes });
   const dependencyOptions = allServices.filter((item) => item.name !== service.name);
 
@@ -430,7 +444,11 @@ function ServiceCard({ service, allServices, onChange, onRemove }: ServiceCardPr
       </div>
       <TextField label="Command" value={service.command ?? ''} onChange={(command) => update({ command })} />
       <PortsEditor value={service.ports ?? []} onChange={(ports) => update({ ports })} />
-      <EnvironmentVariablesEditor value={service.environment ?? []} onChange={(environment) => update({ environment })} />
+      <EnvironmentVariablesEditor
+        value={service.environment ?? []}
+        secrets={secrets}
+        onChange={(environment) => update({ environment })}
+      />
       {dependencyOptions.length > 0 ? (
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-ink">Depends on</legend>
@@ -472,18 +490,98 @@ function PortsEditor({ value, onChange }: { value: EnvironmentPortMapping[]; onC
   );
 }
 
-function EnvironmentVariablesEditor({ value, onChange }: { value: EnvironmentVariable[]; onChange: (value: EnvironmentVariable[]) => void }) {
+function EnvironmentVariablesEditor({
+  value,
+  secrets,
+  onChange,
+}: {
+  value: EnvironmentVariable[];
+  secrets: SecretMetadata[];
+  onChange: (value: EnvironmentVariable[]) => void;
+}) {
   return (
-    <FieldGroup title="Environment variables" onAdd={() => onChange([...value, { key: '', value: '' }])}>
+    <FieldGroup title="Environment variables" onAdd={() => onChange([...value, { key: '', value: '', valueType: 'literal' }])}>
       {value.map((entry, index) => (
-        <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div key={index} className="grid gap-3 md:grid-cols-[1fr_150px_minmax(0,1fr)_auto]">
           <input className="input" placeholder="KEY" value={entry.key} onChange={(event) => onChange(updateList(value, index, { ...entry, key: event.target.value }))} />
-          <input className="input" placeholder="value" value={entry.value} onChange={(event) => onChange(updateList(value, index, { ...entry, value: event.target.value }))} />
+          <select
+            className="input"
+            value={entry.valueType ?? 'literal'}
+            onChange={(event) => onChange(updateList(value, index, normalizeEnvironmentValue(entry, event.target.value as NonNullable<EnvironmentVariable['valueType']>)))}
+          >
+            <option value="literal">Literal</option>
+            <option value="secret">Project secret</option>
+            <option value="runtime">Runtime variable</option>
+          </select>
+          <EnvironmentValueInput
+            entry={entry}
+            secrets={secrets}
+            onChange={(nextEntry) => onChange(updateList(value, index, nextEntry))}
+          />
           <Button type="button" variant="ghost" onClick={() => onChange(removeListItem(value, index))}>Remove</Button>
         </div>
       ))}
     </FieldGroup>
   );
+}
+
+function EnvironmentValueInput({
+  entry,
+  secrets,
+  onChange,
+}: {
+  entry: EnvironmentVariable;
+  secrets: SecretMetadata[];
+  onChange: (value: EnvironmentVariable) => void;
+}) {
+  const valueType = entry.valueType ?? 'literal';
+  if (valueType === 'secret') {
+    return (
+      <select
+        className="input"
+        value={entry.secretKey ?? ''}
+        onChange={(event) => onChange({ ...entry, secretKey: event.target.value })}
+      >
+        <option value="">Select secret</option>
+        {secrets.map((secret) => (
+          <option key={secret.id} value={secret.key}>{secret.key}</option>
+        ))}
+      </select>
+    );
+  }
+
+  if (valueType === 'runtime') {
+    return (
+      <input
+        className="input"
+        placeholder="VARIABLE_NAME"
+        value={entry.variableName ?? ''}
+        onChange={(event) => onChange({ ...entry, variableName: event.target.value })}
+      />
+    );
+  }
+
+  return (
+    <input
+      className="input"
+      placeholder="value"
+      value={entry.value ?? ''}
+      onChange={(event) => onChange({ ...entry, value: event.target.value })}
+    />
+  );
+}
+
+function normalizeEnvironmentValue(
+  entry: EnvironmentVariable,
+  valueType: NonNullable<EnvironmentVariable['valueType']>,
+): EnvironmentVariable {
+  if (valueType === 'secret') {
+    return { key: entry.key, valueType, secretKey: entry.secretKey ?? '' };
+  }
+  if (valueType === 'runtime') {
+    return { key: entry.key, valueType, variableName: entry.variableName ?? '' };
+  }
+  return { key: entry.key, valueType, value: entry.value ?? '' };
 }
 
 function FieldGroup({ title, children, onAdd }: { title: string; children: ReactNode; onAdd: () => void }) {

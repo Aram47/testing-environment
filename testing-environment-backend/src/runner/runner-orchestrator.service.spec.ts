@@ -1,5 +1,7 @@
 import { TestRunStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SecretMaskingService } from '../secrets/secret-masking.service';
+import { SecretReferenceResolverService } from '../secrets/secret-reference-resolver.service';
 import { ExecutionPlanCompilerService } from '../test-suites/execution-plan-compiler.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
@@ -50,6 +52,15 @@ describe('RunnerOrchestratorService', () => {
         isCancellationRequested: jest.fn(() => Promise.resolve(false)),
         renewLease: jest.fn(() => Promise.resolve(true)),
       } as unknown as TestRunStateService,
+      {
+        resolveForRun: jest.fn(),
+        replaceReferences: jest.fn((value) => value),
+      } as unknown as SecretReferenceResolverService,
+      {
+        emptyContext: jest.fn(() => ({ values: [] })),
+        maskString: jest.fn((value: string) => value),
+        maskValue: jest.fn((value: unknown) => value),
+      } as unknown as SecretMaskingService,
     );
 
   it('uses stored execution plans before legacy YAML fallback', () => {
@@ -143,6 +154,15 @@ describe('RunnerOrchestratorService', () => {
         isCancellationRequested: jest.fn(() => Promise.resolve(false)),
         renewLease: jest.fn(() => Promise.resolve(true)),
       } as unknown as TestRunStateService,
+      {
+        resolveForRun: jest.fn(),
+        replaceReferences: jest.fn((value) => value),
+      } as unknown as SecretReferenceResolverService,
+      {
+        emptyContext: jest.fn(() => ({ values: [] })),
+        maskString: jest.fn((value: string) => value),
+        maskValue: jest.fn((value: unknown) => value),
+      } as unknown as SecretMaskingService,
     );
 
     await service.execute('run-1');

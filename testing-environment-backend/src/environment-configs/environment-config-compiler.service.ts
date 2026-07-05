@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import * as yaml from 'js-yaml';
 import {
   EnvironmentCompileResult,
+  EnvironmentVariable,
   EnvironmentServiceConfig,
   EnvironmentVisualConfig,
 } from './types/environment-visual-config.types';
@@ -98,7 +99,9 @@ export class EnvironmentConfigCompilerService {
     }
     if (service.environment?.length) {
       composeService.environment = Object.fromEntries(
-        service.environment.filter((entry) => entry.key).map((entry) => [entry.key, entry.value]),
+        service.environment
+          .filter((entry) => entry.key)
+          .map((entry) => [entry.key, this.environmentValue(entry)]),
       );
     }
     if (service.dependsOn?.length) {
@@ -133,5 +136,15 @@ export class EnvironmentConfigCompilerService {
         cleanup: config.run.cleanup,
       },
     };
+  }
+
+  private environmentValue(entry: EnvironmentVariable): string {
+    if (entry.valueType === 'secret') {
+      return entry.secretKey ? `{{ secret.${entry.secretKey} }}` : '';
+    }
+    if (entry.valueType === 'runtime') {
+      return entry.variableName ? `{{ ${entry.variableName} }}` : '';
+    }
+    return entry.value ?? '';
   }
 }

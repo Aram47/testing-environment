@@ -160,6 +160,36 @@ Environment variables:
 empty
 ```
 
+### Environment Secrets
+
+Project secrets are stored encrypted and are never returned as plaintext after creation.
+Use the project secrets API or UI-backed metadata selector, then reference secrets in YAML or visual
+environment variables with:
+
+```text
+{{ secret.API_KEY }}
+```
+
+The visual environment editor supports three value modes:
+
+- literal value;
+- project secret, compiled as `{{ secret.KEY }}`;
+- runtime variable, compiled as `{{ VARIABLE_NAME }}`.
+
+Runner execution resolves only the secrets referenced by the selected immutable environment and suite
+revisions. Logs, response bodies, reports, errors, and realtime events are masked before persistence or
+publication.
+
+Secret encryption keys are versioned with:
+
+```text
+SECRET_ENCRYPTION_KEYS={"v1":"base64-32-byte-key","v2":"base64-32-byte-key"}
+ACTIVE_SECRET_ENCRYPTION_KEY_VERSION=v2
+```
+
+`SECRET_ENCRYPTION_KEY` remains supported as the legacy `v1` fallback. Owners/admins can enqueue
+resumable key rotation for their company secrets with `POST /secrets/key-rotations`.
+
 Depends on:
 
 ```text

@@ -161,7 +161,22 @@ export interface EnvironmentPortMapping {
 
 export interface EnvironmentVariable {
   key: string;
-  value: string;
+  value?: string;
+  valueType?: 'literal' | 'secret' | 'runtime';
+  secretKey?: string;
+  variableName?: string;
+}
+
+export interface SecretMetadata {
+  id: string;
+  projectId: string;
+  key: string;
+  encryptionKeyVersion: string;
+  lastUsedAt?: string | null;
+  createdById?: string | null;
+  rotatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EnvironmentAppConfig {

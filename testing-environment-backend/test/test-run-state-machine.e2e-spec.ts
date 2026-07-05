@@ -9,6 +9,8 @@ import { HttpTestExecutorService } from '../src/runner/http-test-executor.servic
 import { RunnerOrchestratorService } from '../src/runner/runner-orchestrator.service';
 import { VariableStoreService } from '../src/runner/variable-store.service';
 import { YamlTestParserService } from '../src/runner/yaml-test-parser.service';
+import { SecretMaskingService } from '../src/secrets/secret-masking.service';
+import { SecretReferenceResolverService } from '../src/secrets/secret-reference-resolver.service';
 import { ExecutionPlanCompilerService } from '../src/test-suites/execution-plan-compiler.service';
 import { ExecutionPlan, ExecutionStep } from '../src/test-suites/types/execution-plan.types';
 import { TestRunStateService } from '../src/test-runs/test-run-state.service';
@@ -333,6 +335,23 @@ async function createFixture(options: FixtureOptions = {}) {
         },
       },
       { provide: RealtimeService, useValue: { emitRunEvent: jest.fn() } },
+      {
+        provide: SecretReferenceResolverService,
+        useValue: {
+          resolveForRun: jest.fn(() =>
+            Promise.resolve({ secrets: new Map(), masking: { values: [] } }),
+          ),
+          replaceReferences: jest.fn((value: unknown) => value),
+        },
+      },
+      {
+        provide: SecretMaskingService,
+        useValue: {
+          emptyContext: jest.fn(() => ({ values: [] })),
+          maskString: jest.fn((value: string) => value),
+          maskValue: jest.fn((value: unknown) => value),
+        },
+      },
     ],
   }).compile();
 

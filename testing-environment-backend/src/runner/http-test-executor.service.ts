@@ -15,10 +15,11 @@ export class HttpTestExecutorService {
     baseUrl: string,
     test: { name: string; request: ApiRequestStepConfig },
     store: Map<string, string>,
+    secrets = new Map<string, string>(),
     signal?: AbortSignal,
   ): Promise<HttpExecutionResult> {
     const started = Date.now();
-    const request = this.variables.interpolate(test.request, store);
+    const request = this.variables.interpolate(test.request, store, secrets);
     const controller = new AbortController();
     const abortFromParent = () => controller.abort(signal?.reason);
     const timeout = setTimeout(
