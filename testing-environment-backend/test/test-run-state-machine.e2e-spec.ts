@@ -5,6 +5,10 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { ArtifactLogWriterService } from '../src/artifacts/artifact-log-writer.service';
 import { ArtifactsService } from '../src/artifacts/artifacts.service';
 import { ReportArtifactService } from '../src/artifacts/report-artifact.service';
+import { ExecutionContextService } from '../src/observability/execution-context.service';
+import { MetricsService } from '../src/observability/metrics.service';
+import { StructuredLoggerService } from '../src/observability/structured-logger.service';
+import { TracingService } from '../src/observability/tracing.service';
 import { AssertionEngineService } from '../src/runner/assertion-engine.service';
 import { DockerComposeManagerService } from '../src/runner/docker-compose-manager.service';
 import { HealthcheckService } from '../src/runner/healthcheck.service';
@@ -367,6 +371,27 @@ async function createFixture(options: FixtureOptions = {}) {
       {
         provide: ReportArtifactService,
         useValue: { generateForRun: jest.fn(() => Promise.resolve()) },
+      },
+      { provide: ExecutionContextService, useValue: { merge: jest.fn() } },
+      {
+        provide: MetricsService,
+        useValue: {
+          recordQueueWait: jest.fn(),
+          observeEnvironmentStart: jest.fn(),
+          observeHealthcheck: jest.fn(),
+          observeStep: jest.fn(),
+          recordTestRun: jest.fn(),
+          incrementDockerCleanupFailure: jest.fn(),
+        },
+      },
+      { provide: StructuredLoggerService, useValue: { event: jest.fn(), eventError: jest.fn() } },
+      {
+        provide: TracingService,
+        useValue: {
+          span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
+            callback(),
+          ),
+        },
       },
     ],
   }).compile();

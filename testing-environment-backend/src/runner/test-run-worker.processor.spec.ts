@@ -1,4 +1,9 @@
 import { TestRunFailureCategory } from '@prisma/client';
+import { ExecutionContextService } from '../observability/execution-context.service';
+import { MetricsService } from '../observability/metrics.service';
+import { StructuredLoggerService } from '../observability/structured-logger.service';
+import { TracingService } from '../observability/tracing.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RunnerOrchestratorService } from './runner-orchestrator.service';
 import { resolveWorkerMaxStalledCount, TestRunWorkerProcessor } from './test-run-worker.processor';
@@ -12,10 +17,7 @@ describe('TestRunWorkerProcessor', () => {
 
   it('runs the orchestrator for claimed jobs', async () => {
     const orchestrator = { execute: jest.fn(() => Promise.resolve()) };
-    const processor = new TestRunWorkerProcessor(
-      orchestrator as unknown as RunnerOrchestratorService,
-      {} as TestRunStateService,
-    );
+    const processor = createProcessor(orchestrator);
 
     await processor.process({ data: { testRunId: 'run-1' } } as never);
 
@@ -26,10 +28,7 @@ describe('TestRunWorkerProcessor', () => {
     const state = {
       tryMarkInfraFailed: jest.fn(() => Promise.resolve({ id: 'run-1' })),
     };
-    const processor = new TestRunWorkerProcessor(
-      { execute: jest.fn() } as unknown as RunnerOrchestratorService,
-      state as unknown as TestRunStateService,
-    );
+    const processor = createProcessor({ execute: jest.fn() }, state);
 
     await processor.onFailed(
       {
@@ -52,10 +51,7 @@ describe('TestRunWorkerProcessor', () => {
     const state = {
       tryMarkInfraFailed: jest.fn(() => Promise.resolve(null)),
     };
-    const processor = new TestRunWorkerProcessor(
-      { execute: jest.fn() } as unknown as RunnerOrchestratorService,
-      state as unknown as TestRunStateService,
-    );
+    const processor = createProcessor({ execute: jest.fn() }, state);
 
     await processor.onFailed(
       {
@@ -74,3 +70,40 @@ describe('TestRunWorkerProcessor', () => {
     );
   });
 });
+
+function createProcessor(
+  orchestrator: unknown,
+  state: unknown = { tryMarkInfraFailed: jest.fn() },
+): TestRunWorkerProcessor {
+  return new TestRunWorkerProcessor(
+    orchestrator as unknown as RunnerOrchestratorService,
+    state as unknown as TestRunStateService,
+    {
+      testRun: {
+        findUnique: jest.fn(() =>
+          Promise.resolve({
+            id: 'run-1',
+            projectId: 'project-1',
+            runnerId: 'runner-1',
+            project: { companyId: 'company-1' },
+          }),
+        ),
+      },
+    } as unknown as PrismaService,
+    {
+      run: jest.fn((_context: unknown, callback: () => Promise<unknown>) => callback()),
+    } as unknown as ExecutionContextService,
+    {
+      setRunnerSlots: jest.fn(),
+    } as unknown as MetricsService,
+    {
+      event: jest.fn(),
+      eventError: jest.fn(),
+    } as unknown as StructuredLoggerService,
+    {
+      span: jest.fn((_name: string, _attrs: unknown, callback: () => Promise<unknown>) =>
+        callback(),
+      ),
+    } as unknown as TracingService,
+  );
+}

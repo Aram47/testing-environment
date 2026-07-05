@@ -172,6 +172,7 @@ export class RunnerOrchestratorService {
         throw error;
       }
       context = this.createExecutionContext(testRunId);
+      const executionContext = context;
       await this.ensureNotCancelled(testRunId, context);
 
       await this.state.enterPhase(testRunId, TestRunStatus.PREPARING_WORKSPACE);
@@ -224,7 +225,7 @@ export class RunnerOrchestratorService {
       await this.log(testRunId, RunnerLogSource.SYSTEM, 'Starting docker compose environment');
       await this.tracing.span('worker.environment_startup', { runId: testRunId }, async () => {
         const environmentStarted = Date.now();
-        await this.docker.up(workspace, context.signal);
+        await this.docker.up(workspace, executionContext.signal);
         this.metrics.observeEnvironmentStart(Date.now() - environmentStarted);
       });
 
@@ -237,7 +238,7 @@ export class RunnerOrchestratorService {
           run.project.healthcheckPath,
           run.project.healthcheckExpectedStatus,
           run.project.healthcheckTimeoutSeconds,
-          context.signal,
+          executionContext.signal,
         );
         this.metrics.observeHealthcheck(Date.now() - healthcheckStarted);
       });

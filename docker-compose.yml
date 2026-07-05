@@ -62,7 +62,7 @@ services:
       - testing-network
     restart: on-failure
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3000/health/ready"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -109,7 +109,7 @@ services:
       - testing-network
     restart: on-failure
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:3001/health/ready"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3001/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -129,7 +129,7 @@ services:
       - testing-network
     restart: on-failure
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/"]
       interval: 10s
       timeout: 5s
       retries: 5

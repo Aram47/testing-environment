@@ -21,8 +21,8 @@ export class RequestContextMiddleware implements NestMiddleware {
       {
         requestId,
         companyId: request.user?.companyId,
-        projectId: request.params?.projectId ?? request.user?.projectId ?? undefined,
-        runId: request.params?.runId,
+        projectId: this.first(request.params?.projectId) ?? request.user?.projectId ?? undefined,
+        runId: this.first(request.params?.runId),
       },
       next,
     );
@@ -32,5 +32,12 @@ export class RequestContextMiddleware implements NestMiddleware {
     const raw = request.headers['x-request-id'];
     const value = Array.isArray(raw) ? raw[0] : raw;
     return typeof value === 'string' && value.trim() ? value.trim() : randomUUID();
+  }
+
+  private first(value: string | string[] | undefined): string | undefined {
+    if (Array.isArray(value)) {
+      return value[0];
+    }
+    return value;
   }
 }
