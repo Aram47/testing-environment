@@ -1,13 +1,18 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, FileCode2, GitCompare, History, Plus, Rocket, Trash2 } from 'lucide-react';
-import type { EnvironmentRevisionCompareResult } from '../../api/environment-configs.api';
+import { CheckCircle2, FileCode2, GitCompare, Plus, Trash2, Upload } from 'lucide-react';
+import type { EnvironmentPreflightResult, EnvironmentRevisionCompareResult } from '../../api/environment-configs.api';
 import { environmentConfigsApi } from '../../api/environment-configs.api';
 import { secretsApi } from '../../api/secrets.api';
+import { ConfirmDialog } from '../../components/modals/ConfirmDialog';
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
-import { backendTestExample, dockerComposeExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
+import { RevisionDiffViewer } from '../revisions/RevisionDiffViewer';
+import { ComposeImportModal } from './ComposeImportModal';
+import { DryRunPanel } from './DryRunPanel';
+import { PreflightPanel } from './PreflightPanel';
+import { RevisionStatusBar } from './RevisionStatusBar';
 import type {
   EnvironmentConfig,
   EnvironmentConfigRevision,
@@ -17,6 +22,8 @@ import type {
   EnvironmentVisualConfig,
   SecretMetadata,
 } from '../../types';
+import { useEnvironmentEditorState, type EnvironmentEditorMode } from './hooks/useEnvironmentEditorState';
+import { createEmptyService } from './lib/environmentDefaults';
 
 const YamlEditor = lazy(() =>
   import('../../editors/YamlEditor').then((module) => ({ default: module.YamlEditor })),
@@ -30,13 +37,13 @@ interface EnvironmentEditorProps {
   isComparing?: boolean;
   revisions?: EnvironmentConfigRevision[];
   compareResult?: EnvironmentRevisionCompareResult;
-  onSave: (value: Omit<EnvironmentConfig, 'projectId'>) => void;
+  onSave: (value: Omit<EnvironmentConfig, 'projectId'> & { baseRevisionId?: string }) => void;
   onPublish?: (revisionId: string) => void;
   onCompare?: (from: string, to: string) => void;
   onMessage: (message: string, tone?: 'success' | 'error' | 'info') => void;
 }
 
-type EditorMode = 'config' | 'yaml';
+type EditorMode = EnvironmentEditorMode;
 
 export function EnvironmentEditor({
   projectId,
@@ -51,20 +58,94 @@ export function EnvironmentEditor({
   onCompare,
   onMessage,
 }: EnvironmentEditorProps) {
-  const [mode, setMode] = useState<EditorMode>(value && !value.visualConfig ? 'yaml' : 'config');
-  const [dockerComposeYaml, setDockerComposeYaml] = useState(value?.dockerComposeYaml ?? dockerComposeExample);
-  const [backendTestYaml, setBackendTestYaml] = useState(value?.backendTestYaml ?? backendTestExample);
-  const [visualConfig, setVisualConfig] = useState<EnvironmentVisualConfig>(() => value?.visualConfig ?? createDefaultVisualConfig());
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const editor = useEnvironmentEditorState(value);
   const [isCompiling, setIsCompiling] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingMode, setPendingMode] = useState<EditorMode | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [preflightResult, setPreflightResult] = useState<EnvironmentPreflightResult | undefined>();
+  const [isPreflighting, setIsPreflighting] = useState(false);
+  const [viewingRevision, setViewingRevision] = useState<EnvironmentConfigRevision | null>(null);
   const secretsQuery = useQuery({
     queryKey: ['project-secrets', projectId],
     queryFn: () => secretsApi.list(projectId),
   });
 
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (editor.isDirty) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [editor.isDirty]);
+
+  const requestModeChange = (nextMode: EditorMode) => {
+    if (nextMode === editor.mode) {
+      return;
+    }
+    if (editor.isDirty) {
+      setPendingMode(nextMode);
+      return;
+    }
+    editor.setMode(nextMode);
+  };
+
+  const runPreflight = async () => {
+    setIsPreflighting(true);
+    try {
+      const result = await environmentConfigsApi.preflight(projectId, {
+        visualConfig: editor.mode === 'visual' ? editor.visualConfig : undefined,
+        composeYaml: editor.mode === 'raw_yaml' ? editor.dockerComposeYaml : undefined,
+        backendTestYaml: editor.mode === 'raw_yaml' ? editor.backendTestYaml : undefined,
+        revisionId: value?.currentRevision?.id,
+      });
+      setPreflightResult(result);
+      onMessage(result.ok ? 'Preflight passed' : 'Preflight found issues', result.ok ? 'success' : 'error');
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'Preflight failed', 'error');
+    } finally {
+      setIsPreflighting(false);
+    }
+  };
+
+  const viewRevision = async (revisionId: string) => {
+    try {
+      const revision = await environmentConfigsApi.getRevision(projectId, revisionId);
+      setViewingRevision(revision);
+    } catch (error) {
+      onMessage(error instanceof Error ? error.message : 'Failed to load revision', 'error');
+    }
+  };
+
+  const loadRevisionAsDraft = () => {
+    if (!viewingRevision) {
+      return;
+    }
+    if (viewingRevision.visualConfig) {
+      editor.setVisualConfig(viewingRevision.visualConfig);
+      editor.setMode('visual');
+    } else {
+      editor.setDockerComposeYaml(viewingRevision.compiledComposeYaml);
+      editor.setBackendTestYaml(viewingRevision.compiledRuntimeYaml);
+      editor.setMode('raw_yaml');
+    }
+    setViewingRevision(null);
+    onMessage('Revision loaded into editor. Save to create a new draft.', 'info');
+  };
+
+  const confirmModeChange = () => {
+    if (pendingMode) {
+      editor.setMode(pendingMode);
+      setPendingMode(null);
+    }
+  };
+
   const validateYaml = () => {
-    const compose = YamlValidator.validate(dockerComposeYaml);
-    const test = YamlValidator.validate(backendTestYaml);
+    const compose = YamlValidator.validate(editor.dockerComposeYaml);
+    const test = YamlValidator.validate(editor.backendTestYaml);
 
     if (!compose.ok) {
       onMessage(compose.message, 'error');
@@ -83,10 +164,10 @@ export function EnvironmentEditor({
   const compile = async () => {
     setIsCompiling(true);
     try {
-      const result = await environmentConfigsApi.compile(projectId, visualConfig);
-      setDockerComposeYaml(result.composeYaml);
-      setBackendTestYaml(result.backendTestYaml);
-      setWarnings(result.warnings);
+      const result = await environmentConfigsApi.compile(projectId, editor.visualConfig);
+      editor.setDockerComposeYaml(result.composeYaml);
+      editor.setBackendTestYaml(result.backendTestYaml);
+      editor.setWarnings(result.warnings);
       onMessage(result.warnings.length > 0 ? 'Configuration compiled with warnings' : 'Configuration is valid', result.warnings.length > 0 ? 'info' : 'success');
       return true;
     } catch (error) {
@@ -103,15 +184,16 @@ export function EnvironmentEditor({
     }
     onSave({
       id: value?.id,
-      dockerComposeYaml,
-      backendTestYaml,
-      visualConfig,
-      mainServiceName: visualConfig.app.mainServiceName,
-      healthcheckPath: visualConfig.app.healthcheckPath,
-      healthcheckExpectedStatus: visualConfig.app.healthcheckExpectedStatus,
-      healthcheckTimeoutSeconds: visualConfig.app.healthcheckTimeoutSeconds,
+      dockerComposeYaml: editor.dockerComposeYaml,
+      backendTestYaml: editor.backendTestYaml,
+      visualConfig: editor.visualConfig,
+      mainServiceName: editor.visualConfig.app.mainServiceName,
+      healthcheckPath: editor.visualConfig.app.healthcheckPath,
+      healthcheckExpectedStatus: editor.visualConfig.app.healthcheckExpectedStatus,
+      healthcheckTimeoutSeconds: editor.visualConfig.app.healthcheckTimeoutSeconds,
       isValid: true,
       updatedAt: value?.updatedAt,
+      baseRevisionId: editor.baseRevisionId,
     });
   };
 
@@ -121,14 +203,15 @@ export function EnvironmentEditor({
     }
     onSave({
       id: value?.id,
-      dockerComposeYaml,
-      backendTestYaml,
-      mainServiceName: visualConfig.app.mainServiceName,
-      healthcheckPath: visualConfig.app.healthcheckPath,
-      healthcheckExpectedStatus: visualConfig.app.healthcheckExpectedStatus,
-      healthcheckTimeoutSeconds: visualConfig.app.healthcheckTimeoutSeconds,
+      dockerComposeYaml: editor.dockerComposeYaml,
+      backendTestYaml: editor.backendTestYaml,
+      mainServiceName: editor.visualConfig.app.mainServiceName,
+      healthcheckPath: editor.visualConfig.app.healthcheckPath,
+      healthcheckExpectedStatus: editor.visualConfig.app.healthcheckExpectedStatus,
+      healthcheckTimeoutSeconds: editor.visualConfig.app.healthcheckTimeoutSeconds,
       isValid: true,
       updatedAt: value?.updatedAt,
+      baseRevisionId: editor.baseRevisionId,
     });
   };
 
@@ -139,56 +222,101 @@ export function EnvironmentEditor({
           <div className="flex rounded-md border border-border bg-page p-1">
             <button
               type="button"
-              className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${mode === 'config' ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}
-              onClick={() => setMode('config')}
+              className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${editor.mode === 'visual' ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}
+              onClick={() => requestModeChange('visual')}
             >
-              Config
+              Visual
             </button>
             <button
               type="button"
-              className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${mode === 'yaml' ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}
-              onClick={() => setMode('yaml')}
+              className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${editor.mode === 'raw_yaml' ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}
+              onClick={() => requestModeChange('raw_yaml')}
             >
-              YAML
+              Raw YAML
             </button>
           </div>
           {value && !value.visualConfig ? (
-            <Button type="button" variant="secondary" onClick={() => setMode('config')}>
+            <Button type="button" variant="secondary" onClick={() => requestModeChange('visual')}>
               Create configurable setup
             </Button>
           ) : null}
+          <Button type="button" variant="secondary" onClick={() => setImportOpen(true)}>
+            <Upload size={16} /> Import Compose
+          </Button>
+          <Button type="button" variant="secondary" disabled={isPreflighting} onClick={runPreflight}>
+            {isPreflighting ? 'Running preflight...' : 'Run preflight'}
+          </Button>
         </div>
       </section>
+      <PreflightPanel result={preflightResult} isLoading={isPreflighting} />
       {value ? (
-        <RevisionPanel
-          currentRevision={value.currentRevision}
-          publishedRevision={value.publishedRevision}
-          revisions={revisions}
-          compareResult={compareResult}
-          isPublishing={isPublishing}
-          isComparing={isComparing}
-          onPublish={onPublish}
-          onCompare={onCompare}
-        />
+        <>
+          <RevisionStatusBar
+            currentRevision={value.currentRevision}
+            publishedRevision={value.publishedRevision}
+            sourceMode={editor.sourceMode}
+            isPublishing={isPublishing}
+            onPublish={onPublish}
+            onOpenHistory={() => setHistoryOpen((open) => !open)}
+          />
+          {historyOpen ? (
+            <RevisionHistoryPanel
+              revisions={revisions}
+              compareResult={compareResult}
+              isComparing={isComparing}
+              onCompare={onCompare}
+              onViewRevision={viewRevision}
+            />
+          ) : null}
+          <DryRunPanel
+            projectId={projectId}
+            revisionId={value.currentRevision?.id}
+            disabled={Boolean(preflightResult && !preflightResult.ok)}
+            onMessage={onMessage}
+          />
+        </>
       ) : null}
 
-      {mode === 'config' ? (
+      {viewingRevision ? (
+        <section className="panel space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-ink">
+              Viewing revision #{viewingRevision.revisionNumber} (read-only)
+            </h2>
+            <div className="flex gap-3">
+              <Button type="button" variant="secondary" onClick={() => setViewingRevision(null)}>
+                Close
+              </Button>
+              <Button type="button" onClick={loadRevisionAsDraft}>
+                Edit as new draft
+              </Button>
+            </div>
+          </div>
+          <pre className="max-h-80 overflow-auto rounded-md bg-code p-4 text-sm text-code">
+            {viewingRevision.visualConfig
+              ? JSON.stringify(viewingRevision.visualConfig, null, 2)
+              : `${viewingRevision.compiledComposeYaml}\n---\n${viewingRevision.compiledRuntimeYaml}`}
+          </pre>
+        </section>
+      ) : null}
+
+      {editor.mode === 'visual' ? (
         <>
           <ConfigForm
-            value={visualConfig}
+            value={editor.visualConfig}
             secrets={secretsQuery.data ?? []}
-            onChange={setVisualConfig}
+            onChange={editor.setVisualConfig}
           />
-          {warnings.length > 0 ? (
+          {editor.warnings.length > 0 ? (
             <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {warnings.map((warning) => (
+              {editor.warnings.map((warning) => (
                 <p key={warning}>{warning}</p>
               ))}
             </section>
           ) : null}
           <YamlPreview
-            dockerComposeYaml={dockerComposeYaml}
-            backendTestYaml={backendTestYaml}
+            dockerComposeYaml={editor.dockerComposeYaml}
+            backendTestYaml={editor.backendTestYaml}
             isCompiling={isCompiling}
             onRefresh={compile}
           />
@@ -205,8 +333,8 @@ export function EnvironmentEditor({
         <>
           <section className="grid gap-6 xl:grid-cols-2">
             <Suspense fallback={<LoadingState label="Loading YAML editor" />}>
-              <YamlEditor label="docker-compose.test.yml" value={dockerComposeYaml} onChange={setDockerComposeYaml} />
-              <YamlEditor label="backend-test.yml" value={backendTestYaml} onChange={setBackendTestYaml} />
+              <YamlEditor label="docker-compose.test.yml" value={editor.dockerComposeYaml} onChange={editor.setDockerComposeYaml} />
+              <YamlEditor label="backend-test.yml" value={editor.backendTestYaml} onChange={editor.setBackendTestYaml} />
             </Suspense>
           </section>
           <div className="flex flex-wrap justify-end gap-3">
@@ -215,80 +343,80 @@ export function EnvironmentEditor({
           </div>
         </>
       )}
+      <ConfirmDialog
+        open={pendingMode !== null}
+        title="Discard unsaved changes?"
+        description="Switching editor mode will keep your current edits only if you stay on this page. Confirm to switch without saving."
+        confirmLabel="Switch mode"
+        onCancel={() => setPendingMode(null)}
+        onConfirm={confirmModeChange}
+      />
+      <ComposeImportModal
+        projectId={projectId}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={(result) => {
+          editor.setVisualConfig(result.visualConfig);
+          editor.setMode('visual');
+          if (result.importWarnings.length > 0) {
+            editor.setWarnings(result.importWarnings);
+          }
+        }}
+        onMessage={onMessage}
+      />
     </form>
   );
 }
 
-function RevisionPanel({
-  currentRevision,
-  publishedRevision,
+function RevisionHistoryPanel({
   revisions,
   compareResult,
-  isPublishing,
   isComparing,
-  onPublish,
   onCompare,
+  onViewRevision,
 }: {
-  currentRevision?: EnvironmentConfigRevision;
-  publishedRevision?: EnvironmentConfigRevision;
   revisions: EnvironmentConfigRevision[];
   compareResult?: EnvironmentRevisionCompareResult;
-  isPublishing: boolean;
   isComparing: boolean;
-  onPublish?: (revisionId: string) => void;
   onCompare?: (from: string, to: string) => void;
+  onViewRevision?: (revisionId: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const canPublish = currentRevision?.status === 'DRAFT';
   const comparable = from && to && from !== to;
 
   return (
     <section className="panel space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-ink">Revision {currentRevision ? `#${currentRevision.revisionNumber}` : 'not saved'}</h2>
-          <p className="text-sm text-muted">
-            Current status: {currentRevision?.status ?? 'DRAFT'}.
-            {publishedRevision ? ` Latest published: #${publishedRevision.revisionNumber}.` : ' No published revision yet.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button type="button" variant="secondary" onClick={() => setOpen((value) => !value)}>
-            <History size={16} /> Revision history
-          </Button>
-          {canPublish && currentRevision ? (
-            <Button type="button" disabled={isPublishing} onClick={() => onPublish?.(currentRevision.id)}>
-              <Rocket size={16} /> {isPublishing ? 'Publishing...' : 'Publish'}
-            </Button>
-          ) : null}
-        </div>
+      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <RevisionSelect label="From" value={from} revisions={revisions} onChange={setFrom} />
+        <RevisionSelect label="To" value={to} revisions={revisions} onChange={setTo} />
+        <Button type="button" variant="secondary" disabled={!comparable || isComparing} onClick={() => onCompare?.(from, to)}>
+          <GitCompare size={16} /> {isComparing ? 'Comparing...' : 'Compare'}
+        </Button>
       </div>
-      {open ? (
-        <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <RevisionSelect label="From" value={from} revisions={revisions} onChange={setFrom} />
-            <RevisionSelect label="To" value={to} revisions={revisions} onChange={setTo} />
-            <Button type="button" variant="secondary" disabled={!comparable || isComparing} onClick={() => onCompare?.(from, to)}>
-              <GitCompare size={16} /> {isComparing ? 'Comparing...' : 'Compare'}
-            </Button>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {revisions.map((revision) => (
-              <article key={revision.id} className="rounded-md border border-border p-3 text-sm">
-                <div className="font-semibold text-ink">Revision #{revision.revisionNumber}</div>
-                <div className="text-muted">{revision.status} - {revision.sourceMode} - {formatDate(revision.createdAt)}</div>
-              </article>
-            ))}
-          </div>
-          {compareResult ? (
-            <DiffSummary
-              title={`Diff #${compareResult.from.revisionNumber} -> #${compareResult.to.revisionNumber}`}
-              count={compareResult.diffs.compiledComposeYaml.length + compareResult.diffs.compiledRuntimeYaml.length}
-            />
-          ) : null}
-        </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {revisions.map((revision) => (
+          <article key={revision.id} className="rounded-md border border-border p-3 text-sm">
+            <button type="button" className="focus-ring w-full text-left" onClick={() => onViewRevision?.(revision.id)}>
+              <div className="font-semibold text-ink">Revision #{revision.revisionNumber}</div>
+              <div className="text-muted">{revision.status} - {revision.sourceMode} - {formatDate(revision.createdAt)}</div>
+            </button>
+          </article>
+        ))}
+      </div>
+      {compareResult ? (
+        <>
+          <RevisionDiffViewer
+            title={`Compose diff #${compareResult.from.revisionNumber} -> #${compareResult.to.revisionNumber}`}
+            composeDiff={compareResult.diffs.compiledComposeYaml}
+            runtimeDiff={[]}
+          />
+          <RevisionDiffViewer
+            title={`Runtime diff #${compareResult.from.revisionNumber} -> #${compareResult.to.revisionNumber}`}
+            composeDiff={[]}
+            runtimeDiff={compareResult.diffs.compiledRuntimeYaml}
+          />
+        </>
       ) : null}
     </section>
   );
@@ -317,15 +445,6 @@ function RevisionSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function DiffSummary({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="rounded-md border border-border bg-page p-3 text-sm">
-      <div className="font-semibold text-ink">{title}</div>
-      <div className="text-muted">{count === 0 ? 'No line changes.' : `${count} changed line(s).`}</div>
-    </div>
   );
 }
 
@@ -656,51 +775,6 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
       <input className="input" type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
-}
-
-function createDefaultVisualConfig(): EnvironmentVisualConfig {
-  return {
-    version: '1.0',
-    services: [
-      {
-        name: 'api',
-        image: 'your-company/backend-api:latest',
-        ports: [{ host: '8000', container: '8000' }],
-        environment: [{ key: 'DATABASE_URL', value: 'postgres://user:pass@postgres:5432/app' }],
-        dependsOn: ['postgres'],
-      },
-      {
-        name: 'postgres',
-        image: 'postgres:16',
-        environment: [
-          { key: 'POSTGRES_USER', value: 'user' },
-          { key: 'POSTGRES_PASSWORD', value: 'pass' },
-          { key: 'POSTGRES_DB', value: 'app' },
-        ],
-      },
-    ],
-    app: {
-      mainServiceName: 'api',
-      baseUrl: 'http://localhost:8000',
-      healthcheckPath: '/health',
-      healthcheckExpectedStatus: 200,
-      healthcheckTimeoutSeconds: 60,
-    },
-    run: {
-      timeoutMinutes: 10,
-      cleanup: true,
-    },
-  };
-}
-
-function createEmptyService(index: number): EnvironmentServiceConfig {
-  return {
-    name: `service-${index}`,
-    image: '',
-    ports: [],
-    environment: [],
-    dependsOn: [],
-  };
 }
 
 function updateList<T>(items: T[], index: number, value: T): T[] {

@@ -13,6 +13,8 @@ import {
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpsertEnvironmentConfigDto } from './dto/upsert-environment-config.dto';
+import { ComposeToVisualConverterService } from './compose-to-visual-converter.service';
+import { ImportComposeDto } from './dto/import-compose.dto';
 import { EnvironmentConfigCompilerService } from './environment-config-compiler.service';
 import {
   EnvironmentCompileResult,
@@ -25,6 +27,7 @@ export class EnvironmentConfigsService {
     private readonly prisma: PrismaService,
     private readonly projectAccess: ProjectAccessService,
     private readonly compiler: EnvironmentConfigCompilerService,
+    private readonly composeImporter: ComposeToVisualConverterService,
   ) {}
 
   async create(
@@ -63,6 +66,22 @@ export class EnvironmentConfigsService {
   ) {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
     await this.writeDraftRevision(async (tx) => {
+      const existing = await tx.environmentConfig.findUnique({
+        where: { projectId },
+        include: {
+          revisions: { orderBy: { revisionNumber: 'desc' }, take: 1 },
+        },
+      });
+      if (existing && dto.baseRevisionId) {
+        const currentRevision = existing.revisions[0];
+        if (currentRevision && currentRevision.id !== dto.baseRevisionId) {
+          throw new ConflictException({
+            message: 'Environment config was updated elsewhere',
+            currentRevisionId: currentRevision.id,
+            currentRevisionNumber: currentRevision.revisionNumber,
+          });
+        }
+      }
       const config = await tx.environmentConfig.upsert({
         where: { projectId },
         create: { projectId, type: dto.type },
@@ -82,12 +101,29 @@ export class EnvironmentConfigsService {
     return this.compiler.compile(visualConfig);
   }
 
+  async importCompose(projectId: string, companyId: string, dto: ImportComposeDto) {
+    await this.projectAccess.getProjectOrThrow(projectId, companyId);
+    return this.composeImporter.convert(dto.composeYaml, dto.source);
+  }
+
   async listRevisions(projectId: string, companyId: string) {
     const config = await this.getConfigForProject(projectId, companyId);
-    return this.prisma.environmentConfigRevision.findMany({
+    const revisions = await this.prisma.environmentConfigRevision.findMany({
       where: { environmentConfigId: config.id },
       orderBy: { revisionNumber: 'desc' },
     });
+    return revisions.map((revision) => this.normalizeRevision(revision));
+  }
+
+  async getRevision(projectId: string, companyId: string, revisionId: string) {
+    const config = await this.getConfigForProject(projectId, companyId);
+    const revision = await this.prisma.environmentConfigRevision.findFirst({
+      where: { id: revisionId, environmentConfigId: config.id },
+    });
+    if (!revision) {
+      throw new NotFoundException('Environment config revision not found');
+    }
+    return this.normalizeRevision(revision);
   }
 
   async publishRevision(projectId: string, companyId: string, userId: string, revisionId: string) {
@@ -101,13 +137,27 @@ export class EnvironmentConfigsService {
     if (revision.status === RevisionStatus.PUBLISHED) {
       throw new ConflictException('Environment config revision is already published');
     }
-    const result = await this.prisma.environmentConfigRevision.updateMany({
-      where: { id: revision.id, status: RevisionStatus.DRAFT },
-      data: { status: RevisionStatus.PUBLISHED, publishedById: userId, publishedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.environmentConfigRevision.updateMany({
+        where: {
+          environmentConfigId: config.id,
+          status: RevisionStatus.PUBLISHED,
+          id: { not: revision.id },
+        },
+        data: { status: RevisionStatus.DRAFT, publishedAt: null, publishedById: null },
+      });
+      const result = await tx.environmentConfigRevision.updateMany({
+        where: { id: revision.id, status: RevisionStatus.DRAFT },
+        data: {
+          status: RevisionStatus.PUBLISHED,
+          publishedById: userId,
+          publishedAt: new Date(),
+        },
+      });
+      if (result.count === 0) {
+        throw new ConflictException('Environment config revision is already published');
+      }
     });
-    if (result.count === 0) {
-      throw new ConflictException('Environment config revision is already published');
-    }
     return this.find(projectId, companyId);
   }
 
@@ -125,8 +175,8 @@ export class EnvironmentConfigsService {
       throw new NotFoundException('Environment config revision not found');
     }
     return {
-      from,
-      to,
+      from: this.normalizeRevision(from),
+      to: this.normalizeRevision(to),
       diffs: {
         compiledComposeYaml: this.diffLines(from.compiledComposeYaml, to.compiledComposeYaml),
         compiledRuntimeYaml: this.diffLines(from.compiledRuntimeYaml, to.compiledRuntimeYaml),
@@ -217,28 +267,42 @@ export class EnvironmentConfigsService {
     }
 
     return {
-      sourceMode: 'YAML',
+      sourceMode: 'RAW_YAML',
       compiledComposeYaml: dto.composeYaml,
       compiledRuntimeYaml: dto.backendTestYaml,
       visualConfig: Prisma.JsonNull,
     };
   }
 
+  private normalizeSourceMode(sourceMode: string): string {
+    return sourceMode === 'YAML' ? 'RAW_YAML' : sourceMode;
+  }
+
+  private normalizeRevision(revision: EnvironmentConfigRevision) {
+    return {
+      ...revision,
+      sourceMode: this.normalizeSourceMode(revision.sourceMode),
+    };
+  }
+
   private toResponse(config: EnvironmentConfig & { revisions: EnvironmentConfigRevision[] }) {
     const currentRevision = config.revisions[0];
-    const publishedRevision = config.revisions.find(
-      (revision) => revision.status === RevisionStatus.PUBLISHED,
-    );
+    const publishedRevision = config.revisions
+      .filter((revision) => revision.status === RevisionStatus.PUBLISHED)
+      .sort((left, right) => right.revisionNumber - left.revisionNumber)[0];
     if (!currentRevision) {
       throw new NotFoundException('Environment config revision not found');
     }
+    const normalizedCurrent = this.normalizeRevision(currentRevision);
     return {
       ...config,
-      composeYaml: currentRevision.compiledComposeYaml,
-      backendTestYaml: currentRevision.compiledRuntimeYaml,
-      visualConfig: currentRevision.visualConfig,
-      currentRevision,
-      publishedRevision,
+      composeYaml: normalizedCurrent.compiledComposeYaml,
+      backendTestYaml: normalizedCurrent.compiledRuntimeYaml,
+      visualConfig: normalizedCurrent.visualConfig,
+      currentRevision: normalizedCurrent,
+      publishedRevision: publishedRevision
+        ? this.normalizeRevision(publishedRevision)
+        : undefined,
       revisions: undefined,
     };
   }

@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useState } from 'react';
 import { Play } from 'lucide-react';
 import { projectsApi } from '../api/projects.api';
 import { environmentConfigsApi } from '../api/environment-configs.api';
 import { testSuitesApi } from '../api/test-suites.api';
 import { testRunsApi } from '../api/test-runs.api';
+import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import { LinkButton } from '../components/ui/LinkButton';
 import { ErrorState } from '../components/ui/ErrorState';
@@ -24,8 +26,10 @@ export function ProjectDetailsPage() {
   const envQuery = useQuery({ queryKey: ['environment', projectId], queryFn: () => environmentConfigsApi.get(projectId), retry: false });
   const suitesQuery = useQuery({ queryKey: ['test-suites', projectId], queryFn: () => testSuitesApi.list(projectId) });
   const runsQuery = useQuery({ queryKey: ['test-runs', projectId], queryFn: () => testRunsApi.list(projectId) });
+  const [draftRunOpen, setDraftRunOpen] = useState(false);
   const runMutation = useMutation({
-    mutationFn: () => testRunsApi.create(projectId),
+    mutationFn: (input?: { environmentConfigRevisionId?: string }) =>
+      testRunsApi.create(projectId, input),
     onSuccess: async (run) => {
       showToast('Test run started', 'success');
       await queryClient.invalidateQueries({ queryKey: ['test-runs', projectId] });
@@ -56,7 +60,14 @@ export function ProjectDetailsPage() {
         action={
           <div className="flex flex-wrap gap-3">
             <LinkButton variant="secondary" to={`/projects/${projectId}/edit`}>Edit project</LinkButton>
-            <Button onClick={() => runMutation.mutate()} disabled={runMutation.isPending}><Play size={18} /> Run tests</Button>
+            <Button onClick={() => runMutation.mutate(undefined)} disabled={runMutation.isPending}>
+              <Play size={18} /> Run tests
+            </Button>
+            {envQuery.data?.currentRevision?.status === 'DRAFT' ? (
+              <Button variant="secondary" onClick={() => setDraftRunOpen(true)} disabled={runMutation.isPending}>
+                Run draft revision
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -78,6 +89,20 @@ export function ProjectDetailsPage() {
           </div>
         </div>
       </section>
+      <ConfirmDialog
+        open={draftRunOpen}
+        title="Run against draft environment revision?"
+        description={`This run will use draft revision #${envQuery.data?.currentRevision?.revisionNumber}. Published revisions are used by default.`}
+        confirmLabel="Run draft"
+        onCancel={() => setDraftRunOpen(false)}
+        onConfirm={() => {
+          const revisionId = envQuery.data?.currentRevision?.id;
+          if (revisionId) {
+            runMutation.mutate({ environmentConfigRevisionId: revisionId });
+          }
+          setDraftRunOpen(false);
+        }}
+      />
     </>
   );
 }

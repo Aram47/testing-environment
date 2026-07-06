@@ -1,3 +1,4 @@
+import { apiClient } from './client';
 import type { TestRun } from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 import { generatedApi } from './generated-client';
@@ -26,10 +27,14 @@ class TestRunsApi {
     return this.toTestRun(data);
   }
 
-  async create(projectId: string): Promise<TestRun> {
-    const data = await generatedApi.TestRunsController_create({
-      path: { projectId },
-    }) as unknown as TestRunResponse;
+  async create(
+    projectId: string,
+    input?: { environmentConfigRevisionId?: string },
+  ): Promise<TestRun> {
+    const { data } = await apiClient.post<TestRunResponse>(
+      `/projects/${projectId}/test-runs`,
+      input ?? {},
+    );
     return this.toTestRun(data);
   }
 

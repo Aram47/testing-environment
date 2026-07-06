@@ -43,6 +43,34 @@ enum EnvironmentConfigType {
   EXTERNAL_URL
 }
 
+enum EnvironmentDryRunStatus {
+  CREATED
+  QUEUED
+  PREPARING_WORKSPACE
+  VALIDATING_ENVIRONMENT
+  PULLING_IMAGES
+  STARTING_ENVIRONMENT
+  WAITING_FOR_HEALTHCHECK
+  COLLECTING_LOGS
+  CLEANING_UP
+  PASSED
+  INFRA_FAILED
+  TIMED_OUT
+  CANCEL_REQUESTED
+  CANCELLED
+}
+
+enum EnvironmentDryRunFailureCategory {
+  ENVIRONMENT_VALIDATION
+  IMAGE_PULL
+  CONTAINER_START
+  HEALTHCHECK
+  NETWORK
+  TIMEOUT
+  CANCELLED
+  INTERNAL
+}
+
 enum OnboardingSessionStatus {
   IN_PROGRESS
   COMPLETED
@@ -285,6 +313,7 @@ model Project {
   apiTokens                 ApiToken[]
   testSuites                TestSuite[]
   testRuns                  TestRun[]
+  environmentDryRuns        EnvironmentDryRun[]
   onboardingSessions        OnboardingSession[]
   createdAt                 DateTime           @default(now())
   updatedAt                 DateTime           @updatedAt
@@ -342,6 +371,7 @@ model EnvironmentConfigRevision {
   publishedBy         User?             @relation("EnvironmentRevisionPublishedBy", fields: [publishedById], references: [id], onDelete: SetNull)
   publishedAt         DateTime?
   testRuns            TestRun[]
+  environmentDryRuns  EnvironmentDryRun[]
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
@@ -349,6 +379,40 @@ model EnvironmentConfigRevision {
   @@index([environmentConfigId, status, revisionNumber])
   @@index([createdById])
   @@index([publishedById])
+}
+
+model EnvironmentDryRun {
+  id                          String                          @id @default(uuid())
+  projectId                   String
+  project                     Project                         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environmentConfigRevisionId String
+  environmentConfigRevision   EnvironmentConfigRevision       @relation(fields: [environmentConfigRevisionId], references: [id], onDelete: Restrict)
+  status                      EnvironmentDryRunStatus           @default(CREATED)
+  queueJobId                  String?
+  runnerVersion               String?
+  failureCategory             EnvironmentDryRunFailureCategory?
+  errorMessage                String?
+  startedAt                   DateTime?
+  finishedAt                  DateTime?
+  cancelRequestedAt           DateTime?
+  logs                        EnvironmentDryRunLog[]
+  createdAt                   DateTime                        @default(now())
+  updatedAt                   DateTime                        @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([environmentConfigRevisionId])
+  @@index([status])
+}
+
+model EnvironmentDryRunLog {
+  id        String              @id @default(uuid())
+  dryRunId  String
+  dryRun    EnvironmentDryRun   @relation(fields: [dryRunId], references: [id], onDelete: Cascade)
+  source    RunnerLogSource
+  message   String              @db.Text
+  createdAt DateTime            @default(now())
+
+  @@index([dryRunId, createdAt])
 }
 
 model Secret {

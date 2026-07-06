@@ -88,10 +88,28 @@ export interface UpsertEnvironmentConfigDto {
   "composeYaml"?: string;
   "backendTestYaml"?: string;
   "visualConfig"?: Record<string, unknown>;
+  "baseRevisionId"?: string;
 }
 
 export interface CompileEnvironmentConfigDto {
   "visualConfig": Record<string, unknown>;
+}
+
+export interface PreflightEnvironmentConfigDto {
+  "type"?: "DOCKER_COMPOSE" | "EXTERNAL_URL";
+  "composeYaml"?: string;
+  "backendTestYaml"?: string;
+  "visualConfig"?: Record<string, unknown>;
+  "revisionId"?: string;
+}
+
+export interface ImportComposeDto {
+  "composeYaml": string;
+  "source": "paste" | "upload";
+}
+
+export interface CreateEnvironmentDryRunDto {
+  "revisionId": string;
 }
 
 export interface CreateSecretDto {
@@ -158,6 +176,10 @@ export interface UpdateTestSuiteDto {
   "yamlContent"?: string;
   "sourceMode"?: "VISUAL" | "RAW_YAML";
   "visualFlow"?: Record<string, unknown>;
+}
+
+export interface CreateTestRunDto {
+  "environmentConfigRevisionId"?: string;
 }
 
 export interface TestRunResponseDto {
@@ -527,6 +549,69 @@ export class GeneratedApiClient {
     return data;
   }
 
+  async EnvironmentConfigsController_runPreflight(params: RequestParams, body: PreflightEnvironmentConfigDto, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'POST',
+      url: buildPath('/projects/{projectId}/environment-config/preflight', params.path),
+      params: params.query,
+      data: body,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_importCompose(params: RequestParams, body: ImportComposeDto, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'POST',
+      url: buildPath('/projects/{projectId}/environment-config/import-compose', params.path),
+      params: params.query,
+      data: body,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_listDryRuns(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/projects/{projectId}/environment-config/dry-runs', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_createDryRun(params: RequestParams, body: CreateEnvironmentDryRunDto, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'POST',
+      url: buildPath('/projects/{projectId}/environment-config/dry-runs', params.path),
+      params: params.query,
+      data: body,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_getDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/projects/{projectId}/environment-config/dry-runs/{dryRunId}', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_cancelDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'POST',
+      url: buildPath('/projects/{projectId}/environment-config/dry-runs/{dryRunId}/cancel', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
   async EnvironmentConfigsController_revisions(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
     const { data } = await this.http.request<unknown>({
       ...config,
@@ -542,6 +627,16 @@ export class GeneratedApiClient {
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/environment-config/revisions/compare', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async EnvironmentConfigsController_getRevision(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/projects/{projectId}/environment-config/revisions/{revisionId}', params.path),
       params: params.query,
     });
     return data;
@@ -754,12 +849,13 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TestRunsController_create(params: RequestParams, config?: AxiosRequestConfig): Promise<TestRunResponseDto> {
+  async TestRunsController_create(params: RequestParams, body: CreateTestRunDto, config?: AxiosRequestConfig): Promise<TestRunResponseDto> {
     const { data } = await this.http.request<TestRunResponseDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects/{projectId}/test-runs', params.path),
       params: params.query,
+      data: body,
     });
     return data;
   }

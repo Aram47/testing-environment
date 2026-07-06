@@ -1,14 +1,10 @@
 import { Module } from '@nestjs/common';
-import { EnvironmentImportModule } from '../environment-import/environment-import.module';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { OnboardingController } from './onboarding.controller';
-import { OnboardingService } from './onboarding.service';
-import { OnboardingTemplatesService } from './onboarding-templates.service';
+import { OnboardingCoreModule } from './onboarding-core.module';
 
 @Module({
-  imports: [EnvironmentImportModule, SubscriptionsModule],
+  imports: [OnboardingCoreModule],
   controllers: [OnboardingController],
-  providers: [OnboardingService, OnboardingTemplatesService],
-  exports: [OnboardingService],
+  exports: [OnboardingCoreModule],
 })
 export class OnboardingModule {}

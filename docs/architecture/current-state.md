@@ -115,7 +115,17 @@ Current protected resource endpoints are nested under projects where needed:
 - `POST /projects/:projectId/environment-config`
 - `GET /projects/:projectId/environment-config`
 - `POST /projects/:projectId/environment-config/compile`
-- `PATCH /projects/:projectId/environment-config`
+- `PATCH /projects/:projectId/environment-config` (supports `baseRevisionId` optimistic locking)
+- `POST /projects/:projectId/environment-config/preflight`
+- `POST /projects/:projectId/environment-config/import-compose`
+- `GET /projects/:projectId/environment-config/revisions`
+- `GET /projects/:projectId/environment-config/revisions/compare`
+- `GET /projects/:projectId/environment-config/revisions/:revisionId`
+- `POST /projects/:projectId/environment-config/revisions/:revisionId/publish`
+- `POST /projects/:projectId/environment-config/dry-runs`
+- `GET /projects/:projectId/environment-config/dry-runs`
+- `GET /projects/:projectId/environment-config/dry-runs/:dryRunId`
+- `POST /projects/:projectId/environment-config/dry-runs/:dryRunId/cancel`
 - `POST /projects/:projectId/secrets`
 - `GET /projects/:projectId/secrets`
 - `DELETE /projects/:projectId/secrets/:secretId`
@@ -126,7 +136,7 @@ Current protected resource endpoints are nested under projects where needed:
 - `GET /projects/:projectId/test-suites/:suiteId`
 - `PATCH /projects/:projectId/test-suites/:suiteId`
 - `DELETE /projects/:projectId/test-suites/:suiteId`
-- `POST /projects/:projectId/test-runs`
+- `POST /projects/:projectId/test-runs` (optional `environmentConfigRevisionId` for explicit draft/published snapshot)
 - `GET /projects/:projectId/test-runs`
 - `GET /projects/:projectId/test-runs/:runId`
 - `POST /projects/:projectId/test-runs/:runId/cancel`

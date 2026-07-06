@@ -14,6 +14,9 @@ import { ReportsController } from '../src/reports/reports.controller';
 import { ReportsService } from '../src/reports/reports.service';
 import { EnvironmentConfigsController } from '../src/environment-configs/environment-configs.controller';
 import { EnvironmentConfigsService } from '../src/environment-configs/environment-configs.service';
+import { ComposeToVisualConverterService } from '../src/environment-configs/compose-to-visual-converter.service';
+import { EnvironmentDryRunsService } from '../src/environment-configs/environment-dry-runs.service';
+import { EnvironmentPreflightService } from '../src/environment-configs/environment-preflight.service';
 import { SubscriptionsController } from '../src/subscriptions/subscriptions.controller';
 import { SubscriptionsService } from '../src/subscriptions/subscriptions.service';
 import { TestRunsController } from '../src/test-runs/test-runs.controller';
@@ -52,6 +55,14 @@ describe('Security enforcement (e2e)', () => {
     compareRevisions: jest.fn(),
     publishRevision: jest.fn(),
     update: jest.fn(),
+  };
+  const environmentPreflightService = { run: jest.fn() };
+  const composeImporterService = { convert: jest.fn() };
+  const environmentDryRunsService = {
+    create: jest.fn(),
+    list: jest.fn(),
+    find: jest.fn(),
+    cancel: jest.fn(),
   };
   const subscriptionsService = {
     listPlans: jest.fn().mockResolvedValue([]),
@@ -176,6 +187,9 @@ describe('Security enforcement (e2e)', () => {
         { provide: ReportsService, useValue: reportsService },
         { provide: TestRunsService, useValue: testRunsService },
         { provide: EnvironmentConfigsService, useValue: environmentService },
+        { provide: EnvironmentPreflightService, useValue: environmentPreflightService },
+        { provide: ComposeToVisualConverterService, useValue: composeImporterService },
+        { provide: EnvironmentDryRunsService, useValue: environmentDryRunsService },
         { provide: SubscriptionsService, useValue: subscriptionsService },
         {
           provide: RealtimeService,

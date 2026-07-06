@@ -1,5 +1,6 @@
 export const TEST_RUN_QUEUE = 'test-runs';
 export const TEST_RUN_JOB_NAME = 'execute-test-run';
+export const ENVIRONMENT_DRY_RUN_JOB_NAME = 'execute-environment-dry-run';
 export const SECRET_ROTATION_QUEUE = 'secret-key-rotations';
 export const SECRET_ROTATION_JOB_NAME = 'rotate-secret-key';
 export const ARTIFACT_RETENTION_QUEUE = 'artifact-retention-cleanup';
@@ -10,6 +11,13 @@ export interface TestRunJobData {
   context?: Partial<TestRunJobContext>;
 }
 
+export interface EnvironmentDryRunJobData {
+  dryRunId: string;
+  context?: Partial<TestRunJobContext>;
+}
+
+export type RunnerQueueJobData = TestRunJobData | EnvironmentDryRunJobData;
+
 export interface SecretRotationJobData {
   rotationJobId: string;
 }
@@ -18,6 +26,10 @@ export type ArtifactRetentionJobData = Record<string, never>;
 
 export function getTestRunJobId(testRunId: string): string {
   return `test-run:${testRunId}`;
+}
+
+export function getEnvironmentDryRunJobId(dryRunId: string): string {
+  return `environment-dry-run:${dryRunId}`;
 }
 
 export function getSecretRotationJobId(rotationJobId: string): string {

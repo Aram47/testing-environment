@@ -19,7 +19,7 @@ describe('TestRunWorkerProcessor', () => {
     const orchestrator = { execute: jest.fn(() => Promise.resolve()) };
     const processor = createProcessor(orchestrator);
 
-    await processor.process({ data: { testRunId: 'run-1' } } as never);
+    await processor.process({ name: 'execute-test-run', data: { testRunId: 'run-1' } } as never);
 
     expect(orchestrator.execute).toHaveBeenCalledWith('run-1');
   });
@@ -77,7 +77,9 @@ function createProcessor(
 ): TestRunWorkerProcessor {
   return new TestRunWorkerProcessor(
     orchestrator as unknown as RunnerOrchestratorService,
+    { execute: jest.fn() } as unknown as import('../environment-configs/environment-dry-run-orchestrator.service').EnvironmentDryRunOrchestratorService,
     state as unknown as TestRunStateService,
+    { markInfraFailed: jest.fn() } as unknown as import('../environment-configs/environment-dry-run-state.service').EnvironmentDryRunStateService,
     {
       testRun: {
         findUnique: jest.fn(() =>

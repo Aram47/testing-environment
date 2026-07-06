@@ -9,6 +9,7 @@ import { TracingService } from '../observability/tracing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TestRunQueueService } from '../queue/test-run-queue.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { CreateTestRunDto } from './dto/create-test-run.dto';
 import { TestRunStateService } from './test-run-state.service';
 
 @Injectable()
@@ -23,7 +24,7 @@ export class TestRunsService {
     private readonly tracing: TracingService,
   ) {}
 
-  async create(projectId: string, companyId: string) {
+  async create(projectId: string, companyId: string, dto: CreateTestRunDto = {}) {
     return this.tracing.span('http.create_test_run', { companyId, projectId }, async () => {
       this.executionContext.merge({ companyId, projectId });
       await this.projectAccess.getProjectOrThrow(projectId, companyId);
@@ -35,15 +36,25 @@ export class TestRunsService {
         const environmentConfig = await tx.environmentConfig.findUnique({
           where: { projectId },
           include: {
-            revisions: {
-              where: { status: RevisionStatus.PUBLISHED },
-              orderBy: { revisionNumber: 'desc' },
-              take: 1,
-            },
+            revisions: dto.environmentConfigRevisionId
+              ? false
+              : { where: { status: RevisionStatus.PUBLISHED }, orderBy: { revisionNumber: 'desc' }, take: 1 },
           },
         });
-        const environmentRevision = environmentConfig?.revisions[0];
+
+        let environmentRevision = dto.environmentConfigRevisionId
+          ? await tx.environmentConfigRevision.findFirst({
+              where: {
+                id: dto.environmentConfigRevisionId,
+                environmentConfig: { projectId },
+              },
+            })
+          : environmentConfig?.revisions?.[0] ?? null;
+
         if (!environmentRevision) {
+          if (dto.environmentConfigRevisionId) {
+            throw new NotFoundException('Environment config revision not found');
+          }
           throw new BadRequestException(
             'Published environment config revision is required before running tests',
           );

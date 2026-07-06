@@ -7,6 +7,7 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CancelTestRunDto } from './dto/cancel-test-run.dto';
+import { CreateTestRunDto } from './dto/create-test-run.dto';
 import { TestRunEventResponseDto } from './dto/test-run-event-response.dto';
 import { TestRunEventsQueryDto } from './dto/test-run-events-query.dto';
 import { TestRunResponseDto } from './dto/test-run-response.dto';
@@ -22,8 +23,12 @@ export class TestRunsController {
   @Post()
   @RequirePermission('run:write', 'project')
   @ApiCreatedResponse({ type: TestRunResponseDto })
-  create(@Param('projectId') projectId: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.create(projectId, user.companyId);
+  create(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateTestRunDto,
+  ) {
+    return this.service.create(projectId, user.companyId, dto);
   }
 
   @Get()

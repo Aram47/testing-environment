@@ -3,6 +3,7 @@ import { Prisma, RevisionStatus } from '@prisma/client';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EnvironmentConfigCompilerService } from './environment-config-compiler.service';
+import { ComposeToVisualConverterService } from './compose-to-visual-converter.service';
 import { EnvironmentConfigsService } from './environment-configs.service';
 
 describe('EnvironmentConfigsService', () => {
@@ -73,6 +74,7 @@ describe('EnvironmentConfigsService', () => {
       prisma as unknown as PrismaService,
       projectAccess as unknown as ProjectAccessService,
       new EnvironmentConfigCompilerService(),
+      { convert: jest.fn() } as unknown as ComposeToVisualConverterService,
     );
   });
 
@@ -89,7 +91,7 @@ describe('EnvironmentConfigsService', () => {
         revisionNumber: 2,
         status: RevisionStatus.DRAFT,
         schemaVersion: 1,
-        sourceMode: 'YAML',
+        sourceMode: 'RAW_YAML',
         compiledComposeYaml: 'services: {}\n',
         compiledRuntimeYaml: 'version: "1.0"\n',
         visualConfig: Prisma.JsonNull,
@@ -102,6 +104,14 @@ describe('EnvironmentConfigsService', () => {
     await service.publishRevision(projectId, companyId, userId, 'revision-1');
 
     expect(prisma.environmentConfigRevision.updateMany).toHaveBeenCalledWith({
+      where: {
+        environmentConfigId: 'config-1',
+        status: RevisionStatus.PUBLISHED,
+        id: { not: 'revision-1' },
+      },
+      data: { status: RevisionStatus.DRAFT, publishedAt: null, publishedById: null },
+    });
+    expect(prisma.environmentConfigRevision.updateMany).toHaveBeenCalledWith({
       where: { id: 'revision-1', status: RevisionStatus.DRAFT },
       data: {
         status: RevisionStatus.PUBLISHED,
@@ -109,6 +119,31 @@ describe('EnvironmentConfigsService', () => {
         publishedAt: expect.any(Date),
       },
     });
+  });
+
+  it('rejects save when baseRevisionId does not match current revision', async () => {
+    prisma.environmentConfig.findUnique.mockResolvedValueOnce({
+      id: 'config-1',
+      projectId,
+      type: 'DOCKER_COMPOSE',
+      revisions: [
+        {
+          id: 'revision-2',
+          revisionNumber: 2,
+          status: RevisionStatus.DRAFT,
+        },
+      ],
+    });
+
+    await expect(
+      service.update(projectId, companyId, userId, {
+        type: 'DOCKER_COMPOSE',
+        composeYaml: 'services: {}\n',
+        backendTestYaml: 'version: "1.0"\n',
+        baseRevisionId: 'revision-1',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.environmentConfigRevision.create).not.toHaveBeenCalled();
   });
 
   it('returns the latest revision as current even when older drafts exist', async () => {
@@ -154,7 +189,9 @@ describe('EnvironmentConfigsService', () => {
   });
 
   it('rejects a concurrent publish that already consumed the draft state', async () => {
-    prisma.environmentConfigRevision.updateMany.mockResolvedValueOnce({ count: 0 });
+    prisma.environmentConfigRevision.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 });
 
     await expect(
       service.publishRevision(projectId, companyId, userId, 'revision-1'),

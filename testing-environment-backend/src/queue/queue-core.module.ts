@@ -2,12 +2,15 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TestRunStateModule } from '../test-runs/test-run-state.module';
+import { EnvironmentDryRunStateModule } from '../environment-configs/environment-dry-run-state.module';
 import { ARTIFACT_RETENTION_QUEUE, SECRET_ROTATION_QUEUE, TEST_RUN_QUEUE } from './queue.constants';
+import { EnvironmentDryRunQueueService } from './environment-dry-run-queue.service';
 import { TestRunQueueService } from './test-run-queue.service';
 
 @Module({
   imports: [
     TestRunStateModule,
+    EnvironmentDryRunStateModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -40,7 +43,7 @@ import { TestRunQueueService } from './test-run-queue.service';
       },
     }),
   ],
-  providers: [TestRunQueueService],
-  exports: [BullModule, TestRunQueueService],
+  providers: [TestRunQueueService, EnvironmentDryRunQueueService],
+  exports: [BullModule, TestRunQueueService, EnvironmentDryRunQueueService, EnvironmentDryRunStateModule],
 })
 export class QueueCoreModule {}

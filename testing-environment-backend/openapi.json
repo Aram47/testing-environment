@@ -832,6 +832,234 @@
         ]
       }
     },
+    "/projects/{projectId}/environment-config/preflight": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_runPreflight",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreflightEnvironmentConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/import-compose": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_importCompose",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportComposeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/dry-runs": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_createDryRun",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnvironmentDryRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      },
+      "get": {
+        "operationId": "EnvironmentConfigsController_listDryRuns",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/dry-runs/{dryRunId}": {
+      "get": {
+        "operationId": "EnvironmentConfigsController_getDryRun",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dryRunId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/dry-runs/{dryRunId}/cancel": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_cancelDryRun",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dryRunId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
     "/projects/{projectId}/environment-config/revisions": {
       "get": {
         "operationId": "EnvironmentConfigsController_revisions",
@@ -884,6 +1112,42 @@
             "name": "to",
             "required": true,
             "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/revisions/{revisionId}": {
+      "get": {
+        "operationId": "EnvironmentConfigsController_getRevision",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "required": true,
+            "in": "path",
             "schema": {
               "type": "string"
             }
@@ -1619,6 +1883,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTestRunDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "",
@@ -2378,6 +2652,10 @@
           },
           "visualConfig": {
             "type": "object"
+          },
+          "baseRevisionId": {
+            "type": "string",
+            "description": "Revision ID the client last loaded; mismatch returns 409 Conflict"
           }
         },
         "required": [
@@ -2393,6 +2671,60 @@
         },
         "required": [
           "visualConfig"
+        ]
+      },
+      "PreflightEnvironmentConfigDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DOCKER_COMPOSE",
+              "EXTERNAL_URL"
+            ]
+          },
+          "composeYaml": {
+            "type": "string"
+          },
+          "backendTestYaml": {
+            "type": "string"
+          },
+          "visualConfig": {
+            "type": "object"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportComposeDto": {
+        "type": "object",
+        "properties": {
+          "composeYaml": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "paste",
+              "upload"
+            ]
+          }
+        },
+        "required": [
+          "composeYaml",
+          "source"
+        ]
+      },
+      "CreateEnvironmentDryRunDto": {
+        "type": "object",
+        "properties": {
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revisionId"
         ]
       },
       "CreateSecretDto": {
@@ -2638,6 +2970,15 @@
           },
           "visualFlow": {
             "type": "object"
+          }
+        }
+      },
+      "CreateTestRunDto": {
+        "type": "object",
+        "properties": {
+          "environmentConfigRevisionId": {
+            "type": "string",
+            "description": "Explicit environment revision to run against. Defaults to latest published revision."
           }
         }
       },

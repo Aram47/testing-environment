@@ -14,4 +14,7 @@ async function generateOpenApi(): Promise<void> {
   }
 }
 
-void generateOpenApi();
+generateOpenApi().catch((error: unknown) => {
+  console.error(error);
+  process.exit(1);
+});

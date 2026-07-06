@@ -3,10 +3,11 @@ import { EnvironmentConfigType } from '@prisma/client';
 import { IsEnum, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { EnvironmentVisualConfig } from '../types/environment-visual-config.types';
 
-export class UpsertEnvironmentConfigDto {
-  @ApiProperty({ enum: EnvironmentConfigType, default: EnvironmentConfigType.DOCKER_COMPOSE })
+export class PreflightEnvironmentConfigDto {
+  @ApiProperty({ enum: EnvironmentConfigType, required: false })
+  @IsOptional()
   @IsEnum(EnvironmentConfigType)
-  type: EnvironmentConfigType = EnvironmentConfigType.DOCKER_COMPOSE;
+  type?: EnvironmentConfigType;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -23,11 +24,8 @@ export class UpsertEnvironmentConfigDto {
   @IsObject()
   visualConfig?: EnvironmentVisualConfig;
 
-  @ApiProperty({
-    required: false,
-    description: 'Revision ID the client last loaded; mismatch returns 409 Conflict',
-  })
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsUUID()
-  baseRevisionId?: string;
+  revisionId?: string;
 }
