@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import type { TestRunEvent } from '../types';
 import { tokenStorage } from '../lib/tokenStorage';
+import { shouldApplyTestRunEvent } from '../lib/testRunEvent';
 import { testRunsApi } from './test-runs.api';
 
 interface LegacyRunnerEventMessage extends Partial<TestRunEvent> {
@@ -22,6 +23,14 @@ export class TestRunEventsClient {
   private readonly baseReconnectDelay = 1000; // 1 second
   private lastSequence = 0;
   private readonly seenSequences = new Set<number>();
+
+  seedRecoveryState(lastSequence: number, seenSequences: Iterable<number> = []): void {
+    this.lastSequence = lastSequence;
+    this.seenSequences.clear();
+    for (const sequence of seenSequences) {
+      this.seenSequences.add(sequence);
+    }
+  }
 
   connect(projectId: string, runId: string, handlers: TestRunEventsHandlers): () => void {
     const baseUrl = import.meta.env.VITE_WS_URL ?? 'ws://localhost';
@@ -89,6 +98,12 @@ export class TestRunEventsClient {
 
     return () => {
       if (this.socket) {
+        this.socket.off('connect');
+        this.socket.off('runner.event');
+        this.socket.off('disconnect');
+        this.socket.off('error');
+        this.socket.off('connect_error');
+        this.socket.io.off('reconnect_attempt');
         this.socket.disconnect();
         this.socket = null;
       }
@@ -102,7 +117,7 @@ export class TestRunEventsClient {
     onError: () => void,
   ): Promise<void> {
     try {
-      const missedEvents = await testRunsApi.events(projectId, runId, this.lastSequence);
+      const missedEvents = await testRunsApi.eventsAll(projectId, runId, this.lastSequence);
       for (const event of missedEvents) {
         this.applyOnce(event, onEvent);
       }
@@ -113,10 +128,9 @@ export class TestRunEventsClient {
   }
 
   private applyOnce(event: TestRunEvent, onEvent: (event: TestRunEvent) => void): void {
-    if (this.seenSequences.has(event.sequence)) {
+    if (!shouldApplyTestRunEvent(this.seenSequences, event.sequence)) {
       return;
     }
-    this.seenSequences.add(event.sequence);
     this.lastSequence = Math.max(this.lastSequence, event.sequence);
     onEvent(event);
   }
@@ -131,10 +145,15 @@ export class TestRunEventsClient {
         payload: event.payload ?? {},
       };
     }
-    if ('testRunId' in event && event.testRunId === runId && typeof event.timestamp === 'string') {
+    if (
+      'testRunId' in event &&
+      event.testRunId === runId &&
+      typeof event.sequence === 'number' &&
+      typeof event.timestamp === 'string'
+    ) {
       return {
         runId,
-        sequence: Number(event.sequence ?? Date.now()),
+        sequence: event.sequence,
         type: String(event.type),
         timestamp: event.timestamp,
         payload: event.payload ?? {},

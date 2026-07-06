@@ -1,4 +1,3 @@
-import { apiClient } from './client';
 import type {
   ComposeAnalysisResult,
   EnvironmentConfigType,
@@ -10,6 +9,8 @@ import type {
   OnboardingTemplate,
   Project,
 } from '../types';
+import { generatedApi } from './generated-client';
+import type { AnalyzeComposeDto, ConfirmOnboardingDto, UpdateOnboardingSessionDto } from '../generated/api';
 
 export interface ConfirmOnboardingInput {
   project: OnboardingProjectDraft;
@@ -27,39 +28,42 @@ export interface ConfirmOnboardingResult {
 
 class OnboardingApi {
   async session(): Promise<OnboardingSession> {
-    const { data } = await apiClient.get<OnboardingSession>('/onboarding/session');
-    return data;
+    return generatedApi.OnboardingController_session({ path: {} }) as Promise<OnboardingSession>;
   }
 
   async updateSession(input: {
     currentStep?: OnboardingStep;
     draftData?: OnboardingDraftData;
   }): Promise<OnboardingSession> {
-    const { data } = await apiClient.patch<OnboardingSession>('/onboarding/session', input);
-    return data;
+    return generatedApi.OnboardingController_updateSession(
+      { path: {} },
+      input as UpdateOnboardingSessionDto,
+    ) as Promise<OnboardingSession>;
   }
 
   async analyzeCompose(input: {
     source: Extract<EnvironmentImportSource, 'UPLOAD' | 'PASTE' | 'TEMPLATE'>;
     composeYaml: string;
   }): Promise<ComposeAnalysisResult> {
-    const { data } = await apiClient.post<ComposeAnalysisResult>('/onboarding/analyze-compose', input);
-    return data;
+    return generatedApi.OnboardingController_analyzeCompose(
+      { path: {} },
+      input as AnalyzeComposeDto,
+    ) as Promise<ComposeAnalysisResult>;
   }
 
   async templates(): Promise<OnboardingTemplate[]> {
-    const { data } = await apiClient.get<OnboardingTemplate[]>('/onboarding/templates');
-    return data;
+    return generatedApi.OnboardingController_templates({ path: {} }) as Promise<OnboardingTemplate[]>;
   }
 
   async confirm(input: ConfirmOnboardingInput): Promise<ConfirmOnboardingResult> {
-    const { data } = await apiClient.post<ConfirmOnboardingResult>('/onboarding/confirm', input);
-    return data;
+    return generatedApi.OnboardingController_confirm(
+      { path: {} },
+      input as ConfirmOnboardingDto,
+    ) as Promise<ConfirmOnboardingResult>;
   }
 
   async createDemoProject(): Promise<ConfirmOnboardingResult> {
-    const { data } = await apiClient.post<ConfirmOnboardingResult>('/onboarding/demo-project');
-    return data;
+    return generatedApi.OnboardingController_demoProject({ path: {} }) as Promise<ConfirmOnboardingResult>;
   }
 }
 

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backendRoot = resolve(root, '..', 'testing-environment-backend');
 const openApiPath = resolve(backendRoot, 'openapi.json');
 const outputPath = resolve(root, 'src', 'generated', 'api', 'index.ts');
+
+execFileSync('npm', ['run', 'openapi:generate'], { cwd: backendRoot, stdio: 'inherit' });
 
 const document = JSON.parse(await readFile(openApiPath, 'utf8'));
 const schemas = document.components?.schemas ?? {};
@@ -55,6 +58,7 @@ function renderClient(operations) {
     const responseType = responseTypeFor(operation);
     const bodyType = requestBodyTypeFor(operation);
     const hasBody = bodyType !== 'never';
+    const isBlob = responseType === 'Blob';
     return [
       `  async ${name}(params: RequestParams${hasBody ? `, body: ${bodyType}` : ''}, config?: AxiosRequestConfig): Promise<${responseType}> {`,
       `    const { data } = await this.http.request<${responseType}>({`,
@@ -63,6 +67,7 @@ function renderClient(operations) {
       `      url: buildPath('${path}', params.path),`,
       `      params: params.query,`,
       hasBody ? '      data: body,' : '',
+      isBlob ? "      responseType: 'blob'," : '',
       '    });',
       '    return data;',
       '  }',
@@ -88,8 +93,35 @@ function renderClient(operations) {
 
 function responseTypeFor(operation) {
   const response = operation.responses?.['200'] ?? operation.responses?.['201'] ?? operation.responses?.default;
-  const schema = response?.content?.['application/json']?.schema;
-  return schema ? renderType(schema) : 'unknown';
+  if (!response) {
+    return 'unknown';
+  }
+  const content = response.content ?? {};
+  if (content['application/octet-stream'] || content['application/xml'] || content['text/xml']) {
+    return 'Blob';
+  }
+  const binaryContent = Object.entries(content).find(
+    ([mime, value]) =>
+      mime.includes('octet-stream') ||
+      value?.schema?.format === 'binary' ||
+      value?.schema?.type === 'string' && value?.schema?.format === 'byte',
+  );
+  if (binaryContent) {
+    return 'Blob';
+  }
+  const schema = content['application/json']?.schema;
+  if (schema) {
+    return renderType(schema);
+  }
+  const blobOperations = new Set([
+    'ReportsController_report',
+    'ReportsController_junit',
+    'ReportsController_downloadArtifact',
+  ]);
+  if (blobOperations.has(operation.operationId)) {
+    return 'Blob';
+  }
+  return 'unknown';
 }
 
 function requestBodyTypeFor(operation) {
@@ -101,8 +133,17 @@ function renderType(schema) {
   if (!schema) {
     return 'unknown';
   }
+  if (schema.nullable && schema.$ref) {
+    return `${toIdentifier(schema.$ref.split('/').at(-1))} | null`;
+  }
   if (schema.$ref) {
     return toIdentifier(schema.$ref.split('/').at(-1));
+  }
+  if (schema.nullable && schema.enum) {
+    return `${schema.enum.map((value) => JSON.stringify(value)).join(' | ')} | null`;
+  }
+  if (schema.enum) {
+    return schema.enum.map((value) => JSON.stringify(value)).join(' | ');
   }
   if (schema.allOf?.length) {
     return schema.allOf.map(renderType).join(' & ');
@@ -110,17 +151,20 @@ function renderType(schema) {
   if (schema.oneOf?.length) {
     return schema.oneOf.map(renderType).join(' | ');
   }
+  if (schema.anyOf?.length) {
+    return schema.anyOf.map(renderType).join(' | ');
+  }
   if (schema.type === 'array') {
     return `Array<${renderType(schema.items)}>`;
   }
   if (schema.type === 'integer' || schema.type === 'number') {
-    return 'number';
+    return schema.nullable ? 'number | null' : 'number';
   }
   if (schema.type === 'boolean') {
-    return 'boolean';
+    return schema.nullable ? 'boolean | null' : 'boolean';
   }
   if (schema.type === 'string') {
-    return 'string';
+    return schema.nullable ? 'string | null' : 'string';
   }
   if (schema.type === 'object') {
     if (schema.additionalProperties && !schema.properties) {
@@ -132,6 +176,9 @@ function renderType(schema) {
       return `${JSON.stringify(propName)}${optional}: ${renderType(propSchema)}`;
     });
     return props.length ? `{ ${props.join('; ')} }` : 'Record<string, unknown>';
+  }
+  if (schema.nullable) {
+    return 'unknown | null';
   }
   return 'unknown';
 }

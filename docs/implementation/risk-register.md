@@ -341,21 +341,21 @@ Owner area:
 
 Severity: Medium
 
-Likelihood: High
+Likelihood: Medium
 
 Current state:
 
-- No CI workflow files were found.
-- Checks are available as npm scripts but not automated.
+- GitHub Actions workflow `.github/workflows/ci.yml` runs backend lint/build/tests and frontend `api:check`, lint, build, and Vitest.
+- Local developers must keep `openapi.json` and `src/generated/api/` committed in sync via `npm run api:check`.
 
 Impact:
 
-- Regressions can enter branches without consistent validation.
+- Regressions can still enter branches if CI is bypassed or required checks are not enforced in the remote repository.
 
 Mitigation:
 
-- Add CI workflow for backend lint/build/test/e2e and frontend lint/build/tests when configured.
-- Add migration validation.
+- Require the CI workflow on pull requests in GitHub branch protection.
+- Keep migration validation in a follow-up CI job when e2e against real Postgres is added.
 
 Owner area:
 

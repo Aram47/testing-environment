@@ -1,14 +1,25 @@
 import type { TestRun } from '../../types';
+import type { ConnectionState } from '../../api/test-run-events.client';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { ConnectionStateBadge } from './ConnectionStateBadge';
 
-export function TestRunProgress({ run }: { run: TestRun }) {
+export function TestRunProgress({
+  run,
+  connectionState,
+}: {
+  run: TestRun;
+  connectionState?: ConnectionState;
+}) {
   const complete = run.totalTests > 0 ? Math.round(((run.passed + run.failed) / run.totalTests) * 100) : 0;
 
   return (
     <section className="rounded-lg border border-border bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-ink">Run progress</h2>
-        <StatusBadge status={run.status} />
+        <div className="flex flex-wrap items-center gap-2">
+          {connectionState ? <ConnectionStateBadge state={connectionState} /> : null}
+          <StatusBadge status={run.status} />
+        </div>
       </div>
       <div className="mt-5 h-3 rounded-full bg-slate-100">
         <div className="h-3 rounded-full bg-brand transition-all" style={{ width: `${complete}%` }} />

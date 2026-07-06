@@ -1,35 +1,32 @@
-import { apiClient } from './client';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 import type { CreateProjectInput, DashboardSummary, Project } from '../types';
+import { generatedApi } from './generated-client';
+import type { CreateProjectDto, UpdateProjectDto } from '../generated/api';
 
 class ProjectsApi {
   async dashboard(): Promise<DashboardSummary> {
-    const { data } = await apiClient.get<DashboardSummary>('/dashboard');
-    return data;
+    return generatedApi.DashboardController_getSummary({ path: {} }) as Promise<DashboardSummary>;
   }
 
   async list(): Promise<Project[]> {
-    const { data } = await apiClient.get<Project[] | PaginatedResult<Project>>('/projects');
+    const data = await generatedApi.ProjectsController_findAll({ path: {} }) as Project[] | PaginatedResult<Project>;
     return PaginatedResultAdapter.toItems(data);
   }
 
   async get(id: string): Promise<Project> {
-    const { data } = await apiClient.get<Project>(`/projects/${id}`);
-    return data;
+    return generatedApi.ProjectsController_findOne({ path: { projectId: id } }) as Promise<Project>;
   }
 
   async create(input: CreateProjectInput): Promise<Project> {
-    const { data } = await apiClient.post<Project>('/projects', input);
-    return data;
+    return generatedApi.ProjectsController_create({ path: {} }, input as CreateProjectDto) as Promise<Project>;
   }
 
   async update(id: string, input: Partial<CreateProjectInput>): Promise<Project> {
-    const { data } = await apiClient.patch<Project>(`/projects/${id}`, input);
-    return data;
+    return generatedApi.ProjectsController_update({ path: { projectId: id } }, input as UpdateProjectDto) as Promise<Project>;
   }
 
   async remove(id: string): Promise<void> {
-    await apiClient.delete(`/projects/${id}`);
+    await generatedApi.ProjectsController_remove({ path: { projectId: id } });
   }
 }
 

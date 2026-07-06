@@ -408,13 +408,16 @@ These adapters are important backward compatibility surfaces and should be prese
 - Reads logs through React Query.
 - Creates a `TestRunEventsClient`.
 - Subscribes to Socket.IO events for the current run.
-- Appends live events to local timeline state.
-- Invalidates logs on `logs.updated`.
+- Recovers missed events through `GET /projects/:projectId/test-runs/:runId/events?afterSequence=N`.
+- Deduplicates websocket and REST events by `sequence`.
+- Shows websocket connection state (`Live`, `Reconnecting`, `Disconnected`).
+- Uses a bounded ring buffer for live events in the UI.
+- Invalidates paginated log chunks on `logs.updated`.
 - Invalidates run and logs on `run.finished`.
 - Supports run again, cancel, and JSON report download.
-- Shows progress, timeline, logs, results table, and details drawer.
+- Shows progress, timeline, virtualized logs viewer, results table, and details drawer.
 
-Gap: realtime event history is local-only and starts at page subscription time.
+Gap: ring buffer keeps only the latest 500 live events in memory; older events remain available through the REST events endpoint.
 
 ## EnvironmentEditor
 

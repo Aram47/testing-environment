@@ -1,5 +1,6 @@
 import type { CompanyProfile } from '../types';
-import { apiClient } from './client';
+import { generatedApi } from './generated-client';
+import type { UpdateCompanyDto } from '../generated/api';
 
 export interface UpdateCompanyInput {
   name: string;
@@ -7,13 +8,11 @@ export interface UpdateCompanyInput {
 
 class CompaniesApi {
   async me(): Promise<CompanyProfile> {
-    const { data } = await apiClient.get<CompanyProfile>('/companies/me');
-    return data;
+    return generatedApi.CompaniesController_me({ path: {} }) as Promise<CompanyProfile>;
   }
 
   async updateMe(input: UpdateCompanyInput): Promise<CompanyProfile> {
-    const { data } = await apiClient.patch<CompanyProfile>('/companies/me', input);
-    return data;
+    return generatedApi.CompaniesController_updateMe({ path: {} }, input as UpdateCompanyDto) as Promise<CompanyProfile>;
   }
 }
 

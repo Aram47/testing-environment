@@ -3,12 +3,12 @@
 import type { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 export interface UpdateOnboardingSessionDto {
-  "currentStep"?: string;
+  "currentStep"?: "project" | "environment" | "api-import" | "template" | "run";
   "draftData"?: Record<string, unknown>;
 }
 
 export interface AnalyzeComposeDto {
-  "source": string;
+  "source": "UPLOAD" | "PASTE" | "TEMPLATE";
   "composeYaml": string;
 }
 
@@ -24,7 +24,7 @@ export interface OnboardingProjectDto {
 
 export interface ConfirmOnboardingDto {
   "project": OnboardingProjectDto;
-  "environmentType": string;
+  "environmentType": "DOCKER_COMPOSE" | "EXTERNAL_URL";
   "composeYaml"?: string;
   "backendTestYaml"?: string;
   "analysis"?: Record<string, unknown>;
@@ -32,7 +32,7 @@ export interface ConfirmOnboardingDto {
 }
 
 export interface ChangeSubscriptionPlanDto {
-  "planName": string;
+  "planName": "FREE" | "PRO" | "BUSINESS" | "ENTERPRISE";
 }
 
 export interface UpdateCompanyDto {
@@ -84,7 +84,7 @@ export interface UpdateProjectDto {
 }
 
 export interface UpsertEnvironmentConfigDto {
-  "type": string;
+  "type": "DOCKER_COMPOSE" | "EXTERNAL_URL";
   "composeYaml"?: string;
   "backendTestYaml"?: string;
   "visualConfig"?: Record<string, unknown>;
@@ -113,7 +113,7 @@ export interface SecretResponseDto {
 
 export interface SecretRotationJobResponseDto {
   "id": string;
-  "status": string;
+  "status": "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   "companyId": string;
   "fromKeyVersion": string;
   "toKeyVersion": string;
@@ -124,13 +124,13 @@ export interface SecretRotationJobResponseDto {
 }
 
 export interface UpdateMemberRoleDto {
-  "role": string;
+  "role": "OWNER" | "ADMIN" | "DEVELOPER" | "VIEWER";
 }
 
 export interface CreateTestSuiteDto {
   "name": string;
   "yamlContent": string;
-  "sourceMode"?: string;
+  "sourceMode"?: "VISUAL" | "RAW_YAML";
   "visualFlow"?: Record<string, unknown>;
 }
 
@@ -139,7 +139,7 @@ export interface CompileFlowDto {
 }
 
 export interface ImportPreviewDto {
-  "sourceType": string;
+  "sourceType": "OPENAPI" | "POSTMAN" | "BRUNO" | "CURL" | "MANUAL";
   "content"?: string;
   "files"?: Record<string, unknown>;
   "manualRequest"?: Record<string, unknown>;
@@ -147,7 +147,7 @@ export interface ImportPreviewDto {
 
 export interface GenerateImportedFlowDto {
   "suiteName": string;
-  "template": string;
+  "template": "SMOKE_TEST" | "AUTHENTICATED_JOURNEY" | "CRUD_LIFECYCLE" | "ASYNC_POLLING" | "READINESS_TEST";
   "operations": Array<string>;
   "acknowledgeDestructive"?: boolean;
   "options"?: Record<string, unknown>;
@@ -156,7 +156,7 @@ export interface GenerateImportedFlowDto {
 export interface UpdateTestSuiteDto {
   "name"?: string;
   "yamlContent"?: string;
-  "sourceMode"?: string;
+  "sourceMode"?: "VISUAL" | "RAW_YAML";
   "visualFlow"?: Record<string, unknown>;
 }
 
@@ -166,9 +166,9 @@ export interface TestRunResponseDto {
   "environmentConfigRevisionId"?: Record<string, unknown>;
   "runnerVersion": string;
   "reportSchemaVersion": number;
-  "status": string;
+  "status": "CREATED" | "QUEUED" | "CLAIMED" | "PREPARING_WORKSPACE" | "VALIDATING_ENVIRONMENT" | "PULLING_IMAGES" | "STARTING_ENVIRONMENT" | "WAITING_FOR_HEALTHCHECK" | "EXECUTING_TESTS" | "COLLECTING_ARTIFACTS" | "CLEANING_UP" | "PASSED" | "TEST_FAILED" | "INFRA_FAILED" | "TIMED_OUT" | "CANCEL_REQUESTED" | "CANCELLED";
   "statusReason"?: Record<string, unknown>;
-  "failureCategory"?: string;
+  "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL";
   "currentPhase"?: Record<string, unknown>;
   "phaseTimestamps"?: Record<string, unknown>;
   "queueJobId"?: Record<string, unknown>;
@@ -795,12 +795,13 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ReportsController_report(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ReportsController_report(params: RequestParams, config?: AxiosRequestConfig): Promise<Blob> {
+    const { data } = await this.http.request<Blob>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-runs/{runId}/report', params.path),
       params: params.query,
+      responseType: 'blob',
     });
     return data;
   }
@@ -825,22 +826,24 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ReportsController_junit(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ReportsController_junit(params: RequestParams, config?: AxiosRequestConfig): Promise<Blob> {
+    const { data } = await this.http.request<Blob>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-runs/{runId}/report/junit', params.path),
       params: params.query,
+      responseType: 'blob',
     });
     return data;
   }
 
-  async ReportsController_downloadArtifact(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ReportsController_downloadArtifact(params: RequestParams, config?: AxiosRequestConfig): Promise<Blob> {
+    const { data } = await this.http.request<Blob>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-runs/{runId}/artifacts/{artifactId}/download', params.path),
       params: params.query,
+      responseType: 'blob',
     });
     return data;
   }

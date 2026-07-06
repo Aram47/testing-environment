@@ -28,4 +28,10 @@ Set `VITE_API_URL` to your Nest.js API base URL and `VITE_WS_URL` to your WebSoc
 npm run dev
 npm run build
 npm run lint
+npm run test
+npm run api:generate
+npm run api:check
 ```
+
+`api:generate` regenerates `src/generated/api/` from the backend OpenAPI spec.
+`api:check` fails when generated client or `openapi.json` drift from backend DTOs.

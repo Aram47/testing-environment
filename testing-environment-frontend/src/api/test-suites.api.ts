@@ -1,4 +1,3 @@
-import { apiClient } from './client';
 import type {
   ApiImportSourceType,
   ApiImportTemplate,
@@ -13,6 +12,14 @@ import type {
   TestSuiteSourceMode,
 } from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
+import { generatedApi } from './generated-client';
+import type {
+  CompileFlowDto,
+  CreateTestSuiteDto,
+  GenerateImportedFlowDto,
+  ImportPreviewDto,
+  UpdateTestSuiteDto,
+} from '../generated/api';
 
 export interface TestSuiteInput {
   name: string;
@@ -57,59 +64,78 @@ export interface TestSuiteRevisionCompareResult {
 
 class TestSuitesApi {
   async list(projectId: string): Promise<TestSuite[]> {
-    const { data } = await apiClient.get<TestSuiteResponse[] | PaginatedResult<TestSuiteResponse>>(`/projects/${projectId}/test-suites`);
+    const data = await generatedApi.TestSuitesController_list({
+      path: { projectId },
+    }) as TestSuiteResponse[] | PaginatedResult<TestSuiteResponse>;
     return PaginatedResultAdapter.toItems(data).map((suite) => this.toTestSuite(suite));
   }
 
   async get(projectId: string, suiteId: string): Promise<TestSuite> {
-    const { data } = await apiClient.get<TestSuiteResponse>(`/projects/${projectId}/test-suites/${suiteId}`);
+    const data = await generatedApi.TestSuitesController_find({
+      path: { projectId, suiteId },
+    }) as TestSuiteResponse;
     return this.toTestSuite(data);
   }
 
   async create(projectId: string, input: TestSuiteInput): Promise<TestSuite> {
-    const { data } = await apiClient.post<TestSuiteResponse>(`/projects/${projectId}/test-suites`, input);
+    const data = await generatedApi.TestSuitesController_create(
+      { path: { projectId } },
+      input as CreateTestSuiteDto,
+    ) as TestSuiteResponse;
     return this.toTestSuite(data);
   }
 
   async update(projectId: string, suiteId: string, input: Partial<TestSuiteInput>): Promise<TestSuite> {
-    const { data } = await apiClient.patch<TestSuiteResponse>(`/projects/${projectId}/test-suites/${suiteId}`, input);
+    const data = await generatedApi.TestSuitesController_update(
+      { path: { projectId, suiteId } },
+      input as UpdateTestSuiteDto,
+    ) as TestSuiteResponse;
     return this.toTestSuite(data);
   }
 
   async compileFlow(projectId: string, visualFlow: FlowSuiteDefinition): Promise<FlowCompileResult> {
-    const { data } = await apiClient.post<FlowCompileResult>(`/projects/${projectId}/test-suites/compile-flow`, { visualFlow });
-    return data;
+    return generatedApi.TestSuitesController_compileFlow(
+      { path: { projectId } },
+      { visualFlow } as unknown as CompileFlowDto,
+    ) as Promise<FlowCompileResult>;
   }
 
   async previewImport(projectId: string, input: ImportPreviewInput): Promise<ImportPreviewResult> {
-    const { data } = await apiClient.post<ImportPreviewResult>(`/projects/${projectId}/test-suites/import/preview`, input);
-    return data;
+    return generatedApi.TestSuitesController_previewImport(
+      { path: { projectId } },
+      input as ImportPreviewDto,
+    ) as Promise<ImportPreviewResult>;
   }
 
   async generateImportedFlow(projectId: string, input: GenerateImportedFlowInput): Promise<ImportGenerateResult> {
-    const { data } = await apiClient.post<ImportGenerateResult>(`/projects/${projectId}/test-suites/import/generate-flow`, input);
-    return data;
+    return generatedApi.TestSuitesController_generateImportedFlow(
+      { path: { projectId } },
+      input as unknown as GenerateImportedFlowDto,
+    ) as Promise<ImportGenerateResult>;
   }
 
   async revisions(projectId: string, suiteId: string): Promise<TestSuiteRevision[]> {
-    const { data } = await apiClient.get<TestSuiteRevision[]>(`/projects/${projectId}/test-suites/${suiteId}/revisions`);
-    return data;
+    return generatedApi.TestSuitesController_revisions({
+      path: { projectId, suiteId },
+    }) as Promise<TestSuiteRevision[]>;
   }
 
   async publish(projectId: string, suiteId: string, revisionId: string): Promise<TestSuite> {
-    const { data } = await apiClient.post<TestSuiteResponse>(`/projects/${projectId}/test-suites/${suiteId}/revisions/${revisionId}/publish`);
+    const data = await generatedApi.TestSuitesController_publishRevision({
+      path: { projectId, suiteId, revisionId },
+    }) as TestSuiteResponse;
     return this.toTestSuite(data);
   }
 
   async compare(projectId: string, suiteId: string, from: string, to: string): Promise<TestSuiteRevisionCompareResult> {
-    const { data } = await apiClient.get<TestSuiteRevisionCompareResult>(`/projects/${projectId}/test-suites/${suiteId}/revisions/compare`, {
-      params: { from, to },
-    });
-    return data;
+    return generatedApi.TestSuitesController_compareRevisions({
+      path: { projectId, suiteId },
+      query: { from, to },
+    }) as Promise<TestSuiteRevisionCompareResult>;
   }
 
   async remove(projectId: string, suiteId: string): Promise<void> {
-    await apiClient.delete(`/projects/${projectId}/test-suites/${suiteId}`);
+    await generatedApi.TestSuitesController_delete({ path: { projectId, suiteId } });
   }
 
   private toTestSuite(suite: TestSuiteResponse): TestSuite {

@@ -1,5 +1,14 @@
-import { Controller, Get, Header, Param, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Header,
+  Param,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
@@ -17,6 +26,8 @@ export class ReportsController {
   constructor(private readonly service: ReportsService) {}
 
   @Get('report')
+  @ApiProduces('application/json')
+  @ApiOkResponse({ description: 'Test run report JSON file.' })
   @RequirePermission('run:read', 'run')
   report(
     @Param('projectId') projectId: string,
@@ -50,6 +61,8 @@ export class ReportsController {
 
   @Get('report/junit')
   @Header('content-type', 'application/xml')
+  @ApiProduces('application/xml')
+  @ApiOkResponse({ description: 'JUnit XML report file.' })
   @RequirePermission('run:read', 'run')
   junit(
     @Param('projectId') projectId: string,
@@ -60,6 +73,8 @@ export class ReportsController {
   }
 
   @Get('artifacts/:artifactId/download')
+  @ApiProduces('application/octet-stream')
+  @ApiOkResponse({ description: 'Downloadable test run artifact.' })
   @RequirePermission('run:read', 'run')
   async downloadArtifact(
     @Param('projectId') projectId: string,

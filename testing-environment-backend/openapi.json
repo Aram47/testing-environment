@@ -1866,7 +1866,7 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Test run report JSON file."
           }
         },
         "security": [
@@ -1990,7 +1990,7 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "JUnit XML report file."
           }
         },
         "security": [
@@ -2034,7 +2034,7 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "Downloadable test run artifact."
           }
         },
         "security": [

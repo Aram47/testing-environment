@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { GitCompare, History, Rocket } from 'lucide-react';
 import type { TestSuiteRevisionCompareResult } from '../../api/test-suites.api';
 import { Button } from '../../components/ui/Button';
-import { YamlEditor } from '../../editors/YamlEditor';
+import { LoadingState } from '../../components/ui/LoadingState';
 import { testSuiteExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
 import type { FlowSuiteDefinition, TestSuite, TestSuiteRevision, TestSuiteSourceMode } from '../../types';
 import { ApiImportWizard } from './ApiImportWizard';
-import { FlowSuiteEditor } from './FlowSuiteEditor';
+
+const FlowSuiteEditor = lazy(() =>
+  import('./FlowSuiteEditor').then((module) => ({ default: module.FlowSuiteEditor })),
+);
+const YamlEditor = lazy(() =>
+  import('../../editors/YamlEditor').then((module) => ({ default: module.YamlEditor })),
+);
 
 interface TestSuiteEditorProps {
   projectId: string;
@@ -119,17 +125,19 @@ export function TestSuiteEditor({
       />
 
       {mode === 'flow' && visualFlow ? (
-        <FlowSuiteEditor
-          projectId={projectId}
-          suiteName={name}
-          initialFlow={visualFlow}
-          initialYaml={yaml}
-          onMessage={onMessage}
-          onSave={(nextFlow) => {
-            setVisualFlow(nextFlow);
-            onSave({ name, sourceMode: 'VISUAL', visualFlow: nextFlow });
-          }}
-        />
+        <Suspense fallback={<LoadingState label="Loading flow editor" />}>
+          <FlowSuiteEditor
+            projectId={projectId}
+            suiteName={name}
+            initialFlow={visualFlow}
+            initialYaml={yaml}
+            onMessage={onMessage}
+            onSave={(nextFlow) => {
+              setVisualFlow(nextFlow);
+              onSave({ name, sourceMode: 'VISUAL', visualFlow: nextFlow });
+            }}
+          />
+        </Suspense>
       ) : (
         <>
           {!visualFlow ? (
@@ -140,7 +148,9 @@ export function TestSuiteEditor({
               </div>
             </section>
           ) : null}
-          <YamlEditor label="Test suite YAML" value={yaml} onChange={setYaml} minRows={24} />
+          <Suspense fallback={<LoadingState label="Loading YAML editor" />}>
+            <YamlEditor label="Test suite YAML" value={yaml} onChange={setYaml} minRows={24} />
+          </Suspense>
         </>
       )}
 

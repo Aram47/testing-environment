@@ -1,4 +1,3 @@
-import { apiClient } from './client';
 import type { TestRun } from '../types';
 import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
 import { generatedApi } from './generated-client';
@@ -47,13 +46,37 @@ class TestRunsApi {
       path: { projectId, runId },
       query: { afterSequence },
     }) as TestRunEventResponseDto[];
-    return data.map((event) => ({
+    return data.map((event) => this.toTestRunEvent(event));
+  }
+
+  async eventsAll(projectId: string, runId: string, afterSequence = 0): Promise<TestRunEvent[]> {
+    const collected: TestRunEvent[] = [];
+    let cursor = afterSequence;
+    const pageSize = 500;
+
+    while (true) {
+      const page = await this.events(projectId, runId, cursor);
+      if (!page.length) {
+        break;
+      }
+      collected.push(...page);
+      cursor = page[page.length - 1].sequence;
+      if (page.length < pageSize) {
+        break;
+      }
+    }
+
+    return collected;
+  }
+
+  private toTestRunEvent(event: TestRunEventResponseDto): TestRunEvent {
+    return {
       runId: event.runId,
       sequence: event.sequence,
       type: event.type,
       timestamp: event.timestamp,
       payload: event.payload,
-    }));
+    };
   }
 
   private toTestRun(run: TestRunResponse): TestRun {

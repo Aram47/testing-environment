@@ -1,5 +1,6 @@
-import { apiClient } from './client';
 import type { User } from '../types';
+import { generatedApi } from './generated-client';
+import type { LoginDto, RegisterDto } from '../generated/api';
 
 export interface AuthCredentials {
   email: string;
@@ -19,18 +20,15 @@ export interface AuthResponse {
 
 class AuthApi {
   async login(input: AuthCredentials): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/auth/login', input);
-    return data;
+    return generatedApi.AuthController_login({ path: {} }, input as LoginDto) as Promise<AuthResponse>;
   }
 
   async register(input: RegisterInput): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/auth/register', input);
-    return data;
+    return generatedApi.AuthController_register({ path: {} }, input as RegisterDto) as Promise<AuthResponse>;
   }
 
   async me(): Promise<User> {
-    const { data } = await apiClient.get<User>('/auth/me');
-    return data;
+    return generatedApi.AuthController_me({ path: {} }) as Promise<User>;
   }
 }
 

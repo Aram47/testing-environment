@@ -82,6 +82,17 @@ docker compose logs -f runner-worker
 
 `backend-api` intentionally does not mount `/var/run/docker.sock`. Only `runner-worker` has Docker socket access.
 
+## API Contract Generation
+
+The frontend Axios client is generated from the backend OpenAPI spec:
+
+```bash
+cd testing-environment-backend && npm run openapi:generate
+cd ../testing-environment-frontend && npm run api:generate
+```
+
+`npm run api:check` in the frontend regenerates the spec/client and fails when `openapi.json` or `src/generated/api/` drift from committed files. CI runs this check on every push and pull request.
+
 ## First Login
 
 1. Open `http://localhost/register`.

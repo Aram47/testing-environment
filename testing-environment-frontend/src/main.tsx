@@ -7,7 +7,6 @@ import { AuthProvider } from './features/auth/AuthProvider';
 import { ThemeProvider } from './features/theme/ThemeProvider';
 import { ToastProvider } from './components/ui/ToastProvider';
 import { queryClient } from './lib/queryClient';
-import '@xyflow/react/dist/style.css';
 import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

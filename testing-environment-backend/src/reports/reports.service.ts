@@ -52,12 +52,7 @@ export class ReportsService {
     });
   }
 
-  async logChunks(
-    projectId: string,
-    runId: string,
-    companyId: string,
-    query: PaginationQueryDto,
-  ) {
+  async logChunks(projectId: string, runId: string, companyId: string, query: PaginationQueryDto) {
     await this.assertRunAccess(projectId, runId, companyId);
     const skip = (query.page - 1) * query.limit;
     const where = { testRunId: runId };

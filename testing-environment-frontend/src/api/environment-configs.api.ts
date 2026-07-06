@@ -1,17 +1,11 @@
-import { apiClient } from './client';
 import type {
   EnvironmentConfig,
   EnvironmentConfigRevision,
   EnvironmentVisualConfig,
   RevisionLineDiff,
 } from '../types';
-
-interface EnvironmentConfigPayload {
-  type: 'DOCKER_COMPOSE' | 'EXTERNAL_URL';
-  composeYaml?: string;
-  backendTestYaml?: string;
-  visualConfig?: EnvironmentVisualConfig;
-}
+import { generatedApi } from './generated-client';
+import type { CompileEnvironmentConfigDto, UpsertEnvironmentConfigDto } from '../generated/api';
 
 interface EnvironmentConfigResponse extends Omit<EnvironmentConfig, 'dockerComposeYaml'> {
   composeYaml?: string;
@@ -35,55 +29,68 @@ export interface EnvironmentRevisionCompareResult {
 
 class EnvironmentConfigsApi {
   async get(projectId: string): Promise<EnvironmentConfig> {
-    const { data } = await apiClient.get<EnvironmentConfigResponse>(`/projects/${projectId}/environment-config`);
+    const data = await generatedApi.EnvironmentConfigsController_find({
+      path: { projectId },
+    }) as EnvironmentConfigResponse;
     return this.toEnvironmentConfig(data);
   }
 
   async create(projectId: string, input: Omit<EnvironmentConfig, 'projectId'>): Promise<EnvironmentConfig> {
-    const { data } = await apiClient.post<EnvironmentConfigResponse>(`/projects/${projectId}/environment-config`, this.toPayload(input));
+    const data = await generatedApi.EnvironmentConfigsController_create(
+      { path: { projectId } },
+      this.toPayload(input) as UpsertEnvironmentConfigDto,
+    ) as EnvironmentConfigResponse;
     return this.toEnvironmentConfig(data);
   }
 
   async update(projectId: string, input: Partial<EnvironmentConfig>): Promise<EnvironmentConfig> {
-    const { data } = await apiClient.patch<EnvironmentConfigResponse>(`/projects/${projectId}/environment-config`, this.toPayload(input));
+    const data = await generatedApi.EnvironmentConfigsController_update(
+      { path: { projectId } },
+      this.toPayload(input) as UpsertEnvironmentConfigDto,
+    ) as EnvironmentConfigResponse;
     return this.toEnvironmentConfig(data);
   }
 
   async compile(projectId: string, visualConfig: EnvironmentVisualConfig): Promise<EnvironmentCompileResult> {
-    const { data } = await apiClient.post<EnvironmentCompileResult>(`/projects/${projectId}/environment-config/compile`, { visualConfig });
-    return data;
+    return generatedApi.EnvironmentConfigsController_compile(
+      { path: { projectId } },
+      { visualConfig } as unknown as CompileEnvironmentConfigDto,
+    ) as Promise<EnvironmentCompileResult>;
   }
 
   async revisions(projectId: string): Promise<EnvironmentConfigRevision[]> {
-    const { data } = await apiClient.get<EnvironmentConfigRevision[]>(`/projects/${projectId}/environment-config/revisions`);
-    return data;
+    return generatedApi.EnvironmentConfigsController_revisions({
+      path: { projectId },
+    }) as Promise<EnvironmentConfigRevision[]>;
   }
 
   async publish(projectId: string, revisionId: string): Promise<EnvironmentConfig> {
-    const { data } = await apiClient.post<EnvironmentConfigResponse>(`/projects/${projectId}/environment-config/revisions/${revisionId}/publish`);
+    const data = await generatedApi.EnvironmentConfigsController_publishRevision({
+      path: { projectId, revisionId },
+    }) as EnvironmentConfigResponse;
     return this.toEnvironmentConfig(data);
   }
 
   async compare(projectId: string, from: string, to: string): Promise<EnvironmentRevisionCompareResult> {
-    const { data } = await apiClient.get<EnvironmentRevisionCompareResult>(`/projects/${projectId}/environment-config/revisions/compare`, {
-      params: { from, to },
-    });
-    return data;
+    return generatedApi.EnvironmentConfigsController_compareRevisions({
+      path: { projectId },
+      query: { from, to },
+    }) as Promise<EnvironmentRevisionCompareResult>;
   }
 
-  private toPayload(input: Partial<EnvironmentConfig>): EnvironmentConfigPayload {
+  private toPayload(input: Partial<EnvironmentConfig>): UpsertEnvironmentConfigDto {
     if (input.visualConfig) {
       return {
         type: 'DOCKER_COMPOSE',
         visualConfig: input.visualConfig,
-      };
+      } as unknown as UpsertEnvironmentConfigDto;
     }
 
     return {
       type: 'DOCKER_COMPOSE',
       composeYaml: input.dockerComposeYaml ?? '',
       backendTestYaml: input.backendTestYaml ?? '',
-    };
+    } as UpsertEnvironmentConfigDto;
   }
 
   private toEnvironmentConfig(config: EnvironmentConfigResponse): EnvironmentConfig {

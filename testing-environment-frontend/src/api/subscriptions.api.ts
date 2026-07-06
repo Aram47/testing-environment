@@ -1,5 +1,6 @@
 import type { CompanyProfile, SubscriptionPlan, SubscriptionTier } from '../types';
-import { apiClient } from './client';
+import { generatedApi } from './generated-client';
+import type { ChangeSubscriptionPlanDto } from '../generated/api';
 
 interface SubscriptionPlanResponse extends Omit<SubscriptionPlan, 'tier'> {
   id: string;
@@ -8,13 +9,15 @@ interface SubscriptionPlanResponse extends Omit<SubscriptionPlan, 'tier'> {
 
 class SubscriptionsApi {
   listPlans = async (): Promise<SubscriptionPlan[]> => {
-    const { data } = await apiClient.get<SubscriptionPlanResponse[]>('/subscriptions/plans');
+    const data = await generatedApi.SubscriptionsController_listPlans({ path: {} }) as SubscriptionPlanResponse[];
     return data.map((plan) => this.toSubscriptionPlan(plan));
   };
 
   changePlan = async (planName: SubscriptionTier): Promise<CompanyProfile> => {
-    const { data } = await apiClient.patch<CompanyProfile>('/subscriptions/current', { planName });
-    return data;
+    return generatedApi.SubscriptionsController_changeCurrentPlan(
+      { path: {} },
+      { planName } as ChangeSubscriptionPlanDto,
+    ) as Promise<CompanyProfile>;
   };
 
   private toSubscriptionPlan(plan: SubscriptionPlanResponse): SubscriptionPlan {

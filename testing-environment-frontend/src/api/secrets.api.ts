@@ -1,5 +1,6 @@
-import { apiClient } from './client';
 import type { SecretMetadata } from '../types';
+import { generatedApi } from './generated-client';
+import type { CreateSecretDto } from '../generated/api';
 
 export interface CreateSecretInput {
   key: string;
@@ -8,20 +9,20 @@ export interface CreateSecretInput {
 
 class SecretsApi {
   async list(projectId: string): Promise<SecretMetadata[]> {
-    const { data } = await apiClient.get<SecretMetadata[]>(`/projects/${projectId}/secrets`);
-    return data;
+    return generatedApi.SecretsController_list({ path: { projectId } }) as Promise<SecretMetadata[]>;
   }
 
   async create(projectId: string, input: CreateSecretInput): Promise<SecretMetadata> {
-    const { data } = await apiClient.post<SecretMetadata>(`/projects/${projectId}/secrets`, input);
-    return data;
+    return generatedApi.SecretsController_create(
+      { path: { projectId } },
+      input as CreateSecretDto,
+    ) as Promise<SecretMetadata>;
   }
 
   async delete(projectId: string, secretId: string): Promise<{ deleted: true }> {
-    const { data } = await apiClient.delete<{ deleted: true }>(
-      `/projects/${projectId}/secrets/${secretId}`,
-    );
-    return data;
+    return generatedApi.SecretsController_delete({
+      path: { projectId, secretId },
+    }) as Promise<{ deleted: true }>;
   }
 }
 

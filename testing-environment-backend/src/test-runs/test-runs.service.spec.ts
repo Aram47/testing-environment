@@ -1,4 +1,5 @@
 import { RevisionStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
+import { NotFoundException } from '@nestjs/common';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { ExecutionContextService } from '../observability/execution-context.service';
 import { TracingService } from '../observability/tracing.service';
@@ -22,6 +23,9 @@ describe('TestRunsService', () => {
       findUnique: jest.Mock;
     };
     testSuite: {
+      findMany: jest.Mock;
+    };
+    testRunEvent: {
       findMany: jest.Mock;
     };
     $transaction: jest.Mock;
@@ -89,6 +93,9 @@ describe('TestRunsService', () => {
             },
           ]),
         ),
+      },
+      testRunEvent: {
+        findMany: jest.fn(),
       },
       $transaction: jest.fn((callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };
@@ -222,5 +229,57 @@ describe('TestRunsService', () => {
     expect(run.status).toBe(TestRunStatus.PASSED);
     expect(queue.cancelQueuedRun).not.toHaveBeenCalled();
     expect(state.requestCancel).not.toHaveBeenCalled();
+  });
+
+  it('returns events after the requested sequence in ascending order', async () => {
+    prisma.testRun.findFirst.mockResolvedValueOnce({ id: 'run-1' });
+    prisma.testRunEvent.findMany.mockResolvedValueOnce([
+      {
+        runId: 'run-1',
+        sequence: 138,
+        type: 'test.passed',
+        timestamp: new Date('2026-07-06T10:00:00.000Z'),
+        payload: { testName: 'healthcheck' },
+      },
+      {
+        runId: 'run-1',
+        sequence: 139,
+        type: 'run.finished',
+        timestamp: new Date('2026-07-06T10:00:01.000Z'),
+        payload: {},
+      },
+    ]);
+
+    const events = await service.events(projectId, 'run-1', companyId, 137);
+
+    expect(prisma.testRunEvent.findMany).toHaveBeenCalledWith({
+      where: { runId: 'run-1', sequence: { gt: 137 } },
+      orderBy: { sequence: 'asc' },
+      take: 500,
+    });
+    expect(events).toEqual([
+      {
+        runId: 'run-1',
+        sequence: 138,
+        type: 'test.passed',
+        timestamp: '2026-07-06T10:00:00.000Z',
+        payload: { testName: 'healthcheck' },
+      },
+      {
+        runId: 'run-1',
+        sequence: 139,
+        type: 'run.finished',
+        timestamp: '2026-07-06T10:00:01.000Z',
+        payload: {},
+      },
+    ]);
+  });
+
+  it('throws when requesting events for a missing run', async () => {
+    prisma.testRun.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.events(projectId, 'missing-run', companyId, 0)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

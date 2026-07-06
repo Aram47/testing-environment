@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import '@xyflow/react/dist/style.css';
 import {
   addEdge,
   applyNodeChanges,

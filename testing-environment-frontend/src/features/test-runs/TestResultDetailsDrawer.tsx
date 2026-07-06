@@ -1,5 +1,11 @@
+import { lazy, Suspense } from 'react';
 import type { TestResult } from '../../types';
 import { Button } from '../../components/ui/Button';
+import { LoadingState } from '../../components/ui/LoadingState';
+
+const JsonViewer = lazy(() =>
+  import('../../editors/JsonViewer').then((module) => ({ default: module.JsonViewer })),
+);
 
 export function TestResultDetailsDrawer({
   result,
@@ -52,9 +58,9 @@ function Detail({ title, value }: { title: string; value: unknown }) {
   return (
     <section className="mt-5">
       <h3 className="text-sm font-semibold text-ink">{title}</h3>
-      <pre className="mt-2 overflow-x-auto rounded-md bg-slate-950 p-4 text-xs leading-5 text-slate-100">
-        {JSON.stringify(value ?? {}, null, 2)}
-      </pre>
+      <Suspense fallback={<LoadingState label="Loading JSON viewer" />}>
+        <JsonViewer value={value} />
+      </Suspense>
     </section>
   );
 }

@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Download, RotateCcw, Square } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { reportsApi } from '../api/reports.api';
-import { TestRunEventsClient } from '../api/test-run-events.client';
-import { testRunsApi } from '../api/test-runs.api';
+import {
+  invalidateTestRunQueries,
+  useCancelTestRun,
+  useCreateTestRun,
+  useTestRun,
+} from '../api/hooks/useTestRuns';
+import { useTestRunEvents } from '../api/hooks/useTestRunEvents';
 import { Button } from '../components/ui/Button';
 import { ErrorState } from '../components/ui/ErrorState';
 import { LoadingState } from '../components/ui/LoadingState';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/toastContext';
-import { LogsPanel } from '../features/test-runs/LogsPanel';
 import { TestResultDetailsDrawer } from '../features/test-runs/TestResultDetailsDrawer';
 import { TestRunProgress } from '../features/test-runs/TestRunProgress';
 import { TestRunTimeline } from '../features/test-runs/TestRunTimeline';
 import { ErrorPresenter } from '../lib/errors';
 import { Format } from '../lib/format';
 import { TestResultsTable } from '../tables/TestResultsTable';
-import type { RunStatus, TestResult, TestRunEvent } from '../types';
+import type { RunStatus, TestResult } from '../types';
+import { useQueryClient } from '@tanstack/react-query';
+
+const LogsViewer = lazy(() =>
+  import('../features/test-runs/LogsViewer').then((module) => ({ default: module.LogsViewer })),
+);
 
 const cancellableStatuses: ReadonlySet<RunStatus> = new Set([
   'QUEUED',
@@ -37,46 +46,40 @@ export function TestRunDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const [events, setEvents] = useState<TestRunEvent[]>([]);
   const [selectedResult, setSelectedResult] = useState<TestResult | null>(null);
-  const runQuery = useQuery({ queryKey: ['test-runs', projectId, runId], queryFn: () => testRunsApi.get(projectId, runId) });
-  const logsQuery = useQuery({ queryKey: ['logs', projectId, runId], queryFn: () => reportsApi.logs(projectId, runId), enabled: Boolean(runId) });
-  const wsClient = useMemo(() => new TestRunEventsClient(), []);
+  const runQuery = useTestRun(projectId, runId);
+  const { events, connectionState } = useTestRunEvents(projectId, runId);
+  const processedSequenceRef = useRef(0);
+  const connectionErrorNotifiedRef = useRef(false);
 
   useEffect(() => {
-    if (!runId) {
-      return undefined;
+    if (connectionState === 'error') {
+      if (!connectionErrorNotifiedRef.current) {
+        connectionErrorNotifiedRef.current = true;
+        showToast('Live connection interrupted', 'error');
+      }
+      return;
     }
+    connectionErrorNotifiedRef.current = false;
+  }, [connectionState, showToast]);
 
-    return wsClient.connect(
-      runId,
-      (event) => {
-        setEvents((items) => [...items, event]);
-        if (event.type === 'logs.updated') {
-          void queryClient.invalidateQueries({ queryKey: ['logs', projectId, runId] });
-        }
-        if (event.type === 'run.finished') {
-          void queryClient.invalidateQueries({ queryKey: ['test-runs', projectId, runId] });
-          void queryClient.invalidateQueries({ queryKey: ['logs', projectId, runId] });
-        }
-      },
-      () => showToast('Live connection interrupted', 'error'),
-    );
-  }, [projectId, queryClient, runId, showToast, wsClient]);
+  useEffect(() => {
+    const latest = events[events.length - 1];
+    if (!latest || latest.sequence <= processedSequenceRef.current) {
+      return;
+    }
+    processedSequenceRef.current = latest.sequence;
+    if (latest.type === 'logs.updated') {
+      void queryClient.invalidateQueries({ queryKey: ['logs', projectId, runId, 'chunks'] });
+    }
+    if (latest.type === 'run.finished') {
+      void invalidateTestRunQueries(queryClient, projectId, runId);
+    }
+  }, [events, projectId, queryClient, runId]);
 
-  const runAgainMutation = useMutation({
-    mutationFn: () => testRunsApi.create(projectId),
-    onSuccess: (run) => navigate(`/projects/${projectId}/runs/${run.id}`),
-    onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
-  });
-  const cancelMutation = useMutation({
-    mutationFn: () => testRunsApi.cancel(projectId, runId),
-    onSuccess: async () => {
-      showToast('Run cancelled', 'success');
-      await queryClient.invalidateQueries({ queryKey: ['test-runs', projectId, runId] });
-    },
-    onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
-  });
+  const runAgainMutation = useCreateTestRun(projectId);
+  const cancelMutation = useCancelTestRun(projectId, runId);
+
   const downloadMutation = useMutation({
     mutationFn: () => reportsApi.report(projectId, runId),
     onSuccess: (blob) => {
@@ -135,11 +138,28 @@ export function TestRunDetailPage() {
         description={`${run.startedAt ? `Started ${Format.date(run.startedAt)}` : `Queued ${Format.date(run.queuedAt ?? run.enqueuedAt)}`}. Duration ${Format.duration(run.durationMs)}.`}
         action={
           <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => runAgainMutation.mutate()} disabled={runAgainMutation.isPending}>
+            <Button
+              variant="secondary"
+              onClick={() => runAgainMutation.mutate(undefined, {
+                onSuccess: (createdRun) => navigate(`/projects/${projectId}/runs/${createdRun.id}`),
+                onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
+              })}
+              disabled={runAgainMutation.isPending}
+            >
               <RotateCcw size={18} /> Run again
             </Button>
             {cancellableStatuses.has(run.status) ? (
-              <Button variant="danger" onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}>
+              <Button
+                variant="danger"
+                onClick={() => cancelMutation.mutate(undefined, {
+                  onSuccess: async () => {
+                    showToast('Run cancelled', 'success');
+                    await invalidateTestRunQueries(queryClient, projectId, runId);
+                  },
+                  onError: (error) => showToast(ErrorPresenter.message(error), 'error'),
+                })}
+                disabled={cancelMutation.isPending}
+              >
                 <Square size={18} /> Cancel run
               </Button>
             ) : null}
@@ -178,9 +198,11 @@ export function TestRunDetailPage() {
             </div>
           ) : null}
         </section>
-        <TestRunProgress run={run} />
+        <TestRunProgress run={run} connectionState={connectionState} />
         <TestRunTimeline results={results} />
-        <LogsPanel logs={logsQuery.data ?? []} events={events} />
+        <Suspense fallback={<LoadingState label="Loading logs viewer" />}>
+          <LogsViewer projectId={projectId} runId={runId} events={events} />
+        </Suspense>
         {results.length ? (
           <TestResultsTable results={results} onSelect={setSelectedResult} />
         ) : (

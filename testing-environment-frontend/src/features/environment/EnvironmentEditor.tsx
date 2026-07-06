@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, FileCode2, GitCompare, History, Plus, Rocket, Trash2 } from 'lucide-react';
 import type { EnvironmentRevisionCompareResult } from '../../api/environment-configs.api';
 import { environmentConfigsApi } from '../../api/environment-configs.api';
 import { secretsApi } from '../../api/secrets.api';
 import { Button } from '../../components/ui/Button';
-import { YamlEditor } from '../../editors/YamlEditor';
+import { LoadingState } from '../../components/ui/LoadingState';
 import { backendTestExample, dockerComposeExample } from '../../lib/examples';
 import { YamlValidator } from '../../lib/yaml';
 import type {
@@ -17,6 +17,10 @@ import type {
   EnvironmentVisualConfig,
   SecretMetadata,
 } from '../../types';
+
+const YamlEditor = lazy(() =>
+  import('../../editors/YamlEditor').then((module) => ({ default: module.YamlEditor })),
+);
 
 interface EnvironmentEditorProps {
   projectId: string;
@@ -200,8 +204,10 @@ export function EnvironmentEditor({
       ) : (
         <>
           <section className="grid gap-6 xl:grid-cols-2">
-            <YamlEditor label="docker-compose.test.yml" value={dockerComposeYaml} onChange={setDockerComposeYaml} />
-            <YamlEditor label="backend-test.yml" value={backendTestYaml} onChange={setBackendTestYaml} />
+            <Suspense fallback={<LoadingState label="Loading YAML editor" />}>
+              <YamlEditor label="docker-compose.test.yml" value={dockerComposeYaml} onChange={setDockerComposeYaml} />
+              <YamlEditor label="backend-test.yml" value={backendTestYaml} onChange={setBackendTestYaml} />
+            </Suspense>
           </section>
           <div className="flex flex-wrap justify-end gap-3">
             <Button type="button" variant="secondary" onClick={validateYaml}>Validate YAML</Button>
