@@ -77,6 +77,24 @@ describe('ApiImportService', () => {
     });
   });
 
+  it('uses uploaded file content for single-file import sources', async () => {
+    const result = await service.preview(projectId, companyId, {
+      sourceType: 'OPENAPI',
+      files: { 'openapi.petstore.yaml': fixture('openapi.petstore.yaml') },
+    });
+
+    expect(result.operations.map((operation) => operation.id)).toContain('listPets');
+  });
+
+  it('rejects oversized import payloads before parsing', async () => {
+    await expect(
+      service.preview(projectId, companyId, {
+        sourceType: 'OPENAPI',
+        content: 'x'.repeat(1024 * 1024 + 1),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('imports nested Postman v2.1 collection and replaces auth with secrets', async () => {
     const result = await service.preview(projectId, companyId, {
       sourceType: 'POSTMAN',

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { UploadCloud, Wand2 } from 'lucide-react';
 import { testSuitesApi } from '../../api/test-suites.api';
 import { Button } from '../../components/ui/Button';
@@ -383,16 +383,24 @@ function KeyValueTextArea({
   onChange: (value: Record<string, string> | undefined) => void;
 }) {
   const [error, setError] = useState('');
+  const [text, setText] = useState(() => JSON.stringify(value ?? {}, null, 2));
+
+  useEffect(() => {
+    setText(JSON.stringify(value ?? {}, null, 2));
+  }, [value]);
+
   return (
     <label className="block">
       <span className="mb-1 block text-sm font-medium text-ink">{label}</span>
       <textarea
         className="input min-h-24 font-mono text-sm"
         spellCheck={false}
-        value={JSON.stringify(value ?? {}, null, 2)}
+        value={text}
         onChange={(event) => {
+          const nextText = event.target.value;
+          setText(nextText);
           try {
-            const parsed = JSON.parse(event.target.value || '{}') as unknown;
+            const parsed = JSON.parse(nextText || '{}') as unknown;
             if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
               throw new Error('Expected object');
             }

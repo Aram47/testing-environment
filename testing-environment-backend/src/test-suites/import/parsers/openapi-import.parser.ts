@@ -55,6 +55,13 @@ export class OpenApiImportParser implements ApiImportParser {
           ...this.parameters(operationRecord.parameters, document, warnings),
         ];
         const request = this.requestParts(operationParameters);
+        this.applySecurityPlaceholders(
+          request,
+          operationRecord.security,
+          document.security,
+          authSchemes,
+          warnings,
+        );
         const responses = this.responses(operationRecord.responses, document, warnings);
         const imported: ImportedApiOperation = {
           id: String(operationRecord.operationId ?? stableOperationId(['openapi', method, path])),
@@ -200,6 +207,53 @@ export class OpenApiImportParser implements ApiImportParser {
       }
     }
     return { headers: cleanRecord(headers), query: cleanRecord(query) };
+  }
+
+  private applySecurityPlaceholders(
+    request: { headers: Record<string, string>; query: Record<string, string> },
+    operationSecurity: unknown,
+    documentSecurity: OpenApiDocument['security'],
+    authSchemes: DetectedAuthScheme[],
+    warnings: ImportWarning[],
+  ): void {
+    const security = operationSecurity === undefined ? documentSecurity : operationSecurity;
+    if (Array.isArray(security) && security.length === 0) {
+      return;
+    }
+    if (!Array.isArray(security) || security.length === 0 || authSchemes.length === 0) {
+      return;
+    }
+
+    const referencedNames = new Set(
+      security.flatMap((requirement) =>
+        requirement && typeof requirement === 'object' && !Array.isArray(requirement)
+          ? Object.keys(requirement)
+          : [],
+      ),
+    );
+
+    for (const scheme of authSchemes.filter((item) => referencedNames.has(item.name))) {
+      if (scheme.type === 'BEARER' || scheme.type === 'OAUTH') {
+        request.headers.Authorization =
+          request.headers.Authorization ?? 'Bearer {{ secret.API_TOKEN }}';
+      } else if (scheme.type === 'BASIC') {
+        request.headers.Authorization =
+          request.headers.Authorization ?? 'Basic {{ secret.BASIC_AUTH }}';
+      } else if (scheme.type === 'API_KEY') {
+        const parameterName = scheme.parameterName ?? scheme.name;
+        if (scheme.location === 'query') {
+          request.query[parameterName] = request.query[parameterName] ?? '{{ secret.API_KEY }}';
+        } else {
+          request.headers[parameterName] = request.headers[parameterName] ?? '{{ secret.API_KEY }}';
+        }
+      }
+    }
+
+    warnings.push({
+      code: 'AUTH_SECRET_REFERENCE_SUGGESTED',
+      severity: 'info',
+      message: 'OpenAPI security schemes were converted to project secret references.',
+    });
   }
 
   private requestBodyExample(

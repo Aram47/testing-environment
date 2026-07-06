@@ -22,6 +22,7 @@ const IMPORT_TEMPLATES: ApiImportTemplate[] = [
   'ASYNC_POLLING',
   'READINESS_TEST',
 ];
+const MAX_IMPORT_CONTENT_CHARS = 1024 * 1024;
 
 @Injectable()
 export class ApiImportService {
@@ -43,7 +44,8 @@ export class ApiImportService {
     input: ImportParseInput,
   ): Promise<ImportPreviewResult> {
     await this.projectAccess.getProjectOrThrow(projectId, companyId);
-    const result = this.parserFor(input.sourceType).parse(input);
+    const normalizedInput = this.normalizeInput(input);
+    const result = this.parserFor(normalizedInput.sourceType).parse(normalizedInput);
     const authSchemes = this.warnings.mergeAuthSchemes(result.authSchemes);
     return {
       ...result,
@@ -108,5 +110,26 @@ export class ApiImportService {
       default:
         throw new BadRequestException('Unsupported API import source type');
     }
+  }
+
+  private normalizeInput(input: ImportParseInput): ImportParseInput {
+    const totalSize =
+      (input.content?.length ?? 0) +
+      Object.values(input.files ?? {}).reduce((sum, content) => sum + content.length, 0);
+    if (totalSize > MAX_IMPORT_CONTENT_CHARS) {
+      throw new BadRequestException('API import content exceeds the 1 MiB limit');
+    }
+
+    if (
+      input.sourceType !== 'BRUNO' &&
+      input.sourceType !== 'MANUAL' &&
+      !input.content?.trim() &&
+      input.files
+    ) {
+      const firstFileContent = Object.values(input.files)[0];
+      return { ...input, content: firstFileContent };
+    }
+
+    return input;
   }
 }

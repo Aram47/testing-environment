@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'crypto';
-import { ImportedApiOperation, ImportedResponse } from '../../types/api-import.types';
+import { ImportedResponse } from '../../types/api-import.types';
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'] as const;
 
@@ -69,14 +69,4 @@ export function cleanRecord(record: unknown): Record<string, string> {
 export function expectedStatus(responses: ImportedResponse[] | undefined): number {
   const success = (responses ?? []).find((response) => /^2\d\d$/.test(response.status));
   return Number(success?.status ?? responses?.[0]?.status ?? 200);
-}
-
-export function normalizeOperation(operation: ImportedApiOperation): ImportedApiOperation {
-  return {
-    ...operation,
-    method: normalizeMethod(operation.method),
-    headers: cleanRecord(operation.headers),
-    query: cleanRecord(operation.query),
-    path: splitUrlPathAndQuery(operation.path).path,
-  };
 }
