@@ -1,0 +1,2825 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/metrics": {
+      "get": {
+        "operationId": "MetricsController_render",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Metrics"
+        ]
+      }
+    },
+    "/onboarding/session": {
+      "get": {
+        "operationId": "OnboardingController_session",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      },
+      "patch": {
+        "operationId": "OnboardingController_updateSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOnboardingSessionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/onboarding/analyze-compose": {
+      "post": {
+        "operationId": "OnboardingController_analyzeCompose",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzeComposeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/onboarding/git-repository": {
+      "post": {
+        "operationId": "OnboardingController_gitRepositoryImport",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/onboarding/templates": {
+      "get": {
+        "operationId": "OnboardingController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/onboarding/confirm": {
+      "post": {
+        "operationId": "OnboardingController_confirm",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmOnboardingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/onboarding/demo-project": {
+      "post": {
+        "operationId": "OnboardingController_demoProject",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Onboarding"
+        ]
+      }
+    },
+    "/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionsController_listPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/current": {
+      "patch": {
+        "operationId": "SubscriptionsController_changeCurrentPlan",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSubscriptionPlanDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/companies/me": {
+      "get": {
+        "operationId": "CompaniesController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Companies"
+        ]
+      },
+      "patch": {
+        "operationId": "CompaniesController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
+    "/audit-events": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorUserId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceType",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resourceId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api-tokens": {
+      "get": {
+        "operationId": "ApiTokensController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "API tokens"
+        ]
+      },
+      "post": {
+        "operationId": "ApiTokensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "API tokens"
+        ]
+      }
+    },
+    "/api-tokens/{tokenId}": {
+      "delete": {
+        "operationId": "ApiTokensController_revoke",
+        "parameters": [
+          {
+            "name": "tokenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "API tokens"
+        ]
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/users/me": {
+      "get": {
+        "operationId": "UsersController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "operationId": "DashboardController_getSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/projects": {
+      "post": {
+        "operationId": "ProjectsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      },
+      "get": {
+        "operationId": "ProjectsController_findAll",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "operationId": "ProjectsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      },
+      "patch": {
+        "operationId": "ProjectsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      },
+      "delete": {
+        "operationId": "ProjectsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Projects"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertEnvironmentConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      },
+      "get": {
+        "operationId": "EnvironmentConfigsController_find",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      },
+      "patch": {
+        "operationId": "EnvironmentConfigsController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertEnvironmentConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/compile": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_compile",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileEnvironmentConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/revisions": {
+      "get": {
+        "operationId": "EnvironmentConfigsController_revisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/revisions/compare": {
+      "get": {
+        "operationId": "EnvironmentConfigsController_compareRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/environment-config/revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "EnvironmentConfigsController_publishRevision",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Environment configs"
+        ]
+      }
+    },
+    "/projects/{projectId}/secrets": {
+      "post": {
+        "operationId": "SecretsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecretDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Secrets"
+        ]
+      },
+      "get": {
+        "operationId": "SecretsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SecretResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Secrets"
+        ]
+      }
+    },
+    "/projects/{projectId}/secrets/{secretId}": {
+      "delete": {
+        "operationId": "SecretsController_delete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secretId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Secrets"
+        ]
+      }
+    },
+    "/secrets/key-rotations": {
+      "post": {
+        "operationId": "SecretRotationsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretRotationJobResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Secrets"
+        ]
+      }
+    },
+    "/team/members": {
+      "get": {
+        "operationId": "TeamController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Team"
+        ]
+      }
+    },
+    "/team/members/{memberId}": {
+      "patch": {
+        "operationId": "TeamController_updateRole",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Team"
+        ]
+      },
+      "delete": {
+        "operationId": "TeamController_remove",
+        "parameters": [
+          {
+            "name": "memberId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Team"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites": {
+      "post": {
+        "operationId": "TestSuitesController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTestSuiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      },
+      "get": {
+        "operationId": "TestSuitesController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/compile-flow": {
+      "post": {
+        "operationId": "TestSuitesController_compileFlow",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileFlowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/import/preview": {
+      "post": {
+        "operationId": "TestSuitesController_previewImport",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/import/generate-flow": {
+      "post": {
+        "operationId": "TestSuitesController_generateImportedFlow",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateImportedFlowDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/{suiteId}/revisions": {
+      "get": {
+        "operationId": "TestSuitesController_revisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/{suiteId}/revisions/compare": {
+      "get": {
+        "operationId": "TestSuitesController_compareRevisions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/{suiteId}/revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "TestSuitesController_publishRevision",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revisionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-suites/{suiteId}": {
+      "get": {
+        "operationId": "TestSuitesController_find",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      },
+      "patch": {
+        "operationId": "TestSuitesController_update",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTestSuiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      },
+      "delete": {
+        "operationId": "TestSuitesController_delete",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "suiteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test suites"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs": {
+      "post": {
+        "operationId": "TestRunsController_create",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRunResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      },
+      "get": {
+        "operationId": "TestRunsController_list",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TestRunResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}": {
+      "get": {
+        "operationId": "TestRunsController_find",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRunResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/events": {
+      "get": {
+        "operationId": "TestRunsController_events",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "afterSequence",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TestRunEventResponseDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/cancel": {
+      "post": {
+        "operationId": "TestRunsController_cancel",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelTestRunDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRunResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/report": {
+      "get": {
+        "operationId": "ReportsController_report",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/logs": {
+      "get": {
+        "operationId": "ReportsController_logs",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/logs/chunks": {
+      "get": {
+        "operationId": "ReportsController_logChunks",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated persisted log chunks for a test run."
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/report/junit": {
+      "get": {
+        "operationId": "ReportsController_junit",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/artifacts/{artifactId}/download": {
+      "get": {
+        "operationId": "ReportsController_downloadArtifact",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "artifactId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Backend Test Runner API",
+    "description": "MVP backend control plane and local runner engine.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "UpdateOnboardingSessionDto": {
+        "type": "object",
+        "properties": {
+          "currentStep": {
+            "type": "string",
+            "enum": [
+              "project",
+              "environment",
+              "api-import",
+              "template",
+              "run"
+            ]
+          },
+          "draftData": {
+            "type": "object"
+          }
+        }
+      },
+      "AnalyzeComposeDto": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "UPLOAD",
+              "PASTE",
+              "TEMPLATE"
+            ]
+          },
+          "composeYaml": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "composeYaml"
+        ]
+      },
+      "OnboardingProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "mainServiceName": {
+            "type": "string"
+          },
+          "healthcheckPath": {
+            "type": "string"
+          },
+          "healthcheckExpectedStatus": {
+            "type": "number"
+          },
+          "healthcheckTimeoutSeconds": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "baseUrl",
+          "mainServiceName",
+          "healthcheckPath",
+          "healthcheckExpectedStatus",
+          "healthcheckTimeoutSeconds"
+        ]
+      },
+      "ConfirmOnboardingDto": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/OnboardingProjectDto"
+          },
+          "environmentType": {
+            "type": "string",
+            "enum": [
+              "DOCKER_COMPOSE",
+              "EXTERNAL_URL"
+            ]
+          },
+          "composeYaml": {
+            "type": "string"
+          },
+          "backendTestYaml": {
+            "type": "string"
+          },
+          "analysis": {
+            "type": "object"
+          },
+          "templateId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "project",
+          "environmentType"
+        ]
+      },
+      "ChangeSubscriptionPlanDto": {
+        "type": "object",
+        "properties": {
+          "planName": {
+            "type": "string",
+            "enum": [
+              "FREE",
+              "PRO",
+              "BUSINESS",
+              "ENTERPRISE"
+            ]
+          }
+        },
+        "required": [
+          "planName"
+        ]
+      },
+      "UpdateCompanyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Object": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateApiTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
+        ]
+      },
+      "RegisterDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "companyName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "firstName",
+          "lastName",
+          "companyName"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "CreateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "mainServiceName": {
+            "type": "string"
+          },
+          "healthcheckPath": {
+            "type": "string",
+            "default": "/health"
+          },
+          "healthcheckExpectedStatus": {
+            "type": "number",
+            "default": 200
+          },
+          "healthcheckTimeoutSeconds": {
+            "type": "number",
+            "default": 60
+          }
+        },
+        "required": [
+          "name",
+          "baseUrl",
+          "mainServiceName",
+          "healthcheckPath",
+          "healthcheckExpectedStatus",
+          "healthcheckTimeoutSeconds"
+        ]
+      },
+      "UpdateProjectDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "mainServiceName": {
+            "type": "string"
+          },
+          "healthcheckPath": {
+            "type": "string",
+            "default": "/health"
+          },
+          "healthcheckExpectedStatus": {
+            "type": "number",
+            "default": 200
+          },
+          "healthcheckTimeoutSeconds": {
+            "type": "number",
+            "default": 60
+          }
+        }
+      },
+      "UpsertEnvironmentConfigDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "DOCKER_COMPOSE",
+              "EXTERNAL_URL"
+            ],
+            "default": "DOCKER_COMPOSE"
+          },
+          "composeYaml": {
+            "type": "string"
+          },
+          "backendTestYaml": {
+            "type": "string"
+          },
+          "visualConfig": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "CompileEnvironmentConfigDto": {
+        "type": "object",
+        "properties": {
+          "visualConfig": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "visualConfig"
+        ]
+      },
+      "CreateSecretDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ]
+      },
+      "SecretResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "encryptionKeyVersion": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdById": {
+            "type": "object",
+            "nullable": true
+          },
+          "rotatedAt": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "key",
+          "encryptionKeyVersion",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "SecretRotationJobResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "RUNNING",
+              "COMPLETED",
+              "FAILED"
+            ]
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "fromKeyVersion": {
+            "type": "string"
+          },
+          "toKeyVersion": {
+            "type": "string"
+          },
+          "totalSecrets": {
+            "type": "number"
+          },
+          "processedSecrets": {
+            "type": "number"
+          },
+          "lastProcessedSecretId": {
+            "type": "object",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "companyId",
+          "fromKeyVersion",
+          "toKeyVersion",
+          "totalSecrets",
+          "processedSecrets"
+        ]
+      },
+      "UpdateMemberRoleDto": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "ADMIN",
+              "DEVELOPER",
+              "VIEWER"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "CreateTestSuiteDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "yamlContent": {
+            "type": "string"
+          },
+          "sourceMode": {
+            "type": "string",
+            "enum": [
+              "VISUAL",
+              "RAW_YAML"
+            ]
+          },
+          "visualFlow": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "yamlContent"
+        ]
+      },
+      "CompileFlowDto": {
+        "type": "object",
+        "properties": {
+          "visualFlow": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "visualFlow"
+        ]
+      },
+      "ImportPreviewDto": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "OPENAPI",
+              "POSTMAN",
+              "BRUNO",
+              "CURL",
+              "MANUAL"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "files": {
+            "type": "object"
+          },
+          "manualRequest": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "sourceType"
+        ]
+      },
+      "GenerateImportedFlowDto": {
+        "type": "object",
+        "properties": {
+          "suiteName": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string",
+            "enum": [
+              "SMOKE_TEST",
+              "AUTHENTICATED_JOURNEY",
+              "CRUD_LIFECYCLE",
+              "ASYNC_POLLING",
+              "READINESS_TEST"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acknowledgeDestructive": {
+            "type": "boolean"
+          },
+          "options": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "suiteName",
+          "template",
+          "operations"
+        ]
+      },
+      "UpdateTestSuiteDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "yamlContent": {
+            "type": "string"
+          },
+          "sourceMode": {
+            "type": "string",
+            "enum": [
+              "VISUAL",
+              "RAW_YAML"
+            ]
+          },
+          "visualFlow": {
+            "type": "object"
+          }
+        }
+      },
+      "TestRunResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "environmentConfigRevisionId": {
+            "type": "object"
+          },
+          "runnerVersion": {
+            "type": "string"
+          },
+          "reportSchemaVersion": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "QUEUED",
+              "CLAIMED",
+              "PREPARING_WORKSPACE",
+              "VALIDATING_ENVIRONMENT",
+              "PULLING_IMAGES",
+              "STARTING_ENVIRONMENT",
+              "WAITING_FOR_HEALTHCHECK",
+              "EXECUTING_TESTS",
+              "COLLECTING_ARTIFACTS",
+              "CLEANING_UP",
+              "PASSED",
+              "TEST_FAILED",
+              "INFRA_FAILED",
+              "TIMED_OUT",
+              "CANCEL_REQUESTED",
+              "CANCELLED"
+            ]
+          },
+          "statusReason": {
+            "type": "object",
+            "description": "Human-readable terminal or cancellation reason for the current run state."
+          },
+          "failureCategory": {
+            "type": "string",
+            "enum": [
+              "TEST_ASSERTION",
+              "ENVIRONMENT_VALIDATION",
+              "IMAGE_PULL",
+              "CONTAINER_START",
+              "HEALTHCHECK",
+              "NETWORK",
+              "TIMEOUT",
+              "CANCELLED",
+              "INTERNAL"
+            ]
+          },
+          "currentPhase": {
+            "type": "object"
+          },
+          "phaseTimestamps": {
+            "type": "object"
+          },
+          "queueJobId": {
+            "type": "object"
+          },
+          "queuedAt": {
+            "type": "object"
+          },
+          "enqueuedAt": {
+            "type": "object"
+          },
+          "claimedAt": {
+            "type": "object"
+          },
+          "cancellationRequestedAt": {
+            "type": "object"
+          },
+          "cancelRequestedAt": {
+            "type": "object"
+          },
+          "cancelRequestedBy": {
+            "type": "object"
+          },
+          "cancellationReason": {
+            "type": "object"
+          },
+          "runnerId": {
+            "type": "object"
+          },
+          "leaseAcquiredAt": {
+            "type": "object"
+          },
+          "leaseExpiresAt": {
+            "type": "object",
+            "description": "Current execution lease expiration; stale leases are failed by recovery."
+          },
+          "heartbeatAt": {
+            "type": "object",
+            "description": "Last persisted worker heartbeat for the execution lease owner."
+          },
+          "attempt": {
+            "type": "number",
+            "description": "Number of worker claims for this immutable run. Jobs are fail-fast by default."
+          },
+          "cleanupError": {
+            "type": "object"
+          },
+          "startedAt": {
+            "type": "object"
+          },
+          "finishedAt": {
+            "type": "object"
+          },
+          "totalTests": {
+            "type": "number"
+          },
+          "passedTests": {
+            "type": "number"
+          },
+          "failedTests": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "object"
+          },
+          "errorMessage": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "runnerVersion",
+          "reportSchemaVersion",
+          "status",
+          "attempt",
+          "totalTests",
+          "passedTests",
+          "failedTests"
+        ]
+      },
+      "TestRunEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "runId",
+          "sequence",
+          "type",
+          "timestamp",
+          "payload"
+        ]
+      },
+      "CancelTestRunDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
-import { Controller, Get, Header, Param, Res, StreamableFile, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Header, Param, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -33,6 +34,18 @@ export class ReportsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.logs(projectId, runId, user.companyId);
+  }
+
+  @Get('logs/chunks')
+  @RequirePermission('run:read', 'run')
+  @ApiOkResponse({ description: 'Paginated persisted log chunks for a test run.' })
+  logChunks(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.service.logChunks(projectId, runId, user.companyId, query);
   }
 
   @Get('report/junit')

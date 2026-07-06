@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "api:generate": "node scripts/generate-api-client.mjs",
+    "api:check": "node scripts/check-api-client.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

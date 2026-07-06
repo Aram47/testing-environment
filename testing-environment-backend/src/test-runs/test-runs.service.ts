@@ -155,6 +155,29 @@ export class TestRunsService {
     return run;
   }
 
+  async events(projectId: string, runId: string, companyId: string, afterSequence = 0) {
+    await this.projectAccess.getProjectOrThrow(projectId, companyId);
+    const run = await this.prisma.testRun.findFirst({
+      where: { id: runId, projectId },
+      select: { id: true },
+    });
+    if (!run) {
+      throw new NotFoundException('Test run not found');
+    }
+    const events = await this.prisma.testRunEvent.findMany({
+      where: { runId, sequence: { gt: afterSequence } },
+      orderBy: { sequence: 'asc' },
+      take: 500,
+    });
+    return events.map((event) => ({
+      runId: event.runId,
+      sequence: event.sequence,
+      type: event.type,
+      timestamp: event.timestamp.toISOString(),
+      payload: event.payload,
+    }));
+  }
+
   async cancel(
     projectId: string,
     runId: string,

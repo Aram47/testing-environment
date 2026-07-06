@@ -960,7 +960,7 @@ export class RunnerOrchestratorService {
   }
 
   private emit(type: string, testRunId: string, payload?: Record<string, unknown>): void {
-    this.realtime.emitRunEvent({ type, testRunId, payload });
+    void this.realtime.emitRunEvent({ type, runId: testRunId, payload });
   }
 
   private async persistResponseArtifact(

@@ -1,17 +1,22 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import Redis from 'ioredis';
 import { Server } from 'socket.io';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface RunnerEvent {
   type: string;
-  testRunId: string;
+  runId: string;
   payload?: Record<string, unknown>;
 }
 
-export interface RunnerEventMessage extends RunnerEvent {
-  message: string;
+export interface TestRunEventMessage {
+  runId: string;
+  sequence: number;
+  type: string;
   timestamp: string;
+  payload: unknown;
 }
 
 @Injectable()
@@ -22,7 +27,10 @@ export class RealtimeService implements OnModuleDestroy {
   private readonly subscriber: Redis;
   private server?: Server;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     const redisUrl = this.config.get<string>('REDIS_URL', 'redis://localhost:6379');
     this.publisher = new Redis(redisUrl, {
       lazyConnect: true,
@@ -43,17 +51,17 @@ export class RealtimeService implements OnModuleDestroy {
     void this.subscribe();
   }
 
-  emitRunEvent(event: RunnerEvent): void {
-    const message: RunnerEventMessage = {
-      ...event,
-      message: this.toMessage(event),
-      timestamp: new Date().toISOString(),
-    };
+  async emitRunEvent(event: RunnerEvent): Promise<TestRunEventMessage | null> {
+    const message = await this.persistEvent(event);
+    if (!message) {
+      return null;
+    }
     if (this.server) {
       this.emitToSocket(message);
-      return;
+      return message;
     }
     void this.publish(message);
+    return message;
   }
 
   disconnectUser(userId: string): void {
@@ -98,7 +106,7 @@ export class RealtimeService implements OnModuleDestroy {
       }
       this.subscriber.on('message', (_channel, payload) => {
         try {
-          this.emitToSocket(JSON.parse(payload) as RunnerEventMessage);
+          this.emitToSocket(JSON.parse(payload) as TestRunEventMessage);
         } catch (error) {
           this.logger.warn(
             `Failed to handle realtime payload: ${error instanceof Error ? error.message : String(error)}`,
@@ -113,7 +121,7 @@ export class RealtimeService implements OnModuleDestroy {
     }
   }
 
-  private async publish(message: RunnerEventMessage): Promise<void> {
+  private async publish(message: TestRunEventMessage): Promise<void> {
     try {
       if (this.publisher.status === 'wait') {
         await this.publisher.connect();
@@ -126,36 +134,46 @@ export class RealtimeService implements OnModuleDestroy {
     }
   }
 
-  private emitToSocket(message: RunnerEventMessage): void {
-    this.server?.to(message.testRunId).emit('runner.event', message);
+  private emitToSocket(message: TestRunEventMessage): void {
+    this.server?.to(message.runId).emit('runner.event', message);
   }
 
-  private toMessage(event: RunnerEvent): string {
-    const suiteName = event.payload?.suiteName;
-    const testName = event.payload?.testName;
-    const errorMessage = event.payload?.errorMessage;
-
-    switch (event.type) {
-      case 'run.started':
-        return 'Test run started';
-      case 'environment.starting':
-        return 'Starting docker compose environment';
-      case 'environment.ready':
-        return 'Environment is ready';
-      case 'test.started':
-        return `Started ${String(suiteName ?? 'suite')} / ${String(testName ?? 'test')}`;
-      case 'test.passed':
-        return `Passed ${String(suiteName ?? 'suite')} / ${String(testName ?? 'test')}`;
-      case 'test.failed':
-        return `Failed ${String(suiteName ?? 'suite')} / ${String(testName ?? 'test')}${errorMessage ? `: ${String(errorMessage)}` : ''}`;
-      case 'logs.updated':
-        return 'Docker logs updated';
-      case 'environment.stopping':
-        return 'Stopping docker compose environment';
-      case 'run.finished':
-        return 'Test run finished';
-      default:
-        return event.type;
+  private async persistEvent(event: RunnerEvent): Promise<TestRunEventMessage | null> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const run = await tx.testRun.update({
+          where: { id: event.runId },
+          data: { eventSequence: { increment: 1 } },
+          select: { eventSequence: true },
+        });
+        const timestamp = new Date();
+        const payload = this.toJsonPayload(event.payload);
+        const created = await tx.testRunEvent.create({
+          data: {
+            runId: event.runId,
+            sequence: run.eventSequence,
+            type: event.type,
+            timestamp,
+            payload,
+          },
+        });
+        return {
+          runId: created.runId,
+          sequence: created.sequence,
+          type: created.type,
+          timestamp: created.timestamp.toISOString(),
+          payload: created.payload,
+        };
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to persist realtime event for run ${event.runId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
     }
+  }
+
+  private toJsonPayload(payload: Record<string, unknown> | undefined): Prisma.InputJsonValue {
+    return (payload ?? {}) as Prisma.InputJsonValue;
   }
 }

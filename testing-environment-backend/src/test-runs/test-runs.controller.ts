@@ -7,6 +7,8 @@ import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CancelTestRunDto } from './dto/cancel-test-run.dto';
+import { TestRunEventResponseDto } from './dto/test-run-event-response.dto';
+import { TestRunEventsQueryDto } from './dto/test-run-events-query.dto';
 import { TestRunResponseDto } from './dto/test-run-response.dto';
 import { TestRunsService } from './test-runs.service';
 
@@ -44,6 +46,18 @@ export class TestRunsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.find(projectId, runId, user.companyId);
+  }
+
+  @Get(':runId/events')
+  @RequirePermission('run:read', 'run')
+  @ApiOkResponse({ type: TestRunEventResponseDto, isArray: true })
+  events(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: TestRunEventsQueryDto,
+  ) {
+    return this.service.events(projectId, runId, user.companyId, query.afterSequence);
   }
 
   @Post(':runId/cancel')

@@ -558,6 +558,7 @@ export interface RunnerLog {
   timestamp: string;
   level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
+  sequence?: number;
   artifactId?: string;
   byteSize?: number;
   truncated?: boolean;
@@ -572,17 +573,9 @@ export interface DashboardSummary {
 }
 
 export interface TestRunEvent {
-  type:
-    | 'run.started'
-    | 'environment.starting'
-    | 'environment.ready'
-    | 'test.started'
-    | 'test.passed'
-    | 'test.failed'
-    | 'logs.updated'
-    | 'environment.stopping'
-    | 'run.finished';
-  message: string;
+  runId: string;
+  sequence: number;
+  type: string;
   timestamp: string;
-  payload?: unknown;
+  payload: unknown;
 }

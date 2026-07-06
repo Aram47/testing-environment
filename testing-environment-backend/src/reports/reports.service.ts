@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ArtifactType } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { ReportArtifactService } from '../artifacts/report-artifact.service';
 import { ProjectAccessService } from '../common/services/project-access.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -49,6 +50,44 @@ export class ReportsService {
       where: { testRunId: runId },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  async logChunks(
+    projectId: string,
+    runId: string,
+    companyId: string,
+    query: PaginationQueryDto,
+  ) {
+    await this.assertRunAccess(projectId, runId, companyId);
+    const skip = (query.page - 1) * query.limit;
+    const where = { testRunId: runId };
+    const [chunks, total] = await Promise.all([
+      this.prisma.runnerLogChunk.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: [{ createdAt: 'asc' }, { sequence: 'asc' }],
+      }),
+      this.prisma.runnerLogChunk.count({ where }),
+    ]);
+    return {
+      data: chunks.map((chunk) => ({
+        id: chunk.id,
+        source: chunk.source,
+        sequence: chunk.sequence,
+        message: chunk.truncated ? `${chunk.preview}\n[truncated]` : chunk.preview,
+        createdAt: chunk.createdAt,
+        artifactId: chunk.artifactId,
+        byteSize: chunk.byteSize,
+        truncated: chunk.truncated,
+      })),
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   async junit(projectId: string, runId: string, companyId: string): Promise<string> {
