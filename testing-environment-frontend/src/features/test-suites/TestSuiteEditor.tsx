@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { GitCompare, History, Rocket } from 'lucide-react';
 import type { TestSuiteRevisionCompareResult } from '../../api/test-suites.api';
+import { ConfirmDialog } from '../../components/modals/ConfirmDialog';
 import { Button } from '../../components/ui/Button';
 import { LoadingState } from '../../components/ui/LoadingState';
 import { testSuiteExample } from '../../lib/examples';
@@ -32,6 +33,7 @@ interface TestSuiteEditorProps {
 }
 
 type EditorMode = 'flow' | 'yaml';
+type PendingAction = { type: 'back' } | { type: 'mode'; mode: EditorMode };
 
 export function TestSuiteEditor({
   projectId,
@@ -54,6 +56,49 @@ export function TestSuiteEditor({
     value ? value.visualFlow : createInitialFlow('Auth API'),
   );
   const [mode, setMode] = useState<EditorMode>(value && !value.visualFlow ? 'yaml' : 'flow');
+  const [flowDirty, setFlowDirty] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
+  const requestModeChange = (nextMode: EditorMode) => {
+    if (nextMode === mode) {
+      return;
+    }
+    if (mode === 'flow' && flowDirty) {
+      setPendingAction({ type: 'mode', mode: nextMode });
+      setLeaveOpen(true);
+      return;
+    }
+    if (nextMode === 'flow' && !visualFlow) {
+      startVisualFlow();
+      return;
+    }
+    setMode(nextMode);
+  };
+
+  const requestBack = () => {
+    if (mode === 'flow' && flowDirty) {
+      setPendingAction({ type: 'back' });
+      setLeaveOpen(true);
+      return;
+    }
+    onBack();
+  };
+
+  const confirmLeave = () => {
+    if (pendingAction?.type === 'back') {
+      onBack();
+    } else if (pendingAction?.type === 'mode') {
+      if (pendingAction.mode === 'flow' && !visualFlow) {
+        startVisualFlow();
+      } else {
+        setMode(pendingAction.mode);
+      }
+    }
+    setFlowDirty(false);
+    setLeaveOpen(false);
+    setPendingAction(null);
+  };
 
   const validate = () => {
     const result = YamlValidator.validate(yaml);
@@ -83,14 +128,14 @@ export function TestSuiteEditor({
             <button
               type="button"
               className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${mode === 'flow' ? 'bg-white text-ink shadow-sm' : 'text-muted'}`}
-              onClick={() => (visualFlow ? setMode('flow') : startVisualFlow())}
+              onClick={() => requestModeChange('flow')}
             >
               Flow
             </button>
             <button
               type="button"
               className={`focus-ring rounded px-3 py-2 text-sm font-semibold ${mode === 'yaml' ? 'bg-white text-ink shadow-sm' : 'text-muted'}`}
-              onClick={() => setMode('yaml')}
+              onClick={() => requestModeChange('yaml')}
             >
               YAML
             </button>
@@ -127,13 +172,17 @@ export function TestSuiteEditor({
       {mode === 'flow' && visualFlow ? (
         <Suspense fallback={<LoadingState label="Loading flow editor" />}>
           <FlowSuiteEditor
+            key={`${value?.id ?? 'new'}-${value?.currentRevision?.id ?? 'draft'}`}
             projectId={projectId}
+            suiteId={value?.id}
             suiteName={name}
             initialFlow={visualFlow}
             initialYaml={yaml}
             onMessage={onMessage}
+            onDirtyChange={setFlowDirty}
             onSave={(nextFlow) => {
               setVisualFlow(nextFlow);
+              setFlowDirty(false);
               onSave({ name, sourceMode: 'VISUAL', visualFlow: nextFlow });
             }}
           />
@@ -155,7 +204,7 @@ export function TestSuiteEditor({
       )}
 
       <div className="flex flex-wrap justify-between gap-3">
-        <Button type="button" variant="secondary" onClick={onBack}>Back to suites</Button>
+        <Button type="button" variant="secondary" onClick={requestBack}>Back to suites</Button>
         <div className="flex flex-wrap gap-3">
           {onDelete ? <Button type="button" variant="danger" onClick={onDelete}>Delete</Button> : null}
           {mode === 'yaml' ? <Button type="button" variant="secondary" onClick={validate}>Validate YAML</Button> : null}
@@ -174,6 +223,17 @@ export function TestSuiteEditor({
           ) : null}
         </div>
       </div>
+      <ConfirmDialog
+        open={leaveOpen}
+        title="Unsaved flow changes"
+        description="You have unsaved changes in the flow editor. Leave without saving?"
+        confirmLabel="Leave"
+        onCancel={() => {
+          setLeaveOpen(false);
+          setPendingAction(null);
+        }}
+        onConfirm={confirmLeave}
+      />
     </form>
   );
 }

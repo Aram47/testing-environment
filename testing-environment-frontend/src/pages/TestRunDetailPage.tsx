@@ -27,6 +27,9 @@ import { useQueryClient } from '@tanstack/react-query';
 const LogsViewer = lazy(() =>
   import('../features/test-runs/LogsViewer').then((module) => ({ default: module.LogsViewer })),
 );
+const FlowSuiteEditor = lazy(() =>
+  import('../features/test-suites/FlowSuiteEditor').then((module) => ({ default: module.FlowSuiteEditor })),
+);
 
 const cancellableStatuses: ReadonlySet<RunStatus> = new Set([
   'QUEUED',
@@ -130,6 +133,14 @@ export function TestRunDetailPage() {
     return <ErrorState error={new Error('Test run data is empty')} />;
   }
   const results = run.results ?? [];
+  const flowSnapshot = run.suiteRevisions?.find((snapshot) => snapshot.testSuiteRevision.visualFlow)?.testSuiteRevision;
+  const visualFlow = flowSnapshot?.visualFlow;
+  const executionResults = results.reduce<Record<string, TestResult>>((accumulator, result) => {
+    if (result.stepId) {
+      accumulator[result.stepId] = result;
+    }
+    return accumulator;
+  }, {});
 
   return (
     <>
@@ -199,6 +210,23 @@ export function TestRunDetailPage() {
           ) : null}
         </section>
         <TestRunProgress run={run} connectionState={connectionState} />
+        {visualFlow ? (
+          <section className="rounded-lg border border-border bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-lg font-semibold text-ink">Flow view</h2>
+            <Suspense fallback={<LoadingState label="Loading flow view" />}>
+              <FlowSuiteEditor
+                projectId={projectId}
+                suiteName={flowSnapshot?.visualFlow?.suiteName ?? visualFlow.suiteName}
+                initialFlow={visualFlow}
+                initialYaml={flowSnapshot?.compiledYaml ?? ''}
+                readOnly
+                executionResults={executionResults}
+                onSave={() => undefined}
+                onMessage={() => undefined}
+              />
+            </Suspense>
+          </section>
+        ) : null}
         <TestRunTimeline results={results} />
         <Suspense fallback={<LoadingState label="Loading logs viewer" />}>
           <LogsViewer projectId={projectId} runId={runId} events={events} />

@@ -433,18 +433,17 @@ Compatibility detail: existing YAML-only configs open in YAML mode, and users ca
 
 ## FlowSuiteEditor
 
-`FlowSuiteEditor`:
+`FlowSuiteEditor` (under `testing-environment-frontend/src/features/test-suites/flow-builder/`):
 
-- Uses `@xyflow/react`.
-- Supports API, wait, poll, set-variable, and assert nodes.
-- Maintains nodes, edges, selected node, YAML export preview, warnings, validation errors, and compile state.
+- Uses `@xyflow/react` with canvas and outline views, minimap, and controls.
+- Supports API, wait, poll, set-variable, and assert nodes in a linear sequence flow (no branching/parallel).
+- Provides undo/redo, copy/paste, duplicate, multi-select, keyboard shortcuts, search, node templates, and auto layout.
+- Structured client validation with per-node badges and click-to-focus field navigation in the inspector.
+- Draft autosave to `localStorage` (debounced) with restore/discard banner; unsaved-changes guard on navigation.
+- Optional read-only mode with execution-result overlay (used on test run detail when `visualFlow` is available).
 - Calls backend compile endpoint for validation, execution-plan generation, and YAML export.
-- Provides node inspector forms, assertions, variable picker, save variables, and auto layout.
 
-Potential frontend concerns:
-
-- The component is large and could later be split into smaller OOP/SOLID-aligned units.
-- No frontend test suite exists around editor behavior.
+Frontend tests cover flow graph/validation utilities, editor state hook, outline interactions, and node badges.
 
 ## Tests And CI
 
@@ -459,13 +458,14 @@ Frontend scripts:
 
 - `npm run lint`
 - `npm run build`
+- `npm run test`
 - `npm run preview`
 
 Current tests found:
 
 - Backend unit tests for assertions, Docker Compose validation, variable store, environment compiler, environment config service, flow compiler, test suites service, subscriptions service.
 - Backend e2e test for auth login.
-- No frontend test script is configured in `testing-environment-frontend/package.json`.
+- Frontend unit/component tests for flow builder utilities, editor state hook, outline, and node badges.
 
 CI:
 
