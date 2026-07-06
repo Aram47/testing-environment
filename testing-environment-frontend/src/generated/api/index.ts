@@ -26,21 +26,54 @@ export interface ConfirmOnboardingDto {
   "project": OnboardingProjectDto;
   "environmentType": "DOCKER_COMPOSE" | "EXTERNAL_URL";
   "composeYaml"?: string;
-  "backendTestYaml"?: string;
+  "backendTestYaml": string;
   "analysis"?: Record<string, unknown>;
   "templateId"?: string;
 }
 
-export interface ChangeSubscriptionPlanDto {
-  "planName": "FREE" | "PRO" | "BUSINESS" | "ENTERPRISE";
-}
-
-export interface UpdateCompanyDto {
-  "name"?: string;
-}
-
 export interface Object {
 
+}
+
+export interface AuditEventResponseDto {
+  "id": string;
+  "type": string;
+  "action": string;
+  "companyId"?: string | null;
+  "projectId"?: string | null;
+  "actorType": string;
+  "actorUserId"?: string | null;
+  "serviceAccountId"?: string | null;
+  "apiTokenId"?: string | null;
+  "resourceType"?: string | null;
+  "resourceId"?: string | null;
+  "requestId"?: string | null;
+  "metadata"?: Record<string, unknown>;
+  "createdAt": string;
+}
+
+export interface PaginationMetaDto {
+  "page": number;
+  "limit": number;
+  "total": number;
+  "totalPages": number;
+}
+
+export interface PaginatedAuditEventsResponseDto {
+  "data": Array<AuditEventResponseDto>;
+  "meta": PaginationMetaDto;
+}
+
+export interface ApiTokenResponseDto {
+  "id": string;
+  "name": string;
+  "scopes": Array<string>;
+  "projectId"?: string | null;
+  "expiresAt"?: string | null;
+  "revokedAt"?: string | null;
+  "lastUsedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
 }
 
 export interface CreateApiTokenDto {
@@ -48,6 +81,19 @@ export interface CreateApiTokenDto {
   "scopes": Array<string>;
   "projectId"?: string;
   "expiresAt"?: string;
+}
+
+export interface CreateApiTokenResponseDto {
+  "id": string;
+  "name": string;
+  "scopes": Array<string>;
+  "projectId"?: string | null;
+  "expiresAt"?: string | null;
+  "revokedAt"?: string | null;
+  "lastUsedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
+  "token": string;
 }
 
 export interface RegisterDto {
@@ -63,6 +109,14 @@ export interface LoginDto {
   "password": string;
 }
 
+export interface UpdateCompanyDto {
+  "name"?: string;
+}
+
+export interface ChangeSubscriptionPlanDto {
+  "planName": "FREE" | "PRO" | "BUSINESS" | "ENTERPRISE";
+}
+
 export interface CreateProjectDto {
   "name": string;
   "description"?: string;
@@ -71,6 +125,25 @@ export interface CreateProjectDto {
   "healthcheckPath": string;
   "healthcheckExpectedStatus": number;
   "healthcheckTimeoutSeconds": number;
+}
+
+export interface ProjectResponseDto {
+  "id": string;
+  "companyId": string;
+  "name": string;
+  "description"?: string | null;
+  "baseUrl": string;
+  "mainServiceName": string;
+  "healthcheckPath": string;
+  "healthcheckExpectedStatus": number;
+  "healthcheckTimeoutSeconds": number;
+  "createdAt": string;
+  "updatedAt": string;
+}
+
+export interface PaginatedProjectsResponseDto {
+  "data": Array<ProjectResponseDto>;
+  "meta": PaginationMetaDto;
 }
 
 export interface UpdateProjectDto {
@@ -103,13 +176,88 @@ export interface PreflightEnvironmentConfigDto {
   "revisionId"?: string;
 }
 
+export interface PreflightCheckDto {
+  "id": string;
+  "status": "pass" | "warn" | "fail";
+  "message": string;
+}
+
+export interface EnvironmentResourceEstimationDto {
+  "tier": "low" | "medium" | "high";
+  "serviceCount": number;
+  "notes": Array<string>;
+}
+
+export interface EnvironmentPreflightResultDto {
+  "ok": boolean;
+  "checks": Array<PreflightCheckDto>;
+  "securityErrors": Array<string>;
+  "dependencyWarnings": Array<string>;
+  "resourceEstimation": EnvironmentResourceEstimationDto;
+}
+
 export interface ImportComposeDto {
   "composeYaml": string;
   "source": "paste" | "upload";
 }
 
+export interface ComposeImportResultDto {
+  "visualConfig": Record<string, unknown>;
+  "analysis": Record<string, unknown>;
+  "importWarnings": Array<string>;
+  "unsupportedFields": Array<string>;
+}
+
 export interface CreateEnvironmentDryRunDto {
   "revisionId": string;
+}
+
+export interface EnvironmentConfigRevisionResponseDto {
+  "id": string;
+  "environmentConfigId": string;
+  "revisionNumber": number;
+  "status": "DRAFT" | "PUBLISHED";
+  "sourceMode": string;
+  "visualConfig"?: Record<string, unknown>;
+  "compiledComposeYaml": string;
+  "compiledRuntimeYaml": string;
+  "schemaVersion": number;
+  "createdById"?: string | null;
+  "publishedById"?: string | null;
+  "publishedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
+}
+
+export interface EnvironmentDryRunLogResponseDto {
+  "id": string;
+  "dryRunId": string;
+  "source": "SYSTEM" | "DOCKER" | "TEST" | "ERROR";
+  "message": string;
+  "createdAt": string;
+}
+
+export interface EnvironmentDryRunResponseDto {
+  "id": string;
+  "projectId": string;
+  "environmentConfigRevisionId": string;
+  "status": "CREATED" | "QUEUED" | "PREPARING_WORKSPACE" | "VALIDATING_ENVIRONMENT" | "PULLING_IMAGES" | "STARTING_ENVIRONMENT" | "WAITING_FOR_HEALTHCHECK" | "COLLECTING_LOGS" | "CLEANING_UP" | "PASSED" | "INFRA_FAILED" | "TIMED_OUT" | "CANCEL_REQUESTED" | "CANCELLED";
+  "queueJobId"?: string | null;
+  "runnerVersion"?: string | null;
+  "failureCategory"?: "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL" | null;
+  "errorMessage"?: string | null;
+  "startedAt"?: string | null;
+  "finishedAt"?: string | null;
+  "cancelRequestedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
+  "environmentConfigRevision"?: EnvironmentConfigRevisionResponseDto;
+  "logs"?: Array<EnvironmentDryRunLogResponseDto>;
+}
+
+export interface PaginatedEnvironmentDryRunsResponseDto {
+  "data": Array<EnvironmentDryRunResponseDto>;
+  "meta": PaginationMetaDto;
 }
 
 export interface CreateSecretDto {
@@ -141,6 +289,27 @@ export interface SecretRotationJobResponseDto {
   "errorMessage"?: Record<string, unknown>;
 }
 
+export interface TeamMemberUserDto {
+  "id": string;
+  "email": string;
+  "firstName": string;
+  "lastName": string;
+  "createdAt": string;
+  "updatedAt": string;
+}
+
+export interface TeamMemberResponseDto {
+  "id": string;
+  "companyId": string;
+  "userId": string;
+  "role": "OWNER" | "ADMIN" | "DEVELOPER" | "VIEWER";
+  "status": "ACTIVE" | "REMOVED";
+  "removedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
+  "user": TeamMemberUserDto;
+}
+
 export interface UpdateMemberRoleDto {
   "role": "OWNER" | "ADMIN" | "DEVELOPER" | "VIEWER";
 }
@@ -150,6 +319,24 @@ export interface CreateTestSuiteDto {
   "yamlContent": string;
   "sourceMode"?: "VISUAL" | "RAW_YAML";
   "visualFlow"?: Record<string, unknown>;
+}
+
+export interface TestSuiteResponseDto {
+  "id": string;
+  "projectId": string;
+  "name": string;
+  "deletedAt"?: string | null;
+  "createdAt": string;
+  "updatedAt": string;
+  "yamlContent"?: string;
+  "visualFlow"?: Record<string, unknown>;
+  "currentRevision"?: Record<string, unknown>;
+  "publishedRevision"?: Record<string, unknown>;
+}
+
+export interface PaginatedTestSuitesResponseDto {
+  "data": Array<TestSuiteResponseDto>;
+  "meta": PaginationMetaDto;
 }
 
 export interface CompileFlowDto {
@@ -185,35 +372,40 @@ export interface CreateTestRunDto {
 export interface TestRunResponseDto {
   "id": string;
   "projectId": string;
-  "environmentConfigRevisionId"?: Record<string, unknown>;
+  "environmentConfigRevisionId"?: string | null;
   "runnerVersion": string;
   "reportSchemaVersion": number;
   "status": "CREATED" | "QUEUED" | "CLAIMED" | "PREPARING_WORKSPACE" | "VALIDATING_ENVIRONMENT" | "PULLING_IMAGES" | "STARTING_ENVIRONMENT" | "WAITING_FOR_HEALTHCHECK" | "EXECUTING_TESTS" | "COLLECTING_ARTIFACTS" | "CLEANING_UP" | "PASSED" | "TEST_FAILED" | "INFRA_FAILED" | "TIMED_OUT" | "CANCEL_REQUESTED" | "CANCELLED";
-  "statusReason"?: Record<string, unknown>;
-  "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL";
-  "currentPhase"?: Record<string, unknown>;
+  "statusReason"?: string | null;
+  "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL" | null;
+  "currentPhase"?: string | null;
   "phaseTimestamps"?: Record<string, unknown>;
-  "queueJobId"?: Record<string, unknown>;
-  "queuedAt"?: Record<string, unknown>;
-  "enqueuedAt"?: Record<string, unknown>;
-  "claimedAt"?: Record<string, unknown>;
-  "cancellationRequestedAt"?: Record<string, unknown>;
-  "cancelRequestedAt"?: Record<string, unknown>;
-  "cancelRequestedBy"?: Record<string, unknown>;
-  "cancellationReason"?: Record<string, unknown>;
-  "runnerId"?: Record<string, unknown>;
-  "leaseAcquiredAt"?: Record<string, unknown>;
-  "leaseExpiresAt"?: Record<string, unknown>;
-  "heartbeatAt"?: Record<string, unknown>;
+  "queueJobId"?: string | null;
+  "queuedAt"?: string | null;
+  "enqueuedAt"?: string | null;
+  "claimedAt"?: string | null;
+  "cancellationRequestedAt"?: string | null;
+  "cancelRequestedAt"?: string | null;
+  "cancelRequestedBy"?: string | null;
+  "cancellationReason"?: string | null;
+  "runnerId"?: string | null;
+  "leaseAcquiredAt"?: string | null;
+  "leaseExpiresAt"?: string | null;
+  "heartbeatAt"?: string | null;
   "attempt": number;
-  "cleanupError"?: Record<string, unknown>;
-  "startedAt"?: Record<string, unknown>;
-  "finishedAt"?: Record<string, unknown>;
+  "cleanupError"?: string | null;
+  "startedAt"?: string | null;
+  "finishedAt"?: string | null;
   "totalTests": number;
   "passedTests": number;
   "failedTests": number;
-  "durationMs"?: Record<string, unknown>;
-  "errorMessage"?: Record<string, unknown>;
+  "durationMs"?: number | null;
+  "errorMessage"?: string | null;
+}
+
+export interface PaginatedTestRunsResponseDto {
+  "data": Array<TestRunResponseDto>;
+  "meta": PaginationMetaDto;
 }
 
 export interface TestRunEventResponseDto {
@@ -319,50 +511,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async SubscriptionsController_listPlans(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
-      ...config,
-      method: 'GET',
-      url: buildPath('/subscriptions/plans', params.path),
-      params: params.query,
-    });
-    return data;
-  }
-
-  async SubscriptionsController_changeCurrentPlan(params: RequestParams, body: ChangeSubscriptionPlanDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
-      ...config,
-      method: 'PATCH',
-      url: buildPath('/subscriptions/current', params.path),
-      params: params.query,
-      data: body,
-    });
-    return data;
-  }
-
-  async CompaniesController_me(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
-      ...config,
-      method: 'GET',
-      url: buildPath('/companies/me', params.path),
-      params: params.query,
-    });
-    return data;
-  }
-
-  async CompaniesController_updateMe(params: RequestParams, body: UpdateCompanyDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
-      ...config,
-      method: 'PATCH',
-      url: buildPath('/companies/me', params.path),
-      params: params.query,
-      data: body,
-    });
-    return data;
-  }
-
-  async AuditController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async AuditController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<PaginatedAuditEventsResponseDto> {
+    const { data } = await this.http.request<PaginatedAuditEventsResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/audit-events', params.path),
@@ -371,8 +521,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ApiTokensController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ApiTokensController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<Array<ApiTokenResponseDto>> {
+    const { data } = await this.http.request<Array<ApiTokenResponseDto>>({
       ...config,
       method: 'GET',
       url: buildPath('/api-tokens', params.path),
@@ -381,8 +531,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ApiTokensController_create(params: RequestParams, body: CreateApiTokenDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ApiTokensController_create(params: RequestParams, body: CreateApiTokenDto, config?: AxiosRequestConfig): Promise<CreateApiTokenResponseDto> {
+    const { data } = await this.http.request<CreateApiTokenResponseDto>({
       ...config,
       method: 'POST',
       url: buildPath('/api-tokens', params.path),
@@ -392,8 +542,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ApiTokensController_revoke(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ApiTokensController_revoke(params: RequestParams, config?: AxiosRequestConfig): Promise<ApiTokenResponseDto> {
+    const { data } = await this.http.request<ApiTokenResponseDto>({
       ...config,
       method: 'DELETE',
       url: buildPath('/api-tokens/{tokenId}', params.path),
@@ -444,6 +594,27 @@ export class GeneratedApiClient {
     return data;
   }
 
+  async CompaniesController_me(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/companies/me', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async CompaniesController_updateMe(params: RequestParams, body: UpdateCompanyDto, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'PATCH',
+      url: buildPath('/companies/me', params.path),
+      params: params.query,
+      data: body,
+    });
+    return data;
+  }
+
   async DashboardController_getSummary(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
     const { data } = await this.http.request<unknown>({
       ...config,
@@ -454,8 +625,29 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ProjectsController_findAll(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
+  async SubscriptionsController_listPlans(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
     const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/subscriptions/plans', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async SubscriptionsController_changeCurrentPlan(params: RequestParams, body: ChangeSubscriptionPlanDto, config?: AxiosRequestConfig): Promise<unknown> {
+    const { data } = await this.http.request<unknown>({
+      ...config,
+      method: 'PATCH',
+      url: buildPath('/subscriptions/current', params.path),
+      params: params.query,
+      data: body,
+    });
+    return data;
+  }
+
+  async ProjectsController_findAll(params: RequestParams, config?: AxiosRequestConfig): Promise<PaginatedProjectsResponseDto> {
+    const { data } = await this.http.request<PaginatedProjectsResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects', params.path),
@@ -464,8 +656,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ProjectsController_create(params: RequestParams, body: CreateProjectDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ProjectsController_create(params: RequestParams, body: CreateProjectDto, config?: AxiosRequestConfig): Promise<ProjectResponseDto> {
+    const { data } = await this.http.request<ProjectResponseDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects', params.path),
@@ -475,8 +667,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ProjectsController_findOne(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ProjectsController_findOne(params: RequestParams, config?: AxiosRequestConfig): Promise<ProjectResponseDto> {
+    const { data } = await this.http.request<ProjectResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{id}', params.path),
@@ -485,8 +677,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async ProjectsController_update(params: RequestParams, body: UpdateProjectDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async ProjectsController_update(params: RequestParams, body: UpdateProjectDto, config?: AxiosRequestConfig): Promise<ProjectResponseDto> {
+    const { data } = await this.http.request<ProjectResponseDto>({
       ...config,
       method: 'PATCH',
       url: buildPath('/projects/{id}', params.path),
@@ -549,8 +741,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_runPreflight(params: RequestParams, body: PreflightEnvironmentConfigDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_runPreflight(params: RequestParams, body: PreflightEnvironmentConfigDto, config?: AxiosRequestConfig): Promise<EnvironmentPreflightResultDto> {
+    const { data } = await this.http.request<EnvironmentPreflightResultDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects/{projectId}/environment-config/preflight', params.path),
@@ -560,8 +752,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_importCompose(params: RequestParams, body: ImportComposeDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_importCompose(params: RequestParams, body: ImportComposeDto, config?: AxiosRequestConfig): Promise<ComposeImportResultDto> {
+    const { data } = await this.http.request<ComposeImportResultDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects/{projectId}/environment-config/import-compose', params.path),
@@ -571,8 +763,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_listDryRuns(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_listDryRuns(params: RequestParams, config?: AxiosRequestConfig): Promise<PaginatedEnvironmentDryRunsResponseDto> {
+    const { data } = await this.http.request<PaginatedEnvironmentDryRunsResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/environment-config/dry-runs', params.path),
@@ -581,8 +773,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_createDryRun(params: RequestParams, body: CreateEnvironmentDryRunDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_createDryRun(params: RequestParams, body: CreateEnvironmentDryRunDto, config?: AxiosRequestConfig): Promise<EnvironmentDryRunResponseDto> {
+    const { data } = await this.http.request<EnvironmentDryRunResponseDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects/{projectId}/environment-config/dry-runs', params.path),
@@ -592,8 +784,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_getDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_getDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<EnvironmentDryRunResponseDto> {
+    const { data } = await this.http.request<EnvironmentDryRunResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/environment-config/dry-runs/{dryRunId}', params.path),
@@ -602,8 +794,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_cancelDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_cancelDryRun(params: RequestParams, config?: AxiosRequestConfig): Promise<EnvironmentDryRunResponseDto> {
+    const { data } = await this.http.request<EnvironmentDryRunResponseDto>({
       ...config,
       method: 'POST',
       url: buildPath('/projects/{projectId}/environment-config/dry-runs/{dryRunId}/cancel', params.path),
@@ -632,8 +824,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async EnvironmentConfigsController_getRevision(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async EnvironmentConfigsController_getRevision(params: RequestParams, config?: AxiosRequestConfig): Promise<EnvironmentConfigRevisionResponseDto> {
+    const { data } = await this.http.request<EnvironmentConfigRevisionResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/environment-config/revisions/{revisionId}', params.path),
@@ -693,8 +885,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TeamController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async TeamController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<Array<TeamMemberResponseDto>> {
+    const { data } = await this.http.request<Array<TeamMemberResponseDto>>({
       ...config,
       method: 'GET',
       url: buildPath('/team/members', params.path),
@@ -703,8 +895,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TeamController_updateRole(params: RequestParams, body: UpdateMemberRoleDto, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async TeamController_updateRole(params: RequestParams, body: UpdateMemberRoleDto, config?: AxiosRequestConfig): Promise<TeamMemberResponseDto> {
+    const { data } = await this.http.request<TeamMemberResponseDto>({
       ...config,
       method: 'PATCH',
       url: buildPath('/team/members/{memberId}', params.path),
@@ -724,8 +916,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TestSuitesController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async TestSuitesController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<PaginatedTestSuitesResponseDto> {
+    const { data } = await this.http.request<PaginatedTestSuitesResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-suites', params.path),
@@ -808,8 +1000,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TestSuitesController_find(params: RequestParams, config?: AxiosRequestConfig): Promise<unknown> {
-    const { data } = await this.http.request<unknown>({
+  async TestSuitesController_find(params: RequestParams, config?: AxiosRequestConfig): Promise<TestSuiteResponseDto> {
+    const { data } = await this.http.request<TestSuiteResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-suites/{suiteId}', params.path),
@@ -839,8 +1031,8 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TestRunsController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<Array<TestRunResponseDto>> {
-    const { data } = await this.http.request<Array<TestRunResponseDto>>({
+  async TestRunsController_list(params: RequestParams, config?: AxiosRequestConfig): Promise<PaginatedTestRunsResponseDto> {
+    const { data } = await this.http.request<PaginatedTestRunsResponseDto>({
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-runs', params.path),

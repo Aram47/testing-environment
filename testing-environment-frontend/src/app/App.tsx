@@ -13,6 +13,9 @@ import { TestSuitesPage } from '../pages/TestSuitesPage';
 import { TestRunsPage } from '../pages/TestRunsPage';
 import { CompanySettingsPage } from '../pages/CompanySettingsPage';
 import { SubscriptionPage } from '../pages/SubscriptionPage';
+import { TeamPage } from '../pages/TeamPage';
+import { ApiTokensPage } from '../pages/ApiTokensPage';
+import { AuditPage } from '../pages/AuditPage';
 import { OnboardingPage } from '../pages/OnboardingPage';
 
 const EnvironmentPage = lazy(() =>
@@ -51,6 +54,9 @@ export function App() {
           <Route path="/projects/:projectId/runs/:runId" element={<LazyPage><TestRunDetailPage /></LazyPage>} />
           <Route path="/settings/company" element={<CompanySettingsPage />} />
           <Route path="/settings/subscription" element={<SubscriptionPage />} />
+          <Route path="/settings/team" element={<TeamPage />} />
+          <Route path="/settings/api-tokens" element={<ApiTokensPage />} />
+          <Route path="/settings/audit" element={<AuditPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

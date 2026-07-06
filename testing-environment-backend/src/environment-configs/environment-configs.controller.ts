@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -11,6 +11,11 @@ import { CompileEnvironmentConfigDto } from './dto/compile-environment-config.dt
 import { CreateEnvironmentDryRunDto } from './dto/create-environment-dry-run.dto';
 import { ImportComposeDto } from './dto/import-compose.dto';
 import { PreflightEnvironmentConfigDto } from './dto/preflight-environment-config.dto';
+import { ComposeImportResultDto } from './dto/compose-import-result.dto';
+import { EnvironmentConfigRevisionResponseDto } from './dto/environment-config-revision-response.dto';
+import { EnvironmentDryRunResponseDto } from './dto/environment-dry-run-response.dto';
+import { EnvironmentPreflightResultDto } from './dto/environment-preflight-result.dto';
+import { PaginatedEnvironmentDryRunsResponseDto } from './dto/paginated-environment-dry-runs-response.dto';
 import { EnvironmentConfigsService } from './environment-configs.service';
 import { EnvironmentDryRunsService } from './environment-dry-runs.service';
 import { EnvironmentPreflightService } from './environment-preflight.service';
@@ -54,6 +59,7 @@ export class EnvironmentConfigsController {
 
   @Post('preflight')
   @RequirePermission('environment:read', 'environment')
+  @ApiOkResponse({ type: EnvironmentPreflightResultDto })
   runPreflight(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -64,6 +70,7 @@ export class EnvironmentConfigsController {
 
   @Post('import-compose')
   @RequirePermission('environment:write', 'environment')
+  @ApiOkResponse({ type: ComposeImportResultDto })
   importCompose(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -74,6 +81,7 @@ export class EnvironmentConfigsController {
 
   @Post('dry-runs')
   @RequirePermission('environment:write', 'environment')
+  @ApiCreatedResponse({ type: EnvironmentDryRunResponseDto })
   createDryRun(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -84,6 +92,7 @@ export class EnvironmentConfigsController {
 
   @Get('dry-runs')
   @RequirePermission('environment:read', 'environment')
+  @ApiOkResponse({ type: PaginatedEnvironmentDryRunsResponseDto })
   listDryRuns(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -94,6 +103,7 @@ export class EnvironmentConfigsController {
 
   @Get('dry-runs/:dryRunId')
   @RequirePermission('environment:read', 'environment')
+  @ApiOkResponse({ type: EnvironmentDryRunResponseDto })
   getDryRun(
     @Param('projectId') projectId: string,
     @Param('dryRunId') dryRunId: string,
@@ -104,6 +114,7 @@ export class EnvironmentConfigsController {
 
   @Post('dry-runs/:dryRunId/cancel')
   @RequirePermission('environment:write', 'environment')
+  @ApiOkResponse({ type: EnvironmentDryRunResponseDto })
   cancelDryRun(
     @Param('projectId') projectId: string,
     @Param('dryRunId') dryRunId: string,
@@ -131,6 +142,7 @@ export class EnvironmentConfigsController {
 
   @Get('revisions/:revisionId')
   @RequirePermission('environment:read', 'environment')
+  @ApiOkResponse({ type: EnvironmentConfigRevisionResponseDto })
   getRevision(
     @Param('projectId') projectId: string,
     @Param('revisionId') revisionId: string,

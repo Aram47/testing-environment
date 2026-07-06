@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { TeamMemberResponseDto } from './dto/team-member-response.dto';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -17,12 +18,14 @@ export class TeamController {
 
   @Get()
   @RequirePermission('team:manage', 'company')
+  @ApiOkResponse({ type: TeamMemberResponseDto, isArray: true })
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.team.list(user.companyId);
   }
 
   @Patch(':memberId')
   @RequirePermission('team:manage', 'company')
+  @ApiOkResponse({ type: TeamMemberResponseDto })
   updateRole(
     @CurrentUser() user: AuthenticatedUser,
     @Param('memberId') memberId: string,

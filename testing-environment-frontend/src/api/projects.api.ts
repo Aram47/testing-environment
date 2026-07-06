@@ -1,4 +1,4 @@
-import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
+import { PaginatedResultAdapter, DEFAULT_LIST_LIMIT, type PaginatedResult } from './paginated-result';
 import type { CreateProjectInput, DashboardSummary, Project } from '../types';
 import { generatedApi } from './generated-client';
 import type { CreateProjectDto, UpdateProjectDto } from '../generated/api';
@@ -9,7 +9,10 @@ class ProjectsApi {
   }
 
   async list(): Promise<Project[]> {
-    const data = await generatedApi.ProjectsController_findAll({ path: {} }) as Project[] | PaginatedResult<Project>;
+    const data = await generatedApi.ProjectsController_findAll({
+      path: {},
+      query: { page: 1, limit: DEFAULT_LIST_LIMIT },
+    }) as Project[] | PaginatedResult<Project>;
     return PaginatedResultAdapter.toItems(data);
   }
 

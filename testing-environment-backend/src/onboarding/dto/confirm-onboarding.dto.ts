@@ -1,11 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EnvironmentConfigType } from '@prisma/client';
-import { IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class OnboardingProjectDto {
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
   name: string;
 
   @ApiPropertyOptional()
@@ -14,21 +26,31 @@ export class OnboardingProjectDto {
   description?: string;
 
   @ApiProperty()
-  @IsString()
+  @IsUrl({ require_tld: false })
   baseUrl: string;
 
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
   mainServiceName: string;
 
-  @ApiProperty()
+  @ApiProperty({ default: '/health' })
   @IsString()
+  @IsNotEmpty()
   healthcheckPath: string;
 
-  @ApiProperty()
+  @ApiProperty({ default: 200 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(100)
+  @Max(599)
   healthcheckExpectedStatus: number;
 
-  @ApiProperty()
+  @ApiProperty({ default: 60 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(600)
   healthcheckTimeoutSeconds: number;
 }
 
@@ -42,15 +64,17 @@ export class ConfirmOnboardingDto {
   @IsEnum(EnvironmentConfigType)
   environmentType: EnvironmentConfigType;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Required when environmentType is DOCKER_COMPOSE',
+  })
   @IsOptional()
   @IsString()
   composeYaml?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ description: 'backend-test runtime YAML configuration' })
   @IsString()
-  backendTestYaml?: string;
+  @IsNotEmpty()
+  backendTestYaml: string;
 
   @ApiPropertyOptional()
   @IsOptional()

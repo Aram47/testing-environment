@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RequirePermission } from '../authorization/decorators/require-permission.decorator';
 import { PermissionsGuard } from '../authorization/permissions.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -20,6 +20,8 @@ import { CompileFlowDto } from './dto/compile-flow.dto';
 import { CreateTestSuiteDto } from './dto/create-test-suite.dto';
 import { GenerateImportedFlowDto } from './dto/import/generate-imported-flow.dto';
 import { ImportPreviewDto } from './dto/import/import-preview.dto';
+import { PaginatedTestSuitesResponseDto } from './dto/paginated-test-suites-response.dto';
+import { TestSuiteResponseDto } from './dto/test-suite-response.dto';
 import { UpdateTestSuiteDto } from './dto/update-test-suite.dto';
 import { ApiImportService } from './import/api-import.service';
 import { TestSuitesService } from './test-suites.service';
@@ -46,6 +48,7 @@ export class TestSuitesController {
 
   @Get()
   @RequirePermission('suite:read', 'project')
+  @ApiOkResponse({ type: PaginatedTestSuitesResponseDto })
   list(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -119,6 +122,7 @@ export class TestSuitesController {
 
   @Get(':suiteId')
   @RequirePermission('suite:read', 'suite')
+  @ApiOkResponse({ type: TestSuiteResponseDto })
   find(
     @Param('projectId') projectId: string,
     @Param('suiteId') suiteId: string,

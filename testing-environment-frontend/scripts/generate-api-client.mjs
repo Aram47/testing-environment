@@ -166,6 +166,9 @@ function renderType(schema) {
   if (schema.type === 'string') {
     return schema.nullable ? 'string | null' : 'string';
   }
+  if (schema.format === 'date-time') {
+    return schema.nullable ? 'string | null' : 'string';
+  }
   if (schema.type === 'object') {
     if (schema.additionalProperties && !schema.properties) {
       return 'Record<string, unknown>';

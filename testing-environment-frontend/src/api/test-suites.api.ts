@@ -11,7 +11,7 @@ import type {
   TestSuiteRevision,
   TestSuiteSourceMode,
 } from '../types';
-import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
+import { PaginatedResultAdapter, DEFAULT_LIST_LIMIT, type PaginatedResult } from './paginated-result';
 import { generatedApi } from './generated-client';
 import type {
   CompileFlowDto,
@@ -66,6 +66,7 @@ class TestSuitesApi {
   async list(projectId: string): Promise<TestSuite[]> {
     const data = await generatedApi.TestSuitesController_list({
       path: { projectId },
+      query: { page: 1, limit: DEFAULT_LIST_LIMIT },
     }) as TestSuiteResponse[] | PaginatedResult<TestSuiteResponse>;
     return PaginatedResultAdapter.toItems(data).map((suite) => this.toTestSuite(suite));
   }

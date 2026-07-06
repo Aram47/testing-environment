@@ -176,100 +176,6 @@
         ]
       }
     },
-    "/subscriptions/plans": {
-      "get": {
-        "operationId": "SubscriptionsController_listPlans",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
-    "/subscriptions/current": {
-      "patch": {
-        "operationId": "SubscriptionsController_changeCurrentPlan",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChangeSubscriptionPlanDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Subscriptions"
-        ]
-      }
-    },
-    "/companies/me": {
-      "get": {
-        "operationId": "CompaniesController_me",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Companies"
-        ]
-      },
-      "patch": {
-        "operationId": "CompaniesController_updateMe",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCompanyDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "Companies"
-        ]
-      }
-    },
     "/audit-events": {
       "get": {
         "operationId": "AuditController_list",
@@ -349,7 +255,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedAuditEventsResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -368,7 +281,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -395,7 +318,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateApiTokenResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -423,7 +353,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTokenResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -522,6 +459,52 @@
         ]
       }
     },
+    "/companies/me": {
+      "get": {
+        "operationId": "CompaniesController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Companies"
+        ]
+      },
+      "patch": {
+        "operationId": "CompaniesController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompanyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Companies"
+        ]
+      }
+    },
     "/dashboard": {
       "get": {
         "operationId": "DashboardController_getSummary",
@@ -541,6 +524,54 @@
         ]
       }
     },
+    "/subscriptions/plans": {
+      "get": {
+        "operationId": "SubscriptionsController_listPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/current": {
+      "patch": {
+        "operationId": "SubscriptionsController_changeCurrentPlan",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSubscriptionPlanDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Subscriptions"
+        ]
+      }
+    },
     "/projects": {
       "post": {
         "operationId": "ProjectsController_create",
@@ -557,7 +588,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -591,7 +629,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedProjectsResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -619,7 +664,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -655,7 +707,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -856,8 +915,15 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentPreflightResultDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -894,8 +960,15 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposeImportResultDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -933,7 +1006,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentDryRunResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -975,7 +1055,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedEnvironmentDryRunsResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1011,7 +1098,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentDryRunResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1046,8 +1140,15 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentDryRunResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1155,7 +1256,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentConfigRevisionResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1353,7 +1461,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMemberResponseDto"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1391,7 +1509,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1497,7 +1622,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedTestSuitesResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1779,7 +1911,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestSuiteResponseDto"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1948,10 +2087,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TestRunResponseDto"
-                  }
+                  "$ref": "#/components/schemas/PaginatedTestRunsResponseDto"
                 }
               }
             }
@@ -2421,13 +2557,16 @@
             "type": "string"
           },
           "healthcheckPath": {
-            "type": "string"
+            "type": "string",
+            "default": "/health"
           },
           "healthcheckExpectedStatus": {
-            "type": "number"
+            "type": "number",
+            "default": 200
           },
           "healthcheckTimeoutSeconds": {
-            "type": "number"
+            "type": "number",
+            "default": 60
           }
         },
         "required": [
@@ -2453,10 +2592,12 @@
             ]
           },
           "composeYaml": {
-            "type": "string"
+            "type": "string",
+            "description": "Required when environmentType is DOCKER_COMPOSE"
           },
           "backendTestYaml": {
-            "type": "string"
+            "type": "string",
+            "description": "backend-test runtime YAML configuration"
           },
           "analysis": {
             "type": "object"
@@ -2467,37 +2608,169 @@
         },
         "required": [
           "project",
-          "environmentType"
+          "environmentType",
+          "backendTestYaml"
         ]
-      },
-      "ChangeSubscriptionPlanDto": {
-        "type": "object",
-        "properties": {
-          "planName": {
-            "type": "string",
-            "enum": [
-              "FREE",
-              "PRO",
-              "BUSINESS",
-              "ENTERPRISE"
-            ]
-          }
-        },
-        "required": [
-          "planName"
-        ]
-      },
-      "UpdateCompanyDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        }
       },
       "Object": {
         "type": "object",
         "properties": {}
+      },
+      "AuditEventResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string",
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorType": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceAccountId": {
+            "type": "string",
+            "nullable": true
+          },
+          "apiTokenId": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceType": {
+            "type": "string",
+            "nullable": true
+          },
+          "resourceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestId": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "action",
+          "actorType",
+          "createdAt"
+        ]
+      },
+      "PaginationMetaDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "total": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "totalPages"
+        ]
+      },
+      "PaginatedAuditEventsResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEventResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ]
+      },
+      "ApiTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "createdAt",
+          "updatedAt"
+        ]
       },
       "CreateApiTokenDto": {
         "type": "object",
@@ -2521,6 +2794,62 @@
         "required": [
           "name",
           "scopes"
+        ]
+      },
+      "CreateApiTokenResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "token": {
+            "type": "string",
+            "description": "Plaintext token shown once at creation time."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "scopes",
+          "createdAt",
+          "updatedAt",
+          "token"
         ]
       },
       "RegisterDto": {
@@ -2567,6 +2896,31 @@
           "password"
         ]
       },
+      "UpdateCompanyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangeSubscriptionPlanDto": {
+        "type": "object",
+        "properties": {
+          "planName": {
+            "type": "string",
+            "enum": [
+              "FREE",
+              "PRO",
+              "BUSINESS",
+              "ENTERPRISE"
+            ]
+          }
+        },
+        "required": [
+          "planName"
+        ]
+      },
       "CreateProjectDto": {
         "type": "object",
         "properties": {
@@ -2602,6 +2956,77 @@
           "healthcheckPath",
           "healthcheckExpectedStatus",
           "healthcheckTimeoutSeconds"
+        ]
+      },
+      "ProjectResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "mainServiceName": {
+            "type": "string"
+          },
+          "healthcheckPath": {
+            "type": "string"
+          },
+          "healthcheckExpectedStatus": {
+            "type": "number"
+          },
+          "healthcheckTimeoutSeconds": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "name",
+          "baseUrl",
+          "mainServiceName",
+          "healthcheckPath",
+          "healthcheckExpectedStatus",
+          "healthcheckTimeoutSeconds",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PaginatedProjectsResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "UpdateProjectDto": {
@@ -2697,6 +3122,93 @@
           }
         }
       },
+      "PreflightCheckDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "warn",
+              "fail"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "message"
+        ]
+      },
+      "EnvironmentResourceEstimationDto": {
+        "type": "object",
+        "properties": {
+          "tier": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "serviceCount": {
+            "type": "number"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "tier",
+          "serviceCount",
+          "notes"
+        ]
+      },
+      "EnvironmentPreflightResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreflightCheckDto"
+            }
+          },
+          "securityErrors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dependencyWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resourceEstimation": {
+            "$ref": "#/components/schemas/EnvironmentResourceEstimationDto"
+          }
+        },
+        "required": [
+          "ok",
+          "checks",
+          "securityErrors",
+          "dependencyWarnings",
+          "resourceEstimation"
+        ]
+      },
       "ImportComposeDto": {
         "type": "object",
         "properties": {
@@ -2716,6 +3228,35 @@
           "source"
         ]
       },
+      "ComposeImportResultDto": {
+        "type": "object",
+        "properties": {
+          "visualConfig": {
+            "type": "object"
+          },
+          "analysis": {
+            "type": "object"
+          },
+          "importWarnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unsupportedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "visualConfig",
+          "analysis",
+          "importWarnings",
+          "unsupportedFields"
+        ]
+      },
       "CreateEnvironmentDryRunDto": {
         "type": "object",
         "properties": {
@@ -2725,6 +3266,226 @@
         },
         "required": [
           "revisionId"
+        ]
+      },
+      "EnvironmentConfigRevisionResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "environmentConfigId": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "PUBLISHED"
+            ]
+          },
+          "sourceMode": {
+            "type": "string"
+          },
+          "visualConfig": {
+            "type": "object"
+          },
+          "compiledComposeYaml": {
+            "type": "string"
+          },
+          "compiledRuntimeYaml": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "number"
+          },
+          "createdById": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedById": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "environmentConfigId",
+          "revisionNumber",
+          "status",
+          "sourceMode",
+          "compiledComposeYaml",
+          "compiledRuntimeYaml",
+          "schemaVersion",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "EnvironmentDryRunLogResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "dryRunId": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "SYSTEM",
+              "DOCKER",
+              "TEST",
+              "ERROR"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "dryRunId",
+          "source",
+          "message",
+          "createdAt"
+        ]
+      },
+      "EnvironmentDryRunResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "environmentConfigRevisionId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "QUEUED",
+              "PREPARING_WORKSPACE",
+              "VALIDATING_ENVIRONMENT",
+              "PULLING_IMAGES",
+              "STARTING_ENVIRONMENT",
+              "WAITING_FOR_HEALTHCHECK",
+              "COLLECTING_LOGS",
+              "CLEANING_UP",
+              "PASSED",
+              "INFRA_FAILED",
+              "TIMED_OUT",
+              "CANCEL_REQUESTED",
+              "CANCELLED"
+            ]
+          },
+          "queueJobId": {
+            "type": "string",
+            "nullable": true
+          },
+          "runnerVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "failureCategory": {
+            "type": "string",
+            "enum": [
+              "ENVIRONMENT_VALIDATION",
+              "IMAGE_PULL",
+              "CONTAINER_START",
+              "HEALTHCHECK",
+              "NETWORK",
+              "TIMEOUT",
+              "CANCELLED",
+              "INTERNAL"
+            ],
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelRequestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "environmentConfigRevision": {
+            "$ref": "#/components/schemas/EnvironmentConfigRevisionResponseDto"
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentDryRunLogResponseDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "environmentConfigRevisionId",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PaginatedEnvironmentDryRunsResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EnvironmentDryRunResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "CreateSecretDto": {
@@ -2837,6 +3598,95 @@
           "processedSecrets"
         ]
       },
+      "TeamMemberUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "firstName",
+          "lastName",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TeamMemberResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "ADMIN",
+              "DEVELOPER",
+              "VIEWER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "REMOVED"
+            ]
+          },
+          "removedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "$ref": "#/components/schemas/TeamMemberUserDto"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "userId",
+          "role",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "user"
+        ]
+      },
       "UpdateMemberRoleDto": {
         "type": "object",
         "properties": {
@@ -2877,6 +3727,70 @@
         "required": [
           "name",
           "yamlContent"
+        ]
+      },
+      "TestSuiteResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "yamlContent": {
+            "type": "string"
+          },
+          "visualFlow": {
+            "type": "object"
+          },
+          "currentRevision": {
+            "type": "object"
+          },
+          "publishedRevision": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PaginatedTestSuitesResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TestSuiteResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "CompileFlowDto": {
@@ -2992,7 +3906,8 @@
             "type": "string"
           },
           "environmentConfigRevisionId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "runnerVersion": {
             "type": "string"
@@ -3023,8 +3938,9 @@
             ]
           },
           "statusReason": {
-            "type": "object",
-            "description": "Human-readable terminal or cancellation reason for the current run state."
+            "type": "string",
+            "description": "Human-readable terminal or cancellation reason for the current run state.",
+            "nullable": true
           },
           "failureCategory": {
             "type": "string",
@@ -3038,64 +3954,91 @@
               "TIMEOUT",
               "CANCELLED",
               "INTERNAL"
-            ]
+            ],
+            "nullable": true
           },
           "currentPhase": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "phaseTimestamps": {
             "type": "object"
           },
           "queueJobId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "queuedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "enqueuedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "claimedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "cancellationRequestedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "cancelRequestedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "cancelRequestedBy": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "cancellationReason": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "runnerId": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "leaseAcquiredAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "leaseExpiresAt": {
-            "type": "object",
-            "description": "Current execution lease expiration; stale leases are failed by recovery."
+            "type": "string",
+            "description": "Current execution lease expiration; stale leases are failed by recovery.",
+            "format": "date-time",
+            "nullable": true
           },
           "heartbeatAt": {
-            "type": "object",
-            "description": "Last persisted worker heartbeat for the execution lease owner."
+            "type": "string",
+            "description": "Last persisted worker heartbeat for the execution lease owner.",
+            "format": "date-time",
+            "nullable": true
           },
           "attempt": {
             "type": "number",
             "description": "Number of worker claims for this immutable run. Jobs are fail-fast by default."
           },
           "cleanupError": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "startedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "finishedAt": {
-            "type": "object"
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
           },
           "totalTests": {
             "type": "number"
@@ -3107,10 +4050,12 @@
             "type": "number"
           },
           "durationMs": {
-            "type": "object"
+            "type": "number",
+            "nullable": true
           },
           "errorMessage": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -3123,6 +4068,24 @@
           "totalTests",
           "passedTests",
           "failedTests"
+        ]
+      },
+      "PaginatedTestRunsResponseDto": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TestRunResponseDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/PaginationMetaDto"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
         ]
       },
       "TestRunEventResponseDto": {

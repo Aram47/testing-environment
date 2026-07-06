@@ -1,8 +1,7 @@
-import { apiClient } from './client';
 import type { TestRun } from '../types';
-import { PaginatedResultAdapter, type PaginatedResult } from './paginated-result';
+import { DEFAULT_LIST_LIMIT, PaginatedResultAdapter } from './paginated-result';
 import { generatedApi } from './generated-client';
-import type { TestRunEventResponseDto } from '../generated/api';
+import type { CreateTestRunDto, TestRunEventResponseDto, TestRunResponseDto } from '../generated/api';
 import type { TestRunEvent } from '../types';
 
 interface TestRunResponse extends Omit<TestRun, 'passed' | 'failed'> {
@@ -16,14 +15,15 @@ class TestRunsApi {
   async list(projectId: string): Promise<TestRun[]> {
     const data = await generatedApi.TestRunsController_list({
       path: { projectId },
-    }) as unknown as TestRunResponse[] | PaginatedResult<TestRunResponse>;
-    return PaginatedResultAdapter.toItems(data).map((run) => this.toTestRun(run));
+      query: { page: 1, limit: DEFAULT_LIST_LIMIT },
+    });
+    return PaginatedResultAdapter.toItems(data).map((run) => this.toTestRun(run as TestRunResponse));
   }
 
   async get(projectId: string, runId: string): Promise<TestRun> {
     const data = await generatedApi.TestRunsController_find({
       path: { projectId, runId },
-    }) as unknown as TestRunResponse;
+    }) as TestRunResponseDto;
     return this.toTestRun(data);
   }
 
@@ -31,9 +31,9 @@ class TestRunsApi {
     projectId: string,
     input?: { environmentConfigRevisionId?: string },
   ): Promise<TestRun> {
-    const { data } = await apiClient.post<TestRunResponse>(
-      `/projects/${projectId}/test-runs`,
-      input ?? {},
+    const data = await generatedApi.TestRunsController_create(
+      { path: { projectId } },
+      (input ?? {}) as CreateTestRunDto,
     );
     return this.toTestRun(data);
   }
@@ -42,7 +42,7 @@ class TestRunsApi {
     const data = await generatedApi.TestRunsController_cancel(
       { path: { projectId, runId } },
       reason ? { reason } : {},
-    ) as unknown as TestRunResponse;
+    ) as TestRunResponseDto;
     return this.toTestRun(data);
   }
 
@@ -84,11 +84,14 @@ class TestRunsApi {
     };
   }
 
-  private toTestRun(run: TestRunResponse): TestRun {
+  private toTestRun(run: TestRunResponse | TestRunResponseDto): TestRun {
+    const revisionId = run.environmentConfigRevisionId;
     return {
-      ...run,
-      passed: run.passed ?? run.passedTests ?? 0,
-      failed: run.failed ?? run.failedTests ?? 0,
+      ...(run as TestRun),
+      environmentConfigRevisionId:
+        typeof revisionId === 'string' ? revisionId : undefined,
+      passed: 'passed' in run ? (run.passed ?? run.passedTests ?? 0) : (run.passedTests ?? 0),
+      failed: 'failed' in run ? (run.failed ?? run.failedTests ?? 0) : (run.failedTests ?? 0),
     };
   }
 }

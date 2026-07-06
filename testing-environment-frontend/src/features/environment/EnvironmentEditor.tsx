@@ -12,6 +12,7 @@ import { RevisionDiffViewer } from '../revisions/RevisionDiffViewer';
 import { ComposeImportModal } from './ComposeImportModal';
 import { DryRunPanel } from './DryRunPanel';
 import { PreflightPanel } from './PreflightPanel';
+import { ProjectSecretsPanel } from './ProjectSecretsPanel';
 import { RevisionStatusBar } from './RevisionStatusBar';
 import type {
   EnvironmentConfig,
@@ -100,7 +101,7 @@ export function EnvironmentEditor({
         visualConfig: editor.mode === 'visual' ? editor.visualConfig : undefined,
         composeYaml: editor.mode === 'raw_yaml' ? editor.dockerComposeYaml : undefined,
         backendTestYaml: editor.mode === 'raw_yaml' ? editor.backendTestYaml : undefined,
-        revisionId: value?.currentRevision?.id,
+        revisionId: editor.isDirty ? undefined : value?.currentRevision?.id,
       });
       setPreflightResult(result);
       onMessage(result.ok ? 'Preflight passed' : 'Preflight found issues', result.ok ? 'success' : 'error');
@@ -274,6 +275,11 @@ export function EnvironmentEditor({
             disabled={Boolean(preflightResult && !preflightResult.ok)}
             onMessage={onMessage}
           />
+          <ProjectSecretsPanel
+            projectId={projectId}
+            secrets={secretsQuery.data ?? []}
+            onMessage={onMessage}
+          />
         </>
       ) : null}
 
@@ -358,8 +364,9 @@ export function EnvironmentEditor({
         onImported={(result) => {
           editor.setVisualConfig(result.visualConfig);
           editor.setMode('visual');
-          if (result.importWarnings.length > 0) {
-            editor.setWarnings(result.importWarnings);
+          const warnings = [...result.importWarnings, ...result.unsupportedFields];
+          if (warnings.length > 0) {
+            editor.setWarnings(warnings);
           }
         }}
         onMessage={onMessage}

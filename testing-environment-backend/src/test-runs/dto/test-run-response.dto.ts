@@ -8,7 +8,7 @@ export class TestRunResponseDto {
   @ApiProperty()
   projectId!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   environmentConfigRevisionId?: string | null;
 
   @ApiProperty()
@@ -22,71 +22,79 @@ export class TestRunResponseDto {
 
   @ApiPropertyOptional({
     description: 'Human-readable terminal or cancellation reason for the current run state.',
+    type: String,
+    nullable: true,
   })
   statusReason?: string | null;
 
-  @ApiPropertyOptional({ enum: TestRunFailureCategory })
+  @ApiPropertyOptional({ enum: TestRunFailureCategory, nullable: true })
   failureCategory?: TestRunFailureCategory | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   currentPhase?: string | null;
 
   @ApiPropertyOptional({ type: Object })
   phaseTimestamps?: Record<string, string> | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   queueJobId?: string | null;
 
-  @ApiPropertyOptional()
-  queuedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  queuedAt?: string | null;
 
-  @ApiPropertyOptional()
-  enqueuedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  enqueuedAt?: string | null;
 
-  @ApiPropertyOptional()
-  claimedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  claimedAt?: string | null;
 
-  @ApiPropertyOptional()
-  cancellationRequestedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  cancellationRequestedAt?: string | null;
 
-  @ApiPropertyOptional()
-  cancelRequestedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  cancelRequestedAt?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   cancelRequestedBy?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   cancellationReason?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   runnerId?: string | null;
 
-  @ApiPropertyOptional()
-  leaseAcquiredAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  leaseAcquiredAt?: string | null;
 
   @ApiPropertyOptional({
     description: 'Current execution lease expiration; stale leases are failed by recovery.',
+    type: String,
+    format: 'date-time',
+    nullable: true,
   })
-  leaseExpiresAt?: Date | null;
+  leaseExpiresAt?: string | null;
 
   @ApiPropertyOptional({
     description: 'Last persisted worker heartbeat for the execution lease owner.',
+    type: String,
+    format: 'date-time',
+    nullable: true,
   })
-  heartbeatAt?: Date | null;
+  heartbeatAt?: string | null;
 
   @ApiProperty({
     description: 'Number of worker claims for this immutable run. Jobs are fail-fast by default.',
   })
   attempt!: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   cleanupError?: string | null;
 
-  @ApiPropertyOptional()
-  startedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  startedAt?: string | null;
 
-  @ApiPropertyOptional()
-  finishedAt?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  finishedAt?: string | null;
 
   @ApiProperty()
   totalTests!: number;
@@ -97,9 +105,9 @@ export class TestRunResponseDto {
   @ApiProperty()
   failedTests!: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: Number, nullable: true })
   durationMs?: number | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: String, nullable: true })
   errorMessage?: string | null;
 }

@@ -1,4 +1,4 @@
-import { BarChart3, CreditCard, FolderKanban, Rocket, Settings } from 'lucide-react';
+import { BarChart3, CreditCard, FolderKanban, KeyRound, Rocket, ScrollText, Settings, Users } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
 const links = [
@@ -7,6 +7,9 @@ const links = [
   { to: '/projects', label: 'Projects', icon: FolderKanban },
   { to: '/settings/company', label: 'Company', icon: Settings },
   { to: '/settings/subscription', label: 'Subscription', icon: CreditCard },
+  { to: '/settings/team', label: 'Team', icon: Users },
+  { to: '/settings/api-tokens', label: 'API tokens', icon: KeyRound },
+  { to: '/settings/audit', label: 'Audit log', icon: ScrollText },
 ];
 
 export function Sidebar() {

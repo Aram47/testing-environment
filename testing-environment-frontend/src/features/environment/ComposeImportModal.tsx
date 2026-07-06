@@ -18,6 +18,7 @@ export function ComposeImportModal({
 }) {
   const [composeYaml, setComposeYaml] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [unsupportedFields, setUnsupportedFields] = useState<string[]>([]);
 
   if (!open) {
     return null;
@@ -29,14 +30,18 @@ export function ComposeImportModal({
       return;
     }
     setIsImporting(true);
+    setUnsupportedFields([]);
     try {
       const result = await environmentConfigsApi.importCompose(projectId, {
         composeYaml,
         source,
       });
+      setUnsupportedFields(result.unsupportedFields);
       onImported(result);
       onMessage('Compose imported into visual editor', 'success');
-      onClose();
+      if (result.unsupportedFields.length === 0) {
+        onClose();
+      }
     } catch (error) {
       onMessage(error instanceof Error ? error.message : 'Compose import failed', 'error');
     } finally {
@@ -71,6 +76,16 @@ export function ComposeImportModal({
             }}
           />
         </label>
+        {unsupportedFields.length > 0 ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-semibold">Some compose fields are not editable in visual mode:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {unsupportedFields.map((field) => (
+                <li key={field}>{field}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" onClick={onClose}>
             Cancel

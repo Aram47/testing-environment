@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AuthenticatedUser } from '../common/types/authenticated-user.type';
 import { CancelTestRunDto } from './dto/cancel-test-run.dto';
 import { CreateTestRunDto } from './dto/create-test-run.dto';
+import { PaginatedTestRunsResponseDto } from './dto/paginated-test-runs-response.dto';
 import { TestRunEventResponseDto } from './dto/test-run-event-response.dto';
 import { TestRunEventsQueryDto } from './dto/test-run-events-query.dto';
 import { TestRunResponseDto } from './dto/test-run-response.dto';
@@ -33,7 +34,7 @@ export class TestRunsController {
 
   @Get()
   @RequirePermission('run:read', 'project')
-  @ApiOkResponse({ type: TestRunResponseDto, isArray: true })
+  @ApiOkResponse({ type: PaginatedTestRunsResponseDto })
   list(
     @Param('projectId') projectId: string,
     @CurrentUser() user: AuthenticatedUser,

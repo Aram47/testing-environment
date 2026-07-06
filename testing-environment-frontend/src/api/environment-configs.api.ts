@@ -4,9 +4,17 @@ import type {
   EnvironmentVisualConfig,
   RevisionLineDiff,
 } from '../types';
-import { apiClient } from './client';
+import { DEFAULT_LIST_LIMIT, PaginatedResultAdapter } from './paginated-result';
 import { generatedApi } from './generated-client';
-import type { CompileEnvironmentConfigDto, UpsertEnvironmentConfigDto } from '../generated/api';
+import type {
+  CompileEnvironmentConfigDto,
+  ComposeImportResultDto,
+  EnvironmentDryRunResponseDto,
+  EnvironmentPreflightResultDto,
+  ImportComposeDto,
+  PreflightEnvironmentConfigDto,
+  UpsertEnvironmentConfigDto,
+} from '../generated/api';
 
 interface EnvironmentConfigResponse extends Omit<EnvironmentConfig, 'dockerComposeYaml'> {
   composeYaml?: string;
@@ -54,6 +62,7 @@ export interface EnvironmentPreflightResult {
 
 export interface ComposeImportResult {
   visualConfig: EnvironmentVisualConfig;
+  analysis?: Record<string, unknown>;
   importWarnings: string[];
   unsupportedFields: string[];
 }
@@ -71,10 +80,6 @@ export interface EnvironmentDryRun {
 }
 
 class EnvironmentConfigsApi {
-  private base(projectId: string) {
-    return `/projects/${projectId}/environment-config`;
-  }
-
   async get(projectId: string): Promise<EnvironmentConfig> {
     const data = await generatedApi.EnvironmentConfigsController_find({
       path: { projectId },
@@ -114,22 +119,22 @@ class EnvironmentConfigsApi {
       revisionId?: string;
     },
   ): Promise<EnvironmentPreflightResult> {
-    const { data } = await apiClient.post<EnvironmentPreflightResult>(
-      `${this.base(projectId)}/preflight`,
-      payload,
+    const data = await generatedApi.EnvironmentConfigsController_runPreflight(
+      { path: { projectId } },
+      payload as PreflightEnvironmentConfigDto,
     );
-    return data;
+    return data as EnvironmentPreflightResultDto as EnvironmentPreflightResult;
   }
 
   async importCompose(
     projectId: string,
     payload: { composeYaml: string; source: 'paste' | 'upload' },
   ): Promise<ComposeImportResult> {
-    const { data } = await apiClient.post<ComposeImportResult>(
-      `${this.base(projectId)}/import-compose`,
-      payload,
+    const data = await generatedApi.EnvironmentConfigsController_importCompose(
+      { path: { projectId } },
+      payload as ImportComposeDto,
     );
-    return data;
+    return this.toComposeImportResult(data);
   }
 
   async revisions(projectId: string): Promise<EnvironmentConfigRevision[]> {
@@ -139,10 +144,9 @@ class EnvironmentConfigsApi {
   }
 
   async getRevision(projectId: string, revisionId: string): Promise<EnvironmentConfigRevision> {
-    const { data } = await apiClient.get<EnvironmentConfigRevision>(
-      `${this.base(projectId)}/revisions/${revisionId}`,
-    );
-    return data;
+    return generatedApi.EnvironmentConfigsController_getRevision({
+      path: { projectId, revisionId },
+    }) as Promise<EnvironmentConfigRevision>;
   }
 
   async publish(projectId: string, revisionId: string): Promise<EnvironmentConfig> {
@@ -160,31 +164,61 @@ class EnvironmentConfigsApi {
   }
 
   async createDryRun(projectId: string, revisionId: string): Promise<EnvironmentDryRun> {
-    const { data } = await apiClient.post<EnvironmentDryRun>(`${this.base(projectId)}/dry-runs`, {
-      revisionId,
-    });
-    return data;
+    const data = await generatedApi.EnvironmentConfigsController_createDryRun(
+      { path: { projectId } },
+      { revisionId },
+    );
+    return this.toDryRun(data);
   }
 
   async listDryRuns(projectId: string): Promise<EnvironmentDryRun[]> {
-    const response = await apiClient.get<{ data: EnvironmentDryRun[] }>(
-      `${this.base(projectId)}/dry-runs`,
-    );
-    return response.data.data;
+    const data = await generatedApi.EnvironmentConfigsController_listDryRuns({
+      path: { projectId },
+      query: { page: 1, limit: DEFAULT_LIST_LIMIT },
+    });
+    return PaginatedResultAdapter.toItems(data).map((dryRun) => this.toDryRun(dryRun));
   }
 
   async getDryRun(projectId: string, dryRunId: string): Promise<EnvironmentDryRun> {
-    const { data } = await apiClient.get<EnvironmentDryRun>(
-      `${this.base(projectId)}/dry-runs/${dryRunId}`,
-    );
-    return data;
+    const data = await generatedApi.EnvironmentConfigsController_getDryRun({
+      path: { projectId, dryRunId },
+    });
+    return this.toDryRun(data);
   }
 
   async cancelDryRun(projectId: string, dryRunId: string): Promise<EnvironmentDryRun> {
-    const { data } = await apiClient.post<EnvironmentDryRun>(
-      `${this.base(projectId)}/dry-runs/${dryRunId}/cancel`,
-    );
-    return data;
+    const data = await generatedApi.EnvironmentConfigsController_cancelDryRun({
+      path: { projectId, dryRunId },
+    });
+    return this.toDryRun(data);
+  }
+
+  private toComposeImportResult(data: ComposeImportResultDto): ComposeImportResult {
+    return {
+      visualConfig: data.visualConfig as unknown as EnvironmentVisualConfig,
+      analysis: data.analysis,
+      importWarnings: data.importWarnings,
+      unsupportedFields: data.unsupportedFields,
+    };
+  }
+
+  private toDryRun(data: EnvironmentDryRunResponseDto): EnvironmentDryRun {
+    return {
+      id: data.id,
+      projectId: data.projectId,
+      environmentConfigRevisionId: data.environmentConfigRevisionId,
+      status: data.status,
+      errorMessage: data.errorMessage ?? undefined,
+      startedAt: data.startedAt ?? undefined,
+      finishedAt: data.finishedAt ?? undefined,
+      environmentConfigRevision: data.environmentConfigRevision as EnvironmentConfigRevision | undefined,
+      logs: data.logs?.map((log) => ({
+        id: log.id,
+        source: log.source,
+        message: log.message,
+        createdAt: log.createdAt,
+      })),
+    };
   }
 
   private toPayload(input: EnvironmentSaveInput): UpsertEnvironmentConfigDto {

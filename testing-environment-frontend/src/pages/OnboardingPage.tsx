@@ -215,11 +215,21 @@ export function OnboardingPage() {
       showToast('Confirm the detected result before saving', 'error');
       return;
     }
+    const environmentType = draft.environmentType ?? 'DOCKER_COMPOSE';
+    const backendTestYamlValue = draft.backendTestYaml ?? backendTestYaml();
+    if (!backendTestYamlValue.trim()) {
+      showToast('backend-test YAML is required', 'error');
+      return;
+    }
+    if (environmentType === 'DOCKER_COMPOSE' && !draft.composeYaml?.trim()) {
+      showToast('Docker Compose YAML is required', 'error');
+      return;
+    }
     confirmMutation.mutate({
       project: values,
-      environmentType: draft.environmentType ?? 'DOCKER_COMPOSE',
+      environmentType,
       composeYaml: draft.composeYaml,
-      backendTestYaml: draft.backendTestYaml ?? backendTestYaml(),
+      backendTestYaml: backendTestYamlValue,
       analysis: draft.analysis,
       templateId: draft.templateId,
     });
