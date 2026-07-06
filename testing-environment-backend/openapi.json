@@ -2103,9 +2103,9 @@
         ]
       }
     },
-    "/projects/{projectId}/test-runs/{runId}": {
+    "/projects/{projectId}/test-runs/{runId}/detail": {
       "get": {
-        "operationId": "TestRunsController_find",
+        "operationId": "TestRunsController_findDetail",
         "parameters": [
           {
             "name": "projectId",
@@ -2130,7 +2130,50 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TestRunResponseDto"
+                  "$ref": "#/components/schemas/TestRunDetailResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}/comparison": {
+      "get": {
+        "operationId": "TestRunsController_findComparison",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRunComparisonDto"
                 }
               }
             }
@@ -2185,6 +2228,49 @@
                   "items": {
                     "$ref": "#/components/schemas/TestRunEventResponseDto"
                   }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Test runs"
+        ]
+      }
+    },
+    "/projects/{projectId}/test-runs/{runId}": {
+      "get": {
+        "operationId": "TestRunsController_find",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestRunResponseDto"
                 }
               }
             }
@@ -4086,6 +4172,702 @@
         "required": [
           "data",
           "meta"
+        ]
+      },
+      "AssertionResultDto": {
+        "type": "object",
+        "properties": {
+          "fieldPath": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "object"
+          },
+          "actual": {
+            "type": "object"
+          },
+          "passed": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "fieldPath",
+          "operator",
+          "passed"
+        ]
+      },
+      "TestResultResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepType": {
+            "type": "string"
+          },
+          "suiteName": {
+            "type": "string"
+          },
+          "testName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "expectedStatus": {
+            "type": "number"
+          },
+          "actualStatus": {
+            "type": "number"
+          },
+          "attempts": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "requestBody": {
+            "type": "object"
+          },
+          "responsePreview": {
+            "type": "object"
+          },
+          "responsePreviewTruncated": {
+            "type": "boolean"
+          },
+          "responseArtifactId": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "assertionResults": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssertionResultDto"
+            }
+          },
+          "variablesSnapshot": {
+            "type": "object"
+          },
+          "requestHeaders": {
+            "type": "object"
+          },
+          "responseHeaders": {
+            "type": "object"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stepType",
+          "suiteName",
+          "testName",
+          "status",
+          "method",
+          "path",
+          "expectedStatus",
+          "attempts",
+          "durationMs",
+          "createdAt"
+        ]
+      },
+      "PrimaryFailureDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "test_step",
+              "environment",
+              "healthcheck",
+              "infrastructure",
+              "cancelled"
+            ]
+          },
+          "phase": {
+            "type": "string"
+          },
+          "testResultId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "suiteName": {
+            "type": "string",
+            "nullable": true
+          },
+          "testName": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "object"
+          },
+          "actual": {
+            "type": "object"
+          },
+          "assertions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssertionResultDto"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "phase",
+          "message"
+        ]
+      },
+      "EnvironmentResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_reached"
+            ]
+          },
+          "validationPassed": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "HealthcheckResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "not_reached"
+            ]
+          },
+          "expectedStatus": {
+            "type": "number"
+          },
+          "actualStatus": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "InfrastructureDiagnosticsDto": {
+        "type": "object",
+        "properties": {
+          "cleanupError": {
+            "type": "string",
+            "nullable": true
+          },
+          "runnerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "TestRunDiagnosisDto": {
+        "type": "object",
+        "properties": {
+          "failureCategory": {
+            "type": "string",
+            "enum": [
+              "TEST_ASSERTION",
+              "ENVIRONMENT_VALIDATION",
+              "IMAGE_PULL",
+              "CONTAINER_START",
+              "HEALTHCHECK",
+              "NETWORK",
+              "TIMEOUT",
+              "CANCELLED",
+              "INTERNAL"
+            ],
+            "nullable": true
+          },
+          "headline": {
+            "type": "string"
+          },
+          "primaryFailure": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrimaryFailureDto"
+              }
+            ]
+          },
+          "environmentResult": {
+            "$ref": "#/components/schemas/EnvironmentResultDto"
+          },
+          "healthcheckResult": {
+            "$ref": "#/components/schemas/HealthcheckResultDto"
+          },
+          "infrastructure": {
+            "$ref": "#/components/schemas/InfrastructureDiagnosticsDto"
+          }
+        },
+        "required": [
+          "headline",
+          "environmentResult",
+          "healthcheckResult",
+          "infrastructure"
+        ]
+      },
+      "PhaseTimelineEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "active",
+              "completed",
+              "failed",
+              "skipped"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "durationMs": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "status"
+        ]
+      },
+      "TestRunDetailResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "environmentConfigRevisionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "runnerVersion": {
+            "type": "string"
+          },
+          "reportSchemaVersion": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "QUEUED",
+              "CLAIMED",
+              "PREPARING_WORKSPACE",
+              "VALIDATING_ENVIRONMENT",
+              "PULLING_IMAGES",
+              "STARTING_ENVIRONMENT",
+              "WAITING_FOR_HEALTHCHECK",
+              "EXECUTING_TESTS",
+              "COLLECTING_ARTIFACTS",
+              "CLEANING_UP",
+              "PASSED",
+              "TEST_FAILED",
+              "INFRA_FAILED",
+              "TIMED_OUT",
+              "CANCEL_REQUESTED",
+              "CANCELLED"
+            ]
+          },
+          "statusReason": {
+            "type": "string",
+            "description": "Human-readable terminal or cancellation reason for the current run state.",
+            "nullable": true
+          },
+          "failureCategory": {
+            "type": "string",
+            "enum": [
+              "TEST_ASSERTION",
+              "ENVIRONMENT_VALIDATION",
+              "IMAGE_PULL",
+              "CONTAINER_START",
+              "HEALTHCHECK",
+              "NETWORK",
+              "TIMEOUT",
+              "CANCELLED",
+              "INTERNAL"
+            ],
+            "nullable": true
+          },
+          "currentPhase": {
+            "type": "string",
+            "nullable": true
+          },
+          "phaseTimestamps": {
+            "type": "object"
+          },
+          "queueJobId": {
+            "type": "string",
+            "nullable": true
+          },
+          "queuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "enqueuedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "claimedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancellationRequestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelRequestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelRequestedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "cancellationReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "runnerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "leaseAcquiredAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "leaseExpiresAt": {
+            "type": "string",
+            "description": "Current execution lease expiration; stale leases are failed by recovery.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "heartbeatAt": {
+            "type": "string",
+            "description": "Last persisted worker heartbeat for the execution lease owner.",
+            "format": "date-time",
+            "nullable": true
+          },
+          "attempt": {
+            "type": "number",
+            "description": "Number of worker claims for this immutable run. Jobs are fail-fast by default."
+          },
+          "cleanupError": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "totalTests": {
+            "type": "number"
+          },
+          "passedTests": {
+            "type": "number"
+          },
+          "failedTests": {
+            "type": "number"
+          },
+          "durationMs": {
+            "type": "number",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TestResultResponseDto"
+            }
+          },
+          "diagnosis": {
+            "$ref": "#/components/schemas/TestRunDiagnosisDto"
+          },
+          "phaseTimeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PhaseTimelineEntryDto"
+            }
+          },
+          "environmentConfigRevision": {
+            "type": "object"
+          },
+          "suiteRevisions": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "runnerVersion",
+          "reportSchemaVersion",
+          "status",
+          "attempt",
+          "totalTests",
+          "passedTests",
+          "failedTests",
+          "results",
+          "diagnosis",
+          "phaseTimeline"
+        ]
+      },
+      "ComparisonRunRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "QUEUED",
+              "CLAIMED",
+              "PREPARING_WORKSPACE",
+              "VALIDATING_ENVIRONMENT",
+              "PULLING_IMAGES",
+              "STARTING_ENVIRONMENT",
+              "WAITING_FOR_HEALTHCHECK",
+              "EXECUTING_TESTS",
+              "COLLECTING_ARTIFACTS",
+              "CLEANING_UP",
+              "PASSED",
+              "TEST_FAILED",
+              "INFRA_FAILED",
+              "TIMED_OUT",
+              "CANCEL_REQUESTED",
+              "CANCELLED"
+            ]
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "ImageReferenceComparisonDto": {
+        "type": "object",
+        "properties": {
+          "serviceName": {
+            "type": "string"
+          },
+          "current": {
+            "type": "string",
+            "nullable": true
+          },
+          "baseline": {
+            "type": "string",
+            "nullable": true
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "serviceName",
+          "changed"
+        ]
+      },
+      "StepDiffDto": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "testName": {
+            "type": "string"
+          },
+          "currentStatus": {
+            "type": "string"
+          },
+          "baselineStatus": {
+            "type": "string"
+          },
+          "statusChanged": {
+            "type": "boolean"
+          },
+          "currentActualStatus": {
+            "type": "number"
+          },
+          "baselineActualStatus": {
+            "type": "number"
+          },
+          "currentDurationMs": {
+            "type": "number"
+          },
+          "baselineDurationMs": {
+            "type": "number"
+          },
+          "durationRegressionMs": {
+            "type": "number"
+          },
+          "durationRegressionPercent": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "testName",
+          "statusChanged"
+        ]
+      },
+      "ComparisonSummaryDto": {
+        "type": "object",
+        "properties": {
+          "stepsWithStatusChange": {
+            "type": "number"
+          },
+          "stepsWithTimingRegression": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "stepsWithStatusChange",
+          "stepsWithTimingRegression"
+        ]
+      },
+      "TestRunComparisonDto": {
+        "type": "object",
+        "properties": {
+          "baselineRun": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonRunRefDto"
+              }
+            ]
+          },
+          "currentRun": {
+            "$ref": "#/components/schemas/ComparisonRunRefDto"
+          },
+          "revisions": {
+            "type": "object"
+          },
+          "imageReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageReferenceComparisonDto"
+            }
+          },
+          "stepDiffs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepDiffDto"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ComparisonSummaryDto"
+          }
+        },
+        "required": [
+          "currentRun",
+          "revisions",
+          "imageReferences",
+          "stepDiffs",
+          "summary"
         ]
       },
       "TestRunEventResponseDto": {

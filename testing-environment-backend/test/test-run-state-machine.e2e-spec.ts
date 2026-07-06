@@ -206,6 +206,7 @@ async function createFixture(options: FixtureOptions = {}) {
     failedTests: 0,
     durationMs: null as number | null,
     errorMessage: null as string | null,
+    executionMetadata: null as Record<string, unknown> | null,
     project: {
       baseUrl: 'http://example.test',
       healthcheckPath: '/health',
@@ -230,9 +231,17 @@ async function createFixture(options: FixtureOptions = {}) {
   };
 
   const prisma = {
+    $transaction: jest.fn((callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     testRun: {
       findUnique: jest.fn(() => Promise.resolve(run)),
       findUniqueOrThrow: jest.fn(() => Promise.resolve(run)),
+      update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+        if (data.executionMetadata) {
+          run.executionMetadata = data.executionMetadata as Record<string, unknown>;
+        }
+        Object.assign(run, data);
+        return Promise.resolve(run);
+      }),
       updateMany: jest.fn(
         ({ data, where }: { data: Record<string, unknown>; where: { status?: TestRunStatus } }) => {
           if (
@@ -275,7 +284,14 @@ async function createFixture(options: FixtureOptions = {}) {
   }
   const healthcheck = {
     waitFor: jest.fn(() =>
-      options.healthcheckError ? Promise.reject(options.healthcheckError) : Promise.resolve(),
+      options.healthcheckError
+        ? Promise.reject(options.healthcheckError)
+        : Promise.resolve({
+            expectedStatus: 200,
+            actualStatus: 200,
+            durationMs: 5,
+            url: 'http://example.test/health',
+          }),
     ),
   };
   const parser = {
@@ -333,6 +349,7 @@ async function createFixture(options: FixtureOptions = {}) {
         useValue: {
           contains: jest.fn(() => true),
           evaluateAssertions: jest.fn(() => ({ passed: true })),
+          evaluateAllAssertions: jest.fn(() => []),
           readJsonPath: jest.fn(),
         },
       },

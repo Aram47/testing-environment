@@ -11,6 +11,8 @@ import { TestRunQueueService } from '../queue/test-run-queue.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateTestRunDto } from './dto/create-test-run.dto';
 import { TestRunStateService } from './test-run-state.service';
+import { TestRunDiagnosisService } from './test-run-diagnosis.service';
+import { TestRunComparisonService } from './test-run-comparison.service';
 
 @Injectable()
 export class TestRunsService {
@@ -22,6 +24,8 @@ export class TestRunsService {
     private readonly state: TestRunStateService,
     private readonly executionContext: ExecutionContextService,
     private readonly tracing: TracingService,
+    private readonly diagnosis: TestRunDiagnosisService,
+    private readonly comparison: TestRunComparisonService,
   ) {}
 
   async create(projectId: string, companyId: string, dto: CreateTestRunDto = {}) {
@@ -164,6 +168,27 @@ export class TestRunsService {
       throw new NotFoundException('Test run not found');
     }
     return run;
+  }
+
+  async findDetail(projectId: string, runId: string, companyId: string) {
+    const run = await this.find(projectId, runId, companyId);
+    const results = [...run.results].sort(
+      (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+    );
+    return {
+      ...run,
+      results: results.map((result) => ({
+        ...result,
+        createdAt: result.createdAt.toISOString(),
+      })),
+      diagnosis: this.diagnosis.buildDiagnosis(run, results),
+      phaseTimeline: this.diagnosis.buildPhaseTimeline(run),
+    };
+  }
+
+  async findComparison(projectId: string, runId: string, companyId: string) {
+    const run = await this.find(projectId, runId, companyId);
+    return this.comparison.compare(run);
   }
 
   async events(projectId: string, runId: string, companyId: string, afterSequence = 0) {

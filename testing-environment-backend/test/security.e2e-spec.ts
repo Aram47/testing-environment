@@ -45,6 +45,8 @@ describe('Security enforcement (e2e)', () => {
     create: jest.fn().mockResolvedValue({ id: 'run-1' }),
     list: jest.fn(),
     find: jest.fn(),
+    findDetail: jest.fn(),
+    findComparison: jest.fn(),
     cancel: jest.fn(),
   };
   const environmentService = {
@@ -241,10 +243,20 @@ describe('Security enforcement (e2e)', () => {
       .get('/projects/project-b/test-runs/run-b/artifacts/artifact-b/download')
       .set('Authorization', 'Bearer owner-token')
       .expect(403);
+    await request(app.getHttpServer())
+      .get('/projects/project-b/test-runs/run-b/detail')
+      .set('Authorization', 'Bearer owner-token')
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/projects/project-b/test-runs/run-b/comparison')
+      .set('Authorization', 'Bearer owner-token')
+      .expect(403);
     expect(reportsService.report).not.toHaveBeenCalled();
     expect(reportsService.logs).not.toHaveBeenCalled();
     expect(reportsService.junit).not.toHaveBeenCalled();
     expect(reportsService.downloadArtifact).not.toHaveBeenCalled();
+    expect(testRunsService.findDetail).not.toHaveBeenCalled();
+    expect(testRunsService.findComparison).not.toHaveBeenCalled();
   });
 
   it('viewer cannot start tests', async () => {
@@ -292,6 +304,16 @@ describe('Security enforcement (e2e)', () => {
   it('API token is limited by scopes', async () => {
     await request(app.getHttpServer())
       .get('/projects/project-a/test-runs/run-a')
+      .set('Authorization', 'Bearer api-run-read-token')
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/projects/project-a/test-runs/run-a/detail')
+      .set('Authorization', 'Bearer api-run-read-token')
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/projects/project-a/test-runs/run-a/comparison')
       .set('Authorization', 'Bearer api-run-read-token')
       .expect(200);
 

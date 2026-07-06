@@ -567,6 +567,7 @@ model TestRun {
   durationMs                  Int?
   errorMessage                String?
   eventSequence               Int                        @default(0)
+  executionMetadata           Json?
   results                     TestResult[]
   logs                        RunnerLog[]
   artifacts                   Artifact[]
@@ -638,6 +639,10 @@ model TestResult {
   responseArtifactId String?
   responseArtifact Artifact? @relation("TestResultResponseArtifact", fields: [responseArtifactId], references: [id], onDelete: SetNull)
   errorMessage   String?
+  assertionResults Json?
+  variablesSnapshot Json?
+  requestHeaders Json?
+  responseHeaders Json?
   createdAt      DateTime         @default(now())
 
   @@index([testRunId])

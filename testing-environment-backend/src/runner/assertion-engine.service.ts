@@ -6,6 +6,13 @@ export interface AssertionEvaluation {
   message?: string;
 }
 
+export interface DetailedAssertionEvaluation extends AssertionEvaluation {
+  fieldPath: string;
+  operator: string;
+  expected?: unknown;
+  actual?: unknown;
+}
+
 @Injectable()
 export class AssertionEngineService {
   contains(actual: unknown, expected: unknown): boolean {
@@ -52,13 +59,30 @@ export class AssertionEngineService {
     payload: unknown,
     assertions: YamlAssertion[] | undefined,
   ): AssertionEvaluation {
-    for (const assertion of assertions ?? []) {
-      const result = this.evaluateAssertion(payload, assertion);
-      if (!result.passed) {
-        return result;
-      }
+    const all = this.evaluateAllAssertions(payload, assertions);
+    const failed = all.find((result) => !result.passed);
+    if (failed) {
+      return { passed: false, message: failed.message };
     }
     return { passed: true };
+  }
+
+  evaluateAllAssertions(
+    payload: unknown,
+    assertions: YamlAssertion[] | undefined,
+  ): DetailedAssertionEvaluation[] {
+    return (assertions ?? []).map((assertion) => {
+      const result = this.evaluateAssertion(payload, assertion);
+      const actual = this.readJsonValue(payload, assertion.field_path);
+      return {
+        fieldPath: assertion.field_path,
+        operator: assertion.operator,
+        expected: assertion.expected_value,
+        actual,
+        passed: result.passed,
+        message: result.message,
+      };
+    });
   }
 
   private evaluateAssertion(payload: unknown, assertion: YamlAssertion): AssertionEvaluation {

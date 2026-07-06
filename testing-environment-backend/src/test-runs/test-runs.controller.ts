@@ -12,6 +12,8 @@ import { PaginatedTestRunsResponseDto } from './dto/paginated-test-runs-response
 import { TestRunEventResponseDto } from './dto/test-run-event-response.dto';
 import { TestRunEventsQueryDto } from './dto/test-run-events-query.dto';
 import { TestRunResponseDto } from './dto/test-run-response.dto';
+import { TestRunDetailResponseDto } from './dto/test-run-detail-response.dto';
+import { TestRunComparisonDto } from './dto/test-run-comparison-response.dto';
 import { TestRunsService } from './test-runs.service';
 
 @ApiTags('Test runs')
@@ -43,15 +45,26 @@ export class TestRunsController {
     return this.service.list(projectId, user.companyId, query);
   }
 
-  @Get(':runId')
+  @Get(':runId/detail')
   @RequirePermission('run:read', 'run')
-  @ApiOkResponse({ type: TestRunResponseDto })
-  find(
+  @ApiOkResponse({ type: TestRunDetailResponseDto })
+  findDetail(
     @Param('projectId') projectId: string,
     @Param('runId') runId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.find(projectId, runId, user.companyId);
+    return this.service.findDetail(projectId, runId, user.companyId);
+  }
+
+  @Get(':runId/comparison')
+  @RequirePermission('run:read', 'run')
+  @ApiOkResponse({ type: TestRunComparisonDto })
+  findComparison(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findComparison(projectId, runId, user.companyId);
   }
 
   @Get(':runId/events')
@@ -64,6 +77,17 @@ export class TestRunsController {
     @Query() query: TestRunEventsQueryDto,
   ) {
     return this.service.events(projectId, runId, user.companyId, query.afterSequence);
+  }
+
+  @Get(':runId')
+  @RequirePermission('run:read', 'run')
+  @ApiOkResponse({ type: TestRunResponseDto })
+  find(
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.find(projectId, runId, user.companyId);
   }
 
   @Post(':runId/cancel')

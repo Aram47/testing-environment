@@ -43,6 +43,8 @@ describe('TestRunsService', () => {
     markCancelled: jest.Mock;
   };
   let service: TestRunsService;
+  let diagnosis: { buildDiagnosis: jest.Mock; buildPhaseTimeline: jest.Mock };
+  let comparison: { compare: jest.Mock };
   const terminalStatuses: TestRunStatus[] = [
     TestRunStatus.PASSED,
     TestRunStatus.TEST_FAILED,
@@ -134,6 +136,19 @@ describe('TestRunsService', () => {
       ),
     };
 
+    diagnosis = {
+      buildDiagnosis: jest.fn(() => ({
+        headline: 'failed',
+        environmentResult: { status: 'passed' },
+        healthcheckResult: { status: 'passed' },
+        infrastructure: {},
+      })),
+      buildPhaseTimeline: jest.fn(() => [{ id: 'queued', label: 'Queued', status: 'completed' }]),
+    };
+    comparison = {
+      compare: jest.fn(() => ({ baselineRun: null, currentRun: { id: 'run-1' } })),
+    };
+
     service = new TestRunsService(
       prisma as unknown as PrismaService,
       {
@@ -148,6 +163,8 @@ describe('TestRunsService', () => {
           callback(),
         ),
       } as unknown as TracingService,
+      diagnosis as never,
+      comparison as never,
     );
   });
 
@@ -281,5 +298,40 @@ describe('TestRunsService', () => {
     await expect(service.events(projectId, 'missing-run', companyId, 0)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('returns structured detail with diagnosis and phase timeline', async () => {
+    const createdAt = new Date('2026-07-06T10:00:00.000Z');
+    prisma.testRun.findFirst.mockResolvedValueOnce({
+      id: 'run-1',
+      projectId,
+      results: [{ id: 'result-1', createdAt }],
+      environmentConfigRevision: null,
+      suiteRevisions: [],
+    });
+
+    const detail = await service.findDetail(projectId, 'run-1', companyId);
+
+    expect(diagnosis.buildDiagnosis).toHaveBeenCalled();
+    expect(diagnosis.buildPhaseTimeline).toHaveBeenCalled();
+    expect(detail.results[0]?.createdAt).toBe('2026-07-06T10:00:00.000Z');
+    expect(detail.diagnosis.headline).toBe('failed');
+  });
+
+  it('delegates comparison to comparison service after tenant-scoped lookup', async () => {
+    const run = {
+      id: 'run-1',
+      projectId,
+      results: [],
+      environmentConfigRevision: null,
+      suiteRevisions: [],
+      finishedAt: new Date(),
+    };
+    prisma.testRun.findFirst.mockResolvedValueOnce(run);
+
+    const result = await service.findComparison(projectId, 'run-1', companyId);
+
+    expect(comparison.compare).toHaveBeenCalledWith(run);
+    expect(result.baselineRun).toBeNull();
   });
 });

@@ -68,4 +68,6 @@ export interface HttpExecutionResult {
   responseBody?: unknown;
   durationMs: number;
   errorMessage?: string;
+  requestHeaders?: Record<string, string>;
+  responseHeaders?: Record<string, string>;
 }

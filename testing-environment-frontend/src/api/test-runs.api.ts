@@ -1,7 +1,12 @@
-import type { TestRun } from '../types';
+import type { TestRun, TestRunComparison, TestRunDetail } from '../types';
 import { DEFAULT_LIST_LIMIT, PaginatedResultAdapter } from './paginated-result';
 import { generatedApi } from './generated-client';
-import type { CreateTestRunDto, TestRunEventResponseDto, TestRunResponseDto } from '../generated/api';
+import type {
+  CreateTestRunDto,
+  TestRunDetailResponseDto,
+  TestRunEventResponseDto,
+  TestRunResponseDto,
+} from '../generated/api';
 import type { TestRunEvent } from '../types';
 
 interface TestRunResponse extends Omit<TestRun, 'passed' | 'failed'> {
@@ -25,6 +30,19 @@ class TestRunsApi {
       path: { projectId, runId },
     }) as TestRunResponseDto;
     return this.toTestRun(data);
+  }
+
+  async getDetail(projectId: string, runId: string): Promise<TestRunDetail> {
+    const data = await generatedApi.TestRunsController_findDetail({
+      path: { projectId, runId },
+    }) as TestRunDetailResponseDto;
+    return this.toTestRunDetail(data);
+  }
+
+  async getComparison(projectId: string, runId: string): Promise<TestRunComparison> {
+    return generatedApi.TestRunsController_findComparison({
+      path: { projectId, runId },
+    }) as Promise<TestRunComparison>;
   }
 
   async create(
@@ -92,6 +110,18 @@ class TestRunsApi {
         typeof revisionId === 'string' ? revisionId : undefined,
       passed: 'passed' in run ? (run.passed ?? run.passedTests ?? 0) : (run.passedTests ?? 0),
       failed: 'failed' in run ? (run.failed ?? run.failedTests ?? 0) : (run.failedTests ?? 0),
+    };
+  }
+
+  private toTestRunDetail(run: TestRunDetailResponseDto): TestRunDetail {
+    const base = this.toTestRun(run);
+    return {
+      ...base,
+      environmentConfigRevision: run.environmentConfigRevision as TestRunDetail['environmentConfigRevision'],
+      suiteRevisions: run.suiteRevisions as TestRunDetail['suiteRevisions'],
+      results: run.results as TestRunDetail['results'],
+      diagnosis: run.diagnosis as TestRunDetail['diagnosis'],
+      phaseTimeline: run.phaseTimeline as TestRunDetail['phaseTimeline'],
     };
   }
 }

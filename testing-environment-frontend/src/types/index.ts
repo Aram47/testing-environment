@@ -551,11 +551,117 @@ export interface TestResult {
   requestHeaders?: Record<string, string>;
   responseHeaders?: Record<string, string>;
   errorMessage?: string;
+  assertionResults?: AssertionResult[];
+  variablesSnapshot?: Record<string, string>;
+  createdAt?: string;
+}
+
+export interface AssertionResult {
+  fieldPath: string;
+  operator: string;
+  expected?: unknown;
+  actual?: unknown;
+  passed: boolean;
+  message?: string | null;
+}
+
+export interface PrimaryFailure {
+  kind: 'test_step' | 'environment' | 'healthcheck' | 'infrastructure' | 'cancelled';
+  phase: string;
+  testResultId?: string | null;
+  stepId?: string | null;
+  suiteName?: string | null;
+  testName?: string | null;
+  message: string;
+  expected?: unknown;
+  actual?: unknown;
+  assertions?: AssertionResult[];
+}
+
+export interface EnvironmentResult {
+  status: 'passed' | 'failed' | 'skipped' | 'not_reached';
+  validationPassed?: boolean;
+  message?: string | null;
+}
+
+export interface HealthcheckResult {
+  status: 'passed' | 'failed' | 'skipped' | 'not_reached';
+  expectedStatus?: number;
+  actualStatus?: number;
+  durationMs?: number;
+  url?: string | null;
+  message?: string | null;
+}
+
+export interface TestRunDiagnosis {
+  failureCategory?: TestRunFailureCategory | null;
+  headline: string;
+  primaryFailure?: PrimaryFailure | null;
+  environmentResult: EnvironmentResult;
+  healthcheckResult: HealthcheckResult;
+  infrastructure: {
+    cleanupError?: string | null;
+    runnerId?: string | null;
+    errorMessage?: string | null;
+  };
+}
+
+export interface PhaseTimelineEntry {
+  id: string;
+  label: string;
+  status: 'pending' | 'active' | 'completed' | 'failed' | 'skipped';
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+}
+
+export interface TestRunDetail extends TestRun {
+  results: TestResult[];
+  diagnosis: TestRunDiagnosis;
+  phaseTimeline: PhaseTimelineEntry[];
+}
+
+export interface TestRunComparison {
+  baselineRun: { id: string; status: RunStatus; finishedAt?: string | null } | null;
+  currentRun: { id: string; status: RunStatus; finishedAt?: string | null };
+  revisions: {
+    environment: { current?: unknown; baseline?: unknown; changed: boolean };
+    suites: Array<{
+      suiteName: string;
+      currentRevisionNumber?: number;
+      baselineRevisionNumber?: number;
+      changed: boolean;
+    }>;
+  };
+  imageReferences: Array<{
+    serviceName: string;
+    current?: string | null;
+    baseline?: string | null;
+    changed: boolean;
+  }>;
+  stepDiffs: Array<{
+    stepId?: string | null;
+    testName: string;
+    currentStatus?: string;
+    baselineStatus?: string;
+    statusChanged: boolean;
+    currentActualStatus?: number;
+    baselineActualStatus?: number;
+    currentDurationMs?: number;
+    baselineDurationMs?: number;
+    durationRegressionMs?: number;
+    durationRegressionPercent?: number;
+  }>;
+  summary: {
+    stepsWithStatusChange: number;
+    stepsWithTimingRegression: number;
+  };
 }
 
 export interface RunnerLog {
   id: string;
   timestamp: string;
+  source?: 'SYSTEM' | 'DOCKER' | 'TEST' | 'ERROR';
   level: 'debug' | 'info' | 'warn' | 'error';
   message: string;
   sequence?: number;

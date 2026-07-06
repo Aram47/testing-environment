@@ -45,7 +45,8 @@ describe('ConfirmOnboardingDto validation', () => {
   });
 
   it('rejects missing backendTestYaml', async () => {
-    const { backendTestYaml: _removed, ...payload } = validPayload;
+    const { backendTestYaml, ...payload } = validPayload;
+    void backendTestYaml;
 
     const messages = await validateConfirmDto(payload);
 

@@ -46,4 +46,17 @@ describe('AssertionEngineService', () => {
     expect(result.passed).toBe(false);
     expect(result.message).toContain('Expected $.status to equal');
   });
+
+  it('evaluates all assertions with detailed results', () => {
+    const payload = { user: { email: 'qa@example.com', name: 'QA Engineer' } };
+    const results = service.evaluateAllAssertions(payload, [
+      { field_path: '$.user.email', operator: 'equals', expected_value: 'qa@example.com' },
+      { field_path: '$.user.name', operator: 'contains', expected_value: 'Missing' },
+    ]);
+
+    expect(results).toHaveLength(2);
+    expect(results[0]?.passed).toBe(true);
+    expect(results[1]?.passed).toBe(false);
+    expect(results[1]?.fieldPath).toBe('$.user.name');
+  });
 });

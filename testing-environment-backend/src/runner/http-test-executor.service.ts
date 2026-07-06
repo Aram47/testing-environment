@@ -39,9 +39,16 @@ export class HttpTestExecutorService {
         body: request.json === undefined ? undefined : JSON.stringify(request.json),
         signal: controller.signal,
       });
+      const responseHeaders = Object.fromEntries(response.headers.entries());
       const text = await response.text();
       const responseBody = this.parseBody(text);
-      return { actualStatus: response.status, responseBody, durationMs: Date.now() - started };
+      return {
+        actualStatus: response.status,
+        responseBody,
+        durationMs: Date.now() - started,
+        requestHeaders: { 'content-type': 'application/json', ...(request.headers ?? {}) },
+        responseHeaders,
+      };
     } catch (error) {
       return {
         durationMs: Date.now() - started,

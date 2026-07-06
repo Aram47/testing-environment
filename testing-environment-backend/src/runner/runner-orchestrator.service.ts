@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   ArtifactCompression,
   ArtifactType,
+  Prisma,
   RunnerLogSource,
   TestResultStatus,
   TestRunFailureCategory,
@@ -38,19 +39,26 @@ import {
 } from '../test-suites/types/execution-plan.types';
 import { TestRunStateService } from '../test-runs/test-run-state.service';
 import { RealtimeService } from '../websocket/realtime.service';
-import { AssertionEngineService } from './assertion-engine.service';
+import { AssertionEngineService, DetailedAssertionEvaluation } from './assertion-engine.service';
 import { DockerComposeManagerService } from './docker-compose-manager.service';
-import { HealthcheckService } from './healthcheck.service';
+import { HealthcheckResult, HealthcheckService } from './healthcheck.service';
 import { HttpTestExecutorService } from './http-test-executor.service';
 import { HttpExecutionResult } from './types/yaml-test.types';
 import { VariableStoreService } from './variable-store.service';
 import { YamlTestParserService } from './yaml-test-parser.service';
+import * as yaml from 'js-yaml';
+import {
+  StoredAssertionResult,
+  TestRunExecutionMetadata,
+  TestRunImageReference,
+} from '../test-runs/types/test-run-execution-metadata.types';
 
 interface StepExecutionResult extends HttpExecutionResult {
   status: TestResultStatus;
   errorMessage?: string;
   attempts: number;
   durationMs: number;
+  assertionResults?: StoredAssertionResult[];
 }
 
 interface RunExecutionContext {
@@ -217,7 +225,18 @@ export class RunnerOrchestratorService {
       );
       if (usesDockerCompose) {
         this.docker.validateCompose(composeYaml);
+        await this.mergeExecutionMetadata(testRunId, {
+          usesDockerCompose: true,
+          environmentResult: { status: 'passed', validationPassed: true },
+          imageReferences: this.extractImageReferences(composeYaml),
+        });
         await writeFile(join(workspace, 'docker-compose.test.yml'), composeYaml);
+      } else {
+        await this.mergeExecutionMetadata(testRunId, {
+          usesDockerCompose: false,
+          environmentResult: { status: 'skipped', validationPassed: true },
+          imageReferences: [],
+        });
       }
       await writeFile(join(workspace, 'backend-test.yml'), runtimeYaml);
       await mkdir(join(workspace, 'tests'), { recursive: true });
@@ -246,16 +265,48 @@ export class RunnerOrchestratorService {
 
       await this.ensureNotCancelled(testRunId, context);
       await this.state.enterPhase(testRunId, TestRunStatus.WAITING_FOR_HEALTHCHECK);
-      await this.tracing.span('worker.healthcheck', { runId: testRunId }, async () => {
-        const healthcheckStarted = Date.now();
-        await this.healthcheck.waitFor(
-          run.project.baseUrl,
-          run.project.healthcheckPath,
-          run.project.healthcheckExpectedStatus,
-          run.project.healthcheckTimeoutSeconds,
-          executionContext.signal,
-        );
-        this.metrics.observeHealthcheck(Date.now() - healthcheckStarted);
+      const healthcheckResult = await this.tracing.span(
+        'worker.healthcheck',
+        { runId: testRunId },
+        async () => {
+          const healthcheckStarted = Date.now();
+          try {
+            const result = await this.healthcheck.waitFor(
+              run.project.baseUrl,
+              run.project.healthcheckPath,
+              run.project.healthcheckExpectedStatus,
+              run.project.healthcheckTimeoutSeconds,
+              executionContext.signal,
+            );
+            this.metrics.observeHealthcheck(Date.now() - healthcheckStarted);
+            return result;
+          } catch (error) {
+            this.metrics.observeHealthcheck(Date.now() - healthcheckStarted);
+            const healthcheckFailure = this.readHealthcheckFailure(error);
+            if (healthcheckFailure) {
+              await this.mergeExecutionMetadata(testRunId, {
+                healthcheckResult: {
+                  status: 'failed',
+                  expectedStatus: healthcheckFailure.expectedStatus,
+                  actualStatus: healthcheckFailure.actualStatus,
+                  durationMs: healthcheckFailure.durationMs,
+                  url: healthcheckFailure.url,
+                  message: healthcheckFailure.message,
+                },
+              });
+            }
+            throw error;
+          }
+        },
+      );
+      await this.mergeExecutionMetadata(testRunId, {
+        healthcheckResult: {
+          status: 'passed',
+          expectedStatus: healthcheckResult.expectedStatus,
+          actualStatus: healthcheckResult.actualStatus,
+          durationMs: healthcheckResult.durationMs,
+          url: healthcheckResult.url,
+        },
       });
       this.emit('environment.ready', testRunId);
 
@@ -314,6 +365,19 @@ export class RunnerOrchestratorService {
         error instanceof Error ? error.message : 'Runner failed',
         secretContext.masking,
       );
+      const currentRun = await this.prisma.testRun.findUnique({
+        where: { id: testRunId },
+        select: { status: true },
+      });
+      if (currentRun?.status === TestRunStatus.VALIDATING_ENVIRONMENT) {
+        await this.mergeExecutionMetadata(testRunId, {
+          environmentResult: {
+            status: 'failed',
+            validationPassed: false,
+            message,
+          },
+        }).catch(() => undefined);
+      }
       await this.log(testRunId, RunnerLogSource.ERROR, message, secretContext).catch(
         () => undefined,
       );
@@ -424,6 +488,10 @@ export class RunnerOrchestratorService {
           maskedResponse,
         );
         const responsePreview = previewJson(maskedResponse, this.artifacts.previewLimitBytes());
+        const variablesSnapshot = this.masking.maskValue(
+          Object.fromEntries(store),
+          secretContext.masking,
+        );
         await this.prisma.testResult.create({
           data: {
             testRunId,
@@ -446,6 +514,20 @@ export class RunnerOrchestratorService {
             responseArtifactId: responseArtifact?.id,
             errorMessage: result.errorMessage
               ? this.masking.maskString(result.errorMessage, secretContext.masking)
+              : undefined,
+            assertionResults: result.assertionResults?.length
+              ? this.toJsonValue(result.assertionResults)
+              : undefined,
+            variablesSnapshot: this.toJsonValue(variablesSnapshot),
+            requestHeaders: result.requestHeaders
+              ? this.toJsonValue(
+                  this.masking.maskValue(result.requestHeaders, secretContext.masking),
+                )
+              : undefined,
+            responseHeaders: result.responseHeaders
+              ? this.toJsonValue(
+                  this.masking.maskValue(result.responseHeaders, secretContext.masking),
+                )
               : undefined,
           },
         });
@@ -646,19 +728,22 @@ export class RunnerOrchestratorService {
     responseStore: Map<string, unknown>,
   ): StepExecutionResult {
     const payload = this.resolveAssertPayload(test, responseStore);
-    const assertionResult = this.assertions.evaluateAssertions(payload, [
-      {
-        field_path: test.config.fieldPath,
-        operator: test.config.operator,
-        expected_value: test.config.expectedValue,
-      },
-    ]);
+    const yamlAssertion = {
+      field_path: test.config.fieldPath,
+      operator: test.config.operator,
+      expected_value: test.config.expectedValue,
+    };
+    const assertionResults = this.assertions
+      .evaluateAllAssertions(payload, [yamlAssertion])
+      .map((evaluation) => this.toStoredAssertion(evaluation));
+    const assertionResult = assertionResults[0];
     return {
-      status: assertionResult.passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
+      status: assertionResult?.passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
       durationMs: 0,
       attempts: 1,
       responseBody: payload,
-      errorMessage: assertionResult.message,
+      errorMessage: assertionResult?.message,
+      assertionResults,
     };
   }
 
@@ -682,15 +767,46 @@ export class RunnerOrchestratorService {
     const expectedStatus = request.expect?.status ?? 200;
     const statusMatches = result.actualStatus === expectedStatus;
     const bodyMatches = this.assertions.contains(result.responseBody, request.expect?.jsonContains);
-    const assertionResult = this.assertions.evaluateAssertions(
-      result.responseBody,
+    const yamlAssertions =
       request.expect?.assertions?.map((assertion) => ({
         field_path: assertion.fieldPath,
         operator: assertion.operator,
         expected_value: assertion.expectedValue,
-      })),
+      })) ?? [];
+    const assertionResults = this.assertions
+      .evaluateAllAssertions(result.responseBody, yamlAssertions)
+      .map((evaluation) => this.toStoredAssertion(evaluation));
+    const assertionResult = this.assertions.evaluateAssertions(
+      result.responseBody,
+      yamlAssertions,
     );
-    const passed = !result.errorMessage && statusMatches && bodyMatches && assertionResult.passed;
+    const statusAssertion: StoredAssertionResult = {
+      fieldPath: '$.status',
+      operator: 'equals',
+      expected: expectedStatus,
+      actual: result.actualStatus,
+      passed: statusMatches,
+      message: statusMatches
+        ? undefined
+        : `Expected status ${expectedStatus}, got ${result.actualStatus}`,
+    };
+    const bodyAssertion: StoredAssertionResult | undefined = request.expect?.jsonContains
+      ? {
+          fieldPath: '$.body',
+          operator: 'contains',
+          expected: request.expect.jsonContains,
+          actual: result.responseBody,
+          passed: bodyMatches,
+          message: bodyMatches ? undefined : 'Response body does not contain expected JSON',
+        }
+      : undefined;
+    const allAssertions = [
+      statusAssertion,
+      ...(bodyAssertion ? [bodyAssertion] : []),
+      ...assertionResults,
+    ];
+    const passed =
+      !result.errorMessage && statusMatches && bodyMatches && assertionResult.passed;
     if (passed && request.save) {
       for (const [key, path] of Object.entries(request.save)) {
         const value = this.assertions.readJsonPath(result.responseBody, path);
@@ -703,12 +819,11 @@ export class RunnerOrchestratorService {
       ...result,
       status: passed ? TestResultStatus.PASSED : TestResultStatus.FAILED,
       attempts,
+      assertionResults: allAssertions,
       errorMessage:
         result.errorMessage ??
-        (!statusMatches
-          ? `Expected status ${expectedStatus}, got ${result.actualStatus}`
-          : undefined) ??
-        (!bodyMatches ? 'Response body does not contain expected JSON' : undefined) ??
+        statusAssertion.message ??
+        bodyAssertion?.message ??
         assertionResult.message,
     };
   }
@@ -921,6 +1036,70 @@ export class RunnerOrchestratorService {
 
   private leaseDurationMs(): number {
     return this.config.get<number>('TEST_RUN_LEASE_DURATION_MS', 60000);
+  }
+
+  private async mergeExecutionMetadata(
+    testRunId: string,
+    patch: TestRunExecutionMetadata,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      const run = await tx.testRun.findUnique({
+        where: { id: testRunId },
+        select: { executionMetadata: true },
+      });
+      const existing =
+        run?.executionMetadata &&
+        typeof run.executionMetadata === 'object' &&
+        !Array.isArray(run.executionMetadata)
+          ? (run.executionMetadata as TestRunExecutionMetadata)
+          : {};
+      await tx.testRun.update({
+        where: { id: testRunId },
+        data: {
+          executionMetadata: {
+            ...existing,
+            ...patch,
+          } as Prisma.InputJsonValue,
+        },
+      });
+    });
+  }
+
+  private extractImageReferences(composeYaml: string): TestRunImageReference[] {
+    try {
+      const parsed = yaml.load(composeYaml) as {
+        services?: Record<string, { image?: string }>;
+      };
+      if (!parsed?.services || typeof parsed.services !== 'object') {
+        return [];
+      }
+      return Object.entries(parsed.services)
+        .filter(([, service]) => typeof service?.image === 'string' && service.image.length > 0)
+        .map(([serviceName, service]) => ({
+          serviceName,
+          image: service!.image!,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  private readHealthcheckFailure(error: unknown) {
+    if (!error || typeof error !== 'object' || !('healthcheckResult' in error)) {
+      return undefined;
+    }
+    return (error as { healthcheckResult: HealthcheckResult }).healthcheckResult;
+  }
+
+  private toStoredAssertion(evaluation: DetailedAssertionEvaluation): StoredAssertionResult {
+    return {
+      fieldPath: evaluation.fieldPath,
+      operator: evaluation.operator,
+      expected: evaluation.expected,
+      actual: evaluation.actual,
+      passed: evaluation.passed,
+      message: evaluation.message,
+    };
   }
 
   private heartbeatIntervalMs(): number {

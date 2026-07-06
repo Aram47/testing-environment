@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Pause, Play } from 'lucide-react';
-import type { TestRunEvent } from '../../types';
+import type { RunnerLog, TestRunEvent } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Format } from '../../lib/format';
 import { testRunEventMessage } from '../../lib/testRunEvent';
 import { useRunLogChunks } from '../../api/hooks/useRunLogs';
-import type { RunnerLog } from '../../types';
+
+type LogSourceFilter = 'ALL' | 'SYSTEM' | 'DOCKER' | 'ERROR' | 'TEST' | 'EVENTS';
 
 interface LogLine {
   id: string;
   timestamp: string;
   level: string;
+  source?: RunnerLog['source'] | 'EVENT';
   message: string;
   kind: 'event' | 'log';
 }
@@ -20,10 +22,15 @@ interface LogsViewerProps {
   projectId: string;
   runId: string;
   events: TestRunEvent[];
+  focusTimeRange?: { from: number; to: number };
 }
 
-export function LogsViewer({ projectId, runId, events }: LogsViewerProps) {
+const SOURCE_FILTERS: LogSourceFilter[] = ['ALL', 'SYSTEM', 'DOCKER', 'ERROR', 'TEST', 'EVENTS'];
+
+export function LogsViewer({ projectId, runId, events, focusTimeRange }: LogsViewerProps) {
   const [autoScroll, setAutoScroll] = useState(true);
+  const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<LogSourceFilter>('ALL');
   const parentRef = useRef<HTMLDivElement | null>(null);
   const logsQuery = useRunLogChunks(projectId, runId);
 
@@ -32,7 +39,22 @@ export function LogsViewer({ projectId, runId, events }: LogsViewerProps) {
     [logsQuery.data?.pages],
   );
 
-  const lines = useMemo(() => mergeLogLines(events, restLogs), [events, restLogs]);
+  const allLines = useMemo(() => mergeLogLines(events, restLogs), [events, restLogs]);
+  const lines = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return allLines.filter((line) => {
+      if (sourceFilter === 'EVENTS' && line.kind !== 'event') {
+        return false;
+      }
+      if (sourceFilter !== 'ALL' && sourceFilter !== 'EVENTS' && line.source !== sourceFilter) {
+        return false;
+      }
+      if (query && !line.message.toLowerCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+  }, [allLines, search, sourceFilter]);
 
   const virtualizer = useVirtualizer({
     count: lines.length,
@@ -61,7 +83,7 @@ export function LogsViewer({ projectId, runId, events }: LogsViewerProps) {
       if (distanceToBottom > 80) {
         setAutoScroll(false);
       }
-      if (distanceToBottom < 40 && hasNextPage && !isFetchingNextPage) {
+      if (element.scrollTop < 40 && hasNextPage && !isFetchingNextPage) {
         void fetchNextPage();
       }
     };
@@ -91,26 +113,58 @@ export function LogsViewer({ projectId, runId, events }: LogsViewerProps) {
           {autoScroll ? 'Pause auto-scroll' : 'Resume auto-scroll'}
         </Button>
       </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search logs"
+          className="min-h-9 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm text-slate-100"
+        />
+        <div className="flex flex-wrap gap-2">
+          {SOURCE_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              className={`rounded-full px-3 py-1 text-xs font-medium ${
+                sourceFilter === filter
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'bg-slate-800 text-slate-300'
+              }`}
+              onClick={() => setSourceFilter(filter)}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div
         ref={parentRef}
         className="mt-3 h-80 overflow-y-auto font-mono text-xs text-slate-200"
         aria-live="polite"
       >
         {!lines.length ? (
-          <p className="text-slate-400">No logs yet.</p>
+          <p className="text-slate-400">No logs match the current filters.</p>
         ) : (
           <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
             {virtualizer.getVirtualItems().map((item) => {
               const line = lines[item.index];
+              const timestamp = new Date(line.timestamp).getTime();
+              const highlighted =
+                focusTimeRange &&
+                timestamp >= focusTimeRange.from &&
+                timestamp <= focusTimeRange.to;
               return (
                 <p
                   key={line.id}
-                  className="absolute left-0 top-0 w-full pr-2"
+                  className={`absolute left-0 top-0 w-full pr-2 ${highlighted ? 'rounded bg-amber-500/10' : ''}`}
                   style={{ transform: `translateY(${item.start}px)` }}
                 >
                   <span className="text-slate-400">{Format.date(line.timestamp)}</span>{' '}
                   <span className={line.kind === 'event' ? 'text-blue-300' : 'text-emerald-300'}>
-                    [{line.level}]
+                    [{line.source ?? line.level}]
                   </span>{' '}
                   {line.message}
                 </p>
@@ -131,6 +185,7 @@ function mergeLogLines(events: TestRunEvent[], logs: RunnerLog[]): LogLine[] {
     id: `event-${event.sequence}`,
     timestamp: event.timestamp,
     level: event.type,
+    source: 'EVENT',
     message: testRunEventMessage(event),
     kind: 'event',
   }));
@@ -138,6 +193,7 @@ function mergeLogLines(events: TestRunEvent[], logs: RunnerLog[]): LogLine[] {
     id: `log-${log.id}`,
     timestamp: log.timestamp,
     level: log.level,
+    source: log.source,
     message: log.message,
     kind: 'log',
   }));

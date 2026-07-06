@@ -408,6 +408,172 @@ export interface PaginatedTestRunsResponseDto {
   "meta": PaginationMetaDto;
 }
 
+export interface AssertionResultDto {
+  "fieldPath": string;
+  "operator": string;
+  "expected"?: Record<string, unknown>;
+  "actual"?: Record<string, unknown>;
+  "passed": boolean;
+  "message"?: string | null;
+}
+
+export interface TestResultResponseDto {
+  "id": string;
+  "stepId"?: string | null;
+  "stepType": string;
+  "suiteName": string;
+  "testName": string;
+  "status": string;
+  "method": string;
+  "path": string;
+  "expectedStatus": number;
+  "actualStatus"?: number;
+  "attempts": number;
+  "durationMs": number;
+  "requestBody"?: Record<string, unknown>;
+  "responsePreview"?: Record<string, unknown>;
+  "responsePreviewTruncated"?: boolean;
+  "responseArtifactId"?: string | null;
+  "errorMessage"?: string | null;
+  "assertionResults"?: Array<AssertionResultDto>;
+  "variablesSnapshot"?: Record<string, unknown>;
+  "requestHeaders"?: Record<string, unknown>;
+  "responseHeaders"?: Record<string, unknown>;
+  "createdAt": string;
+}
+
+export interface PrimaryFailureDto {
+  "kind": "test_step" | "environment" | "healthcheck" | "infrastructure" | "cancelled";
+  "phase": string;
+  "testResultId"?: string | null;
+  "stepId"?: string | null;
+  "suiteName"?: string | null;
+  "testName"?: string | null;
+  "message": string;
+  "expected"?: Record<string, unknown>;
+  "actual"?: Record<string, unknown>;
+  "assertions"?: Array<AssertionResultDto>;
+}
+
+export interface EnvironmentResultDto {
+  "status": "passed" | "failed" | "skipped" | "not_reached";
+  "validationPassed"?: boolean;
+  "message"?: string | null;
+}
+
+export interface HealthcheckResultDto {
+  "status": "passed" | "failed" | "skipped" | "not_reached";
+  "expectedStatus"?: number;
+  "actualStatus"?: number;
+  "durationMs"?: number;
+  "url"?: string | null;
+  "message"?: string | null;
+}
+
+export interface InfrastructureDiagnosticsDto {
+  "cleanupError"?: string | null;
+  "runnerId"?: string | null;
+  "errorMessage"?: string | null;
+}
+
+export interface TestRunDiagnosisDto {
+  "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL" | null;
+  "headline": string;
+  "primaryFailure"?: PrimaryFailureDto;
+  "environmentResult": EnvironmentResultDto;
+  "healthcheckResult": HealthcheckResultDto;
+  "infrastructure": InfrastructureDiagnosticsDto;
+}
+
+export interface PhaseTimelineEntryDto {
+  "id": string;
+  "label": string;
+  "status": "pending" | "active" | "completed" | "failed" | "skipped";
+  "startedAt"?: string | null;
+  "finishedAt"?: string | null;
+  "durationMs"?: number | null;
+}
+
+export interface TestRunDetailResponseDto {
+  "id": string;
+  "projectId": string;
+  "environmentConfigRevisionId"?: string | null;
+  "runnerVersion": string;
+  "reportSchemaVersion": number;
+  "status": "CREATED" | "QUEUED" | "CLAIMED" | "PREPARING_WORKSPACE" | "VALIDATING_ENVIRONMENT" | "PULLING_IMAGES" | "STARTING_ENVIRONMENT" | "WAITING_FOR_HEALTHCHECK" | "EXECUTING_TESTS" | "COLLECTING_ARTIFACTS" | "CLEANING_UP" | "PASSED" | "TEST_FAILED" | "INFRA_FAILED" | "TIMED_OUT" | "CANCEL_REQUESTED" | "CANCELLED";
+  "statusReason"?: string | null;
+  "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL" | null;
+  "currentPhase"?: string | null;
+  "phaseTimestamps"?: Record<string, unknown>;
+  "queueJobId"?: string | null;
+  "queuedAt"?: string | null;
+  "enqueuedAt"?: string | null;
+  "claimedAt"?: string | null;
+  "cancellationRequestedAt"?: string | null;
+  "cancelRequestedAt"?: string | null;
+  "cancelRequestedBy"?: string | null;
+  "cancellationReason"?: string | null;
+  "runnerId"?: string | null;
+  "leaseAcquiredAt"?: string | null;
+  "leaseExpiresAt"?: string | null;
+  "heartbeatAt"?: string | null;
+  "attempt": number;
+  "cleanupError"?: string | null;
+  "startedAt"?: string | null;
+  "finishedAt"?: string | null;
+  "totalTests": number;
+  "passedTests": number;
+  "failedTests": number;
+  "durationMs"?: number | null;
+  "errorMessage"?: string | null;
+  "results": Array<TestResultResponseDto>;
+  "diagnosis": TestRunDiagnosisDto;
+  "phaseTimeline": Array<PhaseTimelineEntryDto>;
+  "environmentConfigRevision"?: Record<string, unknown>;
+  "suiteRevisions"?: Array<Record<string, unknown>>;
+}
+
+export interface ComparisonRunRefDto {
+  "id": string;
+  "status": "CREATED" | "QUEUED" | "CLAIMED" | "PREPARING_WORKSPACE" | "VALIDATING_ENVIRONMENT" | "PULLING_IMAGES" | "STARTING_ENVIRONMENT" | "WAITING_FOR_HEALTHCHECK" | "EXECUTING_TESTS" | "COLLECTING_ARTIFACTS" | "CLEANING_UP" | "PASSED" | "TEST_FAILED" | "INFRA_FAILED" | "TIMED_OUT" | "CANCEL_REQUESTED" | "CANCELLED";
+  "finishedAt"?: string | null;
+}
+
+export interface ImageReferenceComparisonDto {
+  "serviceName": string;
+  "current"?: string | null;
+  "baseline"?: string | null;
+  "changed": boolean;
+}
+
+export interface StepDiffDto {
+  "stepId"?: string | null;
+  "testName": string;
+  "currentStatus"?: string;
+  "baselineStatus"?: string;
+  "statusChanged": boolean;
+  "currentActualStatus"?: number;
+  "baselineActualStatus"?: number;
+  "currentDurationMs"?: number;
+  "baselineDurationMs"?: number;
+  "durationRegressionMs"?: number;
+  "durationRegressionPercent"?: number;
+}
+
+export interface ComparisonSummaryDto {
+  "stepsWithStatusChange": number;
+  "stepsWithTimingRegression": number;
+}
+
+export interface TestRunComparisonDto {
+  "baselineRun"?: ComparisonRunRefDto;
+  "currentRun": ComparisonRunRefDto;
+  "revisions": Record<string, unknown>;
+  "imageReferences": Array<ImageReferenceComparisonDto>;
+  "stepDiffs": Array<StepDiffDto>;
+  "summary": ComparisonSummaryDto;
+}
+
 export interface TestRunEventResponseDto {
   "runId": string;
   "sequence": number;
@@ -1052,11 +1218,21 @@ export class GeneratedApiClient {
     return data;
   }
 
-  async TestRunsController_find(params: RequestParams, config?: AxiosRequestConfig): Promise<TestRunResponseDto> {
-    const { data } = await this.http.request<TestRunResponseDto>({
+  async TestRunsController_findDetail(params: RequestParams, config?: AxiosRequestConfig): Promise<TestRunDetailResponseDto> {
+    const { data } = await this.http.request<TestRunDetailResponseDto>({
       ...config,
       method: 'GET',
-      url: buildPath('/projects/{projectId}/test-runs/{runId}', params.path),
+      url: buildPath('/projects/{projectId}/test-runs/{runId}/detail', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async TestRunsController_findComparison(params: RequestParams, config?: AxiosRequestConfig): Promise<TestRunComparisonDto> {
+    const { data } = await this.http.request<TestRunComparisonDto>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/projects/{projectId}/test-runs/{runId}/comparison', params.path),
       params: params.query,
     });
     return data;
@@ -1067,6 +1243,16 @@ export class GeneratedApiClient {
       ...config,
       method: 'GET',
       url: buildPath('/projects/{projectId}/test-runs/{runId}/events', params.path),
+      params: params.query,
+    });
+    return data;
+  }
+
+  async TestRunsController_find(params: RequestParams, config?: AxiosRequestConfig): Promise<TestRunResponseDto> {
+    const { data } = await this.http.request<TestRunResponseDto>({
+      ...config,
+      method: 'GET',
+      url: buildPath('/projects/{projectId}/test-runs/{runId}', params.path),
       params: params.query,
     });
     return data;

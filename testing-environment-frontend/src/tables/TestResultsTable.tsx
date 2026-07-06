@@ -8,20 +8,50 @@ import { Button } from '../components/ui/Button';
 interface TestResultsTableProps {
   results: TestResult[];
   onSelect: (result: TestResult) => void;
+  selectedResultId?: string;
+  primaryFailureResultId?: string;
 }
 
 const VIRTUALIZE_THRESHOLD = 50;
 const ROW_HEIGHT = 52;
 
-export function TestResultsTable({ results, onSelect }: TestResultsTableProps) {
-  if (results.length <= VIRTUALIZE_THRESHOLD) {
+function sortResults(results: TestResult[]): TestResult[] {
+  return [...results].sort((left, right) => {
+    if (left.status === right.status) {
+      return 0;
+    }
+    if (left.status === 'FAILED') {
+      return -1;
+    }
+    if (right.status === 'FAILED') {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+export function TestResultsTable({
+  results,
+  onSelect,
+  selectedResultId,
+  primaryFailureResultId,
+}: TestResultsTableProps) {
+  const sorted = sortResults(results);
+
+  if (sorted.length <= VIRTUALIZE_THRESHOLD) {
     return (
       <div className="overflow-x-auto rounded-lg border border-border bg-white">
         <table className="min-w-full divide-y divide-border text-sm">
           <TableHead />
           <tbody className="divide-y divide-border">
-            {results.map((result) => (
-              <ResultRow key={result.id} result={result} onSelect={onSelect} />
+            {sorted.map((result) => (
+              <ResultRow
+                key={result.id}
+                result={result}
+                onSelect={onSelect}
+                selected={result.id === selectedResultId}
+                primaryFailure={result.id === primaryFailureResultId}
+              />
             ))}
           </tbody>
         </table>
@@ -29,15 +59,26 @@ export function TestResultsTable({ results, onSelect }: TestResultsTableProps) {
     );
   }
 
-  return <VirtualizedResultsTable results={results} onSelect={onSelect} />;
+  return (
+    <VirtualizedResultsTable
+      results={sorted}
+      onSelect={onSelect}
+      selectedResultId={selectedResultId}
+      primaryFailureResultId={primaryFailureResultId}
+    />
+  );
 }
 
 function VirtualizedResultsTable({
   results,
   onSelect,
+  selectedResultId,
+  primaryFailureResultId,
 }: {
   results: TestResult[];
   onSelect: (result: TestResult) => void;
+  selectedResultId?: string;
+  primaryFailureResultId?: string;
 }) {
   const parentRef = useRef<HTMLDivElement | null>(null);
   const virtualizer = useVirtualizer({
@@ -63,7 +104,9 @@ function VirtualizedResultsTable({
                     return (
                       <div
                         key={result.id}
-                        className="absolute left-0 top-0 grid w-full grid-cols-[repeat(11,minmax(0,1fr))] items-center border-b border-border px-4 py-3"
+                        className={`absolute left-0 top-0 grid w-full grid-cols-[repeat(11,minmax(0,1fr))] items-center border-b border-border px-4 py-3 ${
+                          result.id === selectedResultId ? 'bg-blue-50' : result.id === primaryFailureResultId ? 'bg-red-50/60' : ''
+                        }`}
                         style={{ transform: `translateY(${item.start}px)`, height: `${item.size}px` }}
                       >
                         <div><StatusBadge status={result.status} /></div>
@@ -117,12 +160,16 @@ function TableHead() {
 function ResultRow({
   result,
   onSelect,
+  selected,
+  primaryFailure,
 }: {
   result: TestResult;
   onSelect: (result: TestResult) => void;
+  selected?: boolean;
+  primaryFailure?: boolean;
 }) {
   return (
-    <tr>
+    <tr className={selected ? 'bg-blue-50' : primaryFailure ? 'bg-red-50/60' : undefined}>
       <td className="px-4 py-3"><StatusBadge status={result.status} /></td>
       <td className="px-4 py-3">{result.suiteName}</td>
       <td className="px-4 py-3">{result.testName}</td>

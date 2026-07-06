@@ -50,6 +50,7 @@ class ReportsApi {
     return {
       id: log.id,
       timestamp: log.createdAt,
+      source: log.source,
       level: this.toLevel(log.source),
       sequence: log.sequence,
       message: log.message,
