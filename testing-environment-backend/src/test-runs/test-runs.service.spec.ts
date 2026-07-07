@@ -28,6 +28,9 @@ describe('TestRunsService', () => {
     testRunEvent: {
       findMany: jest.Mock;
     };
+    runnerLogChunk: {
+      findMany: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let queue: {
@@ -98,6 +101,9 @@ describe('TestRunsService', () => {
       },
       testRunEvent: {
         findMany: jest.fn(),
+      },
+      runnerLogChunk: {
+        findMany: jest.fn(() => Promise.resolve([])),
       },
       $transaction: jest.fn((callback: (tx: unknown) => Promise<unknown>) => callback(prisma)),
     };

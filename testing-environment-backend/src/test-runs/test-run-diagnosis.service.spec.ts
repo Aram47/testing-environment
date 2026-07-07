@@ -3,10 +3,11 @@ import {
   TestRunFailureCategory,
   TestRunStatus,
 } from '@prisma/client';
+import { FailureDiagnosisEngine } from './failure-diagnosis/failure-diagnosis.engine';
 import { TestRunDiagnosisService } from './test-run-diagnosis.service';
 
 describe('TestRunDiagnosisService', () => {
-  const service = new TestRunDiagnosisService();
+  const service = new TestRunDiagnosisService(new FailureDiagnosisEngine());
 
   it('builds test-step primary failure for TEST_FAILED runs', () => {
     const diagnosis = service.buildDiagnosis(
@@ -75,6 +76,7 @@ describe('TestRunDiagnosisService', () => {
     expect(diagnosis.headline).toContain('Expected status 201');
     expect(diagnosis.environmentResult.status).toBe('passed');
     expect(diagnosis.healthcheckResult.status).toBe('passed');
+    expect(diagnosis.structuredDiagnosis?.category).toBe('unexpected_status');
   });
 
   it('builds healthcheck primary failure from execution metadata', () => {

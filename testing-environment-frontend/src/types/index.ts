@@ -593,6 +593,37 @@ export interface HealthcheckResult {
   message?: string | null;
 }
 
+export interface DiagnosisEvidenceRef {
+  testResultId?: string | null;
+  phaseId?: string | null;
+  logChunkSequence?: number | null;
+  field?: string | null;
+}
+
+export interface DiagnosisEvidence {
+  type: 'test_result' | 'phase' | 'log_excerpt' | 'healthcheck' | 'environment' | 'run_field';
+  label: string;
+  detail: string;
+  ref?: DiagnosisEvidenceRef | null;
+}
+
+export interface SuggestedAction {
+  id: string;
+  label: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface StructuredRunDiagnosis {
+  category: string;
+  title: string;
+  summary: string;
+  primaryEvidence: DiagnosisEvidence[];
+  relatedEvidence: DiagnosisEvidence[];
+  suggestedActions: SuggestedAction[];
+  confidence: number;
+}
+
 export interface TestRunDiagnosis {
   failureCategory?: TestRunFailureCategory | null;
   headline: string;
@@ -604,6 +635,7 @@ export interface TestRunDiagnosis {
     runnerId?: string | null;
     errorMessage?: string | null;
   };
+  structuredDiagnosis?: StructuredRunDiagnosis | null;
 }
 
 export interface PhaseTimelineEntry {

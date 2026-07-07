@@ -7,6 +7,8 @@ import {
   TestRunFailureCategory,
   TestRunStatus,
 } from '@prisma/client';
+import { FailureDiagnosisEngine } from './failure-diagnosis/failure-diagnosis.engine';
+import { LogChunkPreview } from './failure-diagnosis/failure-diagnosis.types';
 import { TEST_RUN_PHASE_STATUSES } from './test-run-status.constants';
 import {
   TestRunExecutionMetadata,
@@ -104,7 +106,13 @@ const TERMINAL_FAILURE_STATUSES: TestRunStatus[] = [
 
 @Injectable()
 export class TestRunDiagnosisService {
-  buildDiagnosis(run: DiagnosisRun, results: TestResult[]): TestRunDiagnosisDto {
+  constructor(private readonly failureDiagnosis: FailureDiagnosisEngine) {}
+
+  buildDiagnosis(
+    run: DiagnosisRun,
+    results: TestResult[],
+    logPreviews: LogChunkPreview[] = [],
+  ): TestRunDiagnosisDto {
     const metadata = this.readMetadata(run.executionMetadata);
     const environmentResult = this.buildEnvironmentResult(run, metadata);
     const healthcheckResult = this.buildHealthcheckResult(run, metadata);
@@ -115,6 +123,8 @@ export class TestRunDiagnosisService {
     });
     const headline = this.buildHeadline(run, primaryFailure);
 
+    const structuredDiagnosis = this.failureDiagnosis.diagnose(run, results, logPreviews);
+
     return {
       failureCategory: run.failureCategory,
       headline,
@@ -122,6 +132,7 @@ export class TestRunDiagnosisService {
       environmentResult,
       healthcheckResult,
       infrastructure,
+      structuredDiagnosis,
     };
   }
 

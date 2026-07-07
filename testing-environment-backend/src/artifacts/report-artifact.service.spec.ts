@@ -1,20 +1,25 @@
 import { TestResultStatus, TestRunStatus } from '@prisma/client';
+import { FailureDiagnosisEngine } from '../test-runs/failure-diagnosis/failure-diagnosis.engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactsService } from './artifacts.service';
 import { ReportArtifactService } from './report-artifact.service';
 
 describe('ReportArtifactService', () => {
-  it('builds schema v2 reports with immutable revision IDs and runner version', async () => {
+  it('builds schema v3 reports with diagnosis and immutable revision IDs', async () => {
     const service = createService();
 
     const report = await service.buildLegacyReport('project-1', 'run-1');
 
     expect(report).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
       run: { id: 'run-1', runnerVersion: 'runner-v1' },
       revisions: {
         environmentConfigRevisionId: 'env-revision-1',
         testSuiteRevisionIds: ['suite-revision-1'],
+      },
+      diagnosis: {
+        category: 'unexpected_status',
+        confidence: 0.95,
       },
     });
   });
@@ -83,10 +88,14 @@ describe('ReportArtifactService', () => {
           }),
         ),
       },
+      runnerLogChunk: {
+        findMany: jest.fn(() => Promise.resolve([])),
+      },
     };
     return new ReportArtifactService(
       prisma as unknown as PrismaService,
       { putOrReplace: jest.fn(), retentionUntil: jest.fn() } as unknown as ArtifactsService,
+      new FailureDiagnosisEngine(),
     );
   }
 });

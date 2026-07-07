@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, RevisionStatus, TestRunFailureCategory, TestRunStatus } from '@prisma/client';
+import {
+  Prisma,
+  RevisionStatus,
+  RunnerLogSource,
+  TestRunFailureCategory,
+  TestRunStatus,
+} from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { PaginatedResult } from '../common/interfaces/paginated-result.interface';
@@ -175,15 +181,29 @@ export class TestRunsService {
     const results = [...run.results].sort(
       (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
     );
+    const logPreviews = await this.loadDiagnosisLogPreviews(runId);
     return {
       ...run,
       results: results.map((result) => ({
         ...result,
         createdAt: result.createdAt.toISOString(),
       })),
-      diagnosis: this.diagnosis.buildDiagnosis(run, results),
+      diagnosis: this.diagnosis.buildDiagnosis(run, results, logPreviews),
       phaseTimeline: this.diagnosis.buildPhaseTimeline(run),
     };
+  }
+
+  private async loadDiagnosisLogPreviews(runId: string) {
+    const chunks = await this.prisma.runnerLogChunk.findMany({
+      where: {
+        testRunId: runId,
+        source: { in: [RunnerLogSource.ERROR, RunnerLogSource.DOCKER] },
+      },
+      orderBy: { sequence: 'desc' },
+      take: 5,
+      select: { sequence: true, source: true, preview: true },
+    });
+    return chunks.reverse();
   }
 
   async findComparison(projectId: string, runId: string, companyId: string) {

@@ -4422,6 +4422,134 @@
           }
         }
       },
+      "DiagnosisEvidenceRefDto": {
+        "type": "object",
+        "properties": {
+          "testResultId": {
+            "type": "string",
+            "nullable": true
+          },
+          "phaseId": {
+            "type": "string",
+            "nullable": true
+          },
+          "logChunkSequence": {
+            "type": "number",
+            "nullable": true
+          },
+          "field": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosisEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "test_result",
+              "phase",
+              "log_excerpt",
+              "healthcheck",
+              "environment",
+              "run_field"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "ref": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosisEvidenceRefDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "label",
+          "detail"
+        ]
+      },
+      "SuggestedActionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "description",
+          "priority"
+        ]
+      },
+      "StructuredRunDiagnosisDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "primaryEvidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosisEvidenceDto"
+            }
+          },
+          "relatedEvidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosisEvidenceDto"
+            }
+          },
+          "suggestedActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestedActionDto"
+            }
+          },
+          "confidence": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "category",
+          "title",
+          "summary",
+          "primaryEvidence",
+          "relatedEvidence",
+          "suggestedActions",
+          "confidence"
+        ]
+      },
       "TestRunDiagnosisDto": {
         "type": "object",
         "properties": {
@@ -4459,6 +4587,14 @@
           },
           "infrastructure": {
             "$ref": "#/components/schemas/InfrastructureDiagnosticsDto"
+          },
+          "structuredDiagnosis": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StructuredRunDiagnosisDto"
+              }
+            ]
           }
         },
         "required": [

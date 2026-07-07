@@ -8,6 +8,7 @@ import { ArtifactRetentionService } from './artifact-retention.service';
 import { ARTIFACT_STORAGE } from './artifact-storage.interface';
 import { ArtifactsService } from './artifacts.service';
 import { FilesystemArtifactStorage } from './filesystem-artifact-storage.service';
+import { FailureDiagnosisEngine } from '../test-runs/failure-diagnosis/failure-diagnosis.engine';
 import { ReportArtifactService } from './report-artifact.service';
 
 @Module({
@@ -15,6 +16,7 @@ import { ReportArtifactService } from './report-artifact.service';
   providers: [
     ArtifactsService,
     ArtifactLogWriterService,
+    FailureDiagnosisEngine,
     ReportArtifactService,
     ArtifactRetentionService,
     ArtifactRetentionProcessor,

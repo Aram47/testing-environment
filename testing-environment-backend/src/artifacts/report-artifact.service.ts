@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { ArtifactCompression, ArtifactType, TestResultStatus } from '@prisma/client';
+import { ArtifactCompression, ArtifactType, RunnerLogSource, TestResultStatus } from '@prisma/client';
+import { FailureDiagnosisEngine } from '../test-runs/failure-diagnosis/failure-diagnosis.engine';
 import { PrismaService } from '../prisma/prisma.service';
 import { toJsonBuffer } from './artifact-utils';
 import { ArtifactsService } from './artifacts.service';
 
-export const REPORT_SCHEMA_VERSION = 2;
+export const REPORT_SCHEMA_VERSION = 3;
 
 @Injectable()
 export class ReportArtifactService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly artifacts: ArtifactsService,
+    private readonly failureDiagnosis: FailureDiagnosisEngine,
   ) {}
 
   async generateForRun(testRunId: string): Promise<void> {
@@ -18,7 +20,7 @@ export class ReportArtifactService {
     if (!run) {
       return;
     }
-    const report = this.toReport(run);
+    const report = await this.toReport(run);
     await this.artifacts.putOrReplace({
       testRunId,
       type: ArtifactType.REPORT_JSON,
@@ -68,7 +70,9 @@ export class ReportArtifactService {
     });
   }
 
-  private toReport(run: NonNullable<Awaited<ReturnType<ReportArtifactService['loadRun']>>>) {
+  private async toReport(run: NonNullable<Awaited<ReturnType<ReportArtifactService['loadRun']>>>) {
+    const logPreviews = await this.loadDiagnosisLogPreviews(run.id);
+    const diagnosis = this.failureDiagnosis.diagnose(run, run.results, logPreviews);
     return {
       schemaVersion: REPORT_SCHEMA_VERSION,
       run: {
@@ -85,6 +89,7 @@ export class ReportArtifactService {
         failureCategory: run.failureCategory,
         errorMessage: run.errorMessage,
       },
+      diagnosis,
       revisions: {
         environmentConfigRevisionId: run.environmentConfigRevisionId,
         environmentConfigRevisionNumber: run.environmentConfigRevision?.revisionNumber,
@@ -117,6 +122,19 @@ export class ReportArtifactService {
         createdAt: result.createdAt,
       })),
     };
+  }
+
+  private async loadDiagnosisLogPreviews(runId: string) {
+    const chunks = await this.prisma.runnerLogChunk.findMany({
+      where: {
+        testRunId: runId,
+        source: { in: [RunnerLogSource.ERROR, RunnerLogSource.DOCKER] },
+      },
+      orderBy: { sequence: 'desc' },
+      take: 5,
+      select: { sequence: true, source: true, preview: true },
+    });
+    return chunks.reverse();
   }
 
   private toJUnitXml(

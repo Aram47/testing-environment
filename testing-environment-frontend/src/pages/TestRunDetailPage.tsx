@@ -19,6 +19,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/toastContext';
 import { FailureInspector } from '../features/test-runs/FailureInspector';
 import { getFailureFocusTimeRange } from '../features/test-runs/failureFocus';
+import { StructuredDiagnosisPanel } from '../features/test-runs/StructuredDiagnosisPanel';
 import { PhaseDurationChart } from '../features/test-runs/PhaseDurationChart';
 import { PhaseTimeline } from '../features/test-runs/PhaseTimeline';
 import { RunComparisonPanel } from '../features/test-runs/RunComparisonPanel';
@@ -224,6 +225,12 @@ export function TestRunDetailPage() {
       />
       <div className="space-y-6">
         <RunSummaryHeader run={run} connectionState={connectionState} />
+        {run.diagnosis.structuredDiagnosis ? (
+          <StructuredDiagnosisPanel
+            diagnosis={run.diagnosis.structuredDiagnosis}
+            onSelectTestResult={(testResultId) => setSelectedResultId(testResultId)}
+          />
+        ) : null}
         <PhaseTimeline phases={run.phaseTimeline} />
         <PhaseDurationChart phases={run.phaseTimeline} />
         {run.diagnosis.primaryFailure ? (

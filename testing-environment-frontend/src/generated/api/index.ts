@@ -476,6 +476,37 @@ export interface InfrastructureDiagnosticsDto {
   "errorMessage"?: string | null;
 }
 
+export interface DiagnosisEvidenceRefDto {
+  "testResultId"?: string | null;
+  "phaseId"?: string | null;
+  "logChunkSequence"?: number | null;
+  "field"?: string | null;
+}
+
+export interface DiagnosisEvidenceDto {
+  "type": "test_result" | "phase" | "log_excerpt" | "healthcheck" | "environment" | "run_field";
+  "label": string;
+  "detail": string;
+  "ref"?: DiagnosisEvidenceRefDto;
+}
+
+export interface SuggestedActionDto {
+  "id": string;
+  "label": string;
+  "description": string;
+  "priority": "high" | "medium" | "low";
+}
+
+export interface StructuredRunDiagnosisDto {
+  "category": string;
+  "title": string;
+  "summary": string;
+  "primaryEvidence": Array<DiagnosisEvidenceDto>;
+  "relatedEvidence": Array<DiagnosisEvidenceDto>;
+  "suggestedActions": Array<SuggestedActionDto>;
+  "confidence": number;
+}
+
 export interface TestRunDiagnosisDto {
   "failureCategory"?: "TEST_ASSERTION" | "ENVIRONMENT_VALIDATION" | "IMAGE_PULL" | "CONTAINER_START" | "HEALTHCHECK" | "NETWORK" | "TIMEOUT" | "CANCELLED" | "INTERNAL" | null;
   "headline": string;
@@ -483,6 +514,7 @@ export interface TestRunDiagnosisDto {
   "environmentResult": EnvironmentResultDto;
   "healthcheckResult": HealthcheckResultDto;
   "infrastructure": InfrastructureDiagnosticsDto;
+  "structuredDiagnosis"?: StructuredRunDiagnosisDto;
 }
 
 export interface PhaseTimelineEntryDto {

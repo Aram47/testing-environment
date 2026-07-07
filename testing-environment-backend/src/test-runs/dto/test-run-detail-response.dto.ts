@@ -98,6 +98,73 @@ export class InfrastructureDiagnosticsDto {
   errorMessage?: string | null;
 }
 
+export class DiagnosisEvidenceRefDto {
+  @ApiPropertyOptional({ type: String, nullable: true })
+  testResultId?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  phaseId?: string | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  logChunkSequence?: number | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  field?: string | null;
+}
+
+export class DiagnosisEvidenceDto {
+  @ApiProperty({
+    enum: ['test_result', 'phase', 'log_excerpt', 'healthcheck', 'environment', 'run_field'],
+  })
+  type!: 'test_result' | 'phase' | 'log_excerpt' | 'healthcheck' | 'environment' | 'run_field';
+
+  @ApiProperty()
+  label!: string;
+
+  @ApiProperty()
+  detail!: string;
+
+  @ApiPropertyOptional({ type: DiagnosisEvidenceRefDto, nullable: true })
+  ref?: DiagnosisEvidenceRefDto | null;
+}
+
+export class SuggestedActionDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  label!: string;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty({ enum: ['high', 'medium', 'low'] })
+  priority!: 'high' | 'medium' | 'low';
+}
+
+export class StructuredRunDiagnosisDto {
+  @ApiProperty()
+  category!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty()
+  summary!: string;
+
+  @ApiProperty({ type: DiagnosisEvidenceDto, isArray: true })
+  primaryEvidence!: DiagnosisEvidenceDto[];
+
+  @ApiProperty({ type: DiagnosisEvidenceDto, isArray: true })
+  relatedEvidence!: DiagnosisEvidenceDto[];
+
+  @ApiProperty({ type: SuggestedActionDto, isArray: true })
+  suggestedActions!: SuggestedActionDto[];
+
+  @ApiProperty()
+  confidence!: number;
+}
+
 export class TestRunDiagnosisDto {
   @ApiPropertyOptional({ enum: TestRunFailureCategory, nullable: true })
   failureCategory?: TestRunFailureCategory | null;
@@ -116,6 +183,9 @@ export class TestRunDiagnosisDto {
 
   @ApiProperty({ type: InfrastructureDiagnosticsDto })
   infrastructure!: InfrastructureDiagnosticsDto;
+
+  @ApiPropertyOptional({ type: StructuredRunDiagnosisDto, nullable: true })
+  structuredDiagnosis?: StructuredRunDiagnosisDto | null;
 }
 
 export class PhaseTimelineEntryDto {
